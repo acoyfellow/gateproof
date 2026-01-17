@@ -1,4 +1,35 @@
-<section class="relative min-h-screen flex items-center justify-center overflow-hidden">
+<script lang="ts">
+  import CodeBlock from './CodeBlock.svelte';
+  
+  const codeSnippet = `import { Gate, Act, Assert } from "gateproof";
+import { CloudflareProvider } from "gateproof/cloudflare";
+
+const provider = CloudflareProvider({
+  accountId: process.env.CLOUDFLARE_ACCOUNT_ID,
+  apiToken: process.env.CLOUDFLARE_API_TOKEN
+});
+
+const result = await Gate.run({
+  observe: provider.observe({
+    backend: "analytics",
+    dataset: "worker_logs"
+  }),
+  act: [
+    Act.browser({
+      url: "https://my-worker.workers.dev"
+    })
+  ],
+  assert: [
+    Assert.noErrors(),
+    Assert.hasAction("request_received")
+  ],
+  stop: { idleMs: 3000, maxMs: 10000 }
+});
+
+if (result.status !== "success") process.exit(1);`;
+</script>
+
+<section class="relative flex items-center justify-center overflow-hidden p-20">
   <!-- Full bleed background image -->
   <div 
     class="absolute inset-0 bg-cover bg-center bg-no-repeat"
@@ -18,15 +49,22 @@
   </div>
   
   <!-- Content -->
-  <div class="relative z-10 flex flex-col items-center gap-12 px-4 text-center max-w-5xl mx-auto">
-    <h2 class="text-5xl sm:text-6xl md:text-7xl lg:text-8xl font-bold leading-tight">
+  <div class="relative z-10 flex flex-col items-center gap-12 px-4 max-w-5xl mx-auto">
+    <h2 class="text-5xl sm:text-6xl md:text-7xl lg:text-8xl font-bold leading-tight text-center">
       <span class="text-white">From Chaos</span><br/>
       <span class="text-amber-300">to Order</span>
     </h2>
     
-    <p class="text-xl sm:text-2xl md:text-3xl font-medium max-w-3xl leading-relaxed text-white drop-shadow-lg">
+    <p class="text-center text-xl sm:text-2xl md:text-3xl font-medium max-w-3xl leading-relaxed text-white drop-shadow-lg">
       Passing through the threshold<br/>
       <span class="text-amber-300">from chaos to order</span>
     </p>
+    
+    <!-- Code Example -->
+    <div class="my-8 bg-black/60 backdrop-blur-sm border border-amber-300/30 rounded-lg shadow-xl max-w-4xl w-full">
+      <div class="bg-gray-900 rounded-lg p-4 overflow-x-auto">
+        <CodeBlock code={codeSnippet} language="typescript" />
+      </div>
+    </div>
   </div>
 </section>

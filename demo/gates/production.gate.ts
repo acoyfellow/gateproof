@@ -1,27 +1,32 @@
 #!/usr/bin/env bun
 /**
- * @deprecated This file has been moved to demo/gates/production.gate.ts
+ * Production Gate
  * 
- * Please use: bun run demo/gates/production.gate.ts
+ * Validates that production deployment is accessible and core endpoints work.
+ * 
+ * Usage:
+ *   bun run demo/gates/production.gate.ts
+ * 
+ * Environment variables:
+ *   PRODUCTION_URL - Production URL (defaults to https://gateproof.dev)
  */
 
-console.error("⚠️  This file has been moved to demo/gates/production.gate.ts");
-console.error("   Please use: bun run demo/gates/production.gate.ts");
-process.exit(1);
+import { Gate, Act, Assert } from "../../src/index";
+import { createEmptyObserveResource, runGateWithErrorHandling } from "../../src/utils";
 
 const productionUrl = process.env.PRODUCTION_URL || "https://gateproof.dev";
 
 async function main() {
-  console.log(`🧪 Running Gate Proof test against production: ${productionUrl}`);
+  console.log(`🚪 Running Production Gate: ${productionUrl}`);
   console.log("");
 
-  // Test 1: Homepage loads correctly
-  console.log("📄 Test 1: Homepage loads correctly");
+  // Gate 1: Homepage loads correctly
+  console.log("📄 Gate 1: Homepage loads correctly");
   const homepageGate = {
     name: "production-homepage",
     observe: createEmptyObserveResource(),
     act: [
-      Act.wait(500), // Give a moment for any async operations
+      Act.wait(500),
     ],
     assert: [
       Assert.custom("homepage_accessible", async () => {
@@ -44,8 +49,8 @@ async function main() {
   }
   console.log("");
 
-  // Test 2: Health endpoint works
-  console.log("🏥 Test 2: Health endpoint works");
+  // Gate 2: Health endpoint works
+  console.log("🏥 Gate 2: Health endpoint works");
   const healthGate = {
     name: "production-health",
     observe: createEmptyObserveResource(),
@@ -72,8 +77,8 @@ async function main() {
   }
   console.log("");
 
-  // Test 3: Test endpoint works
-  console.log("🧪 Test 3: Test endpoint works");
+  // Gate 3: Test endpoint works
+  console.log("🧪 Gate 3: Test endpoint works");
   const testGate = {
     name: "production-test-endpoint",
     observe: createEmptyObserveResource(),
@@ -103,24 +108,21 @@ async function main() {
   console.log("");
 
   // Summary
-  console.log("📊 Summary:");
+  console.log("📊 Gate Summary:");
   const allPassed = homepageResult.status === "success" && 
                     healthResult.status === "success" && 
                     testResult.status === "success";
   
-  console.log(`   Homepage: ${homepageResult.status === "success" ? "✅" : "❌"}`);
-  console.log(`   Health: ${healthResult.status === "success" ? "✅" : "❌"}`);
-  console.log(`   Test Endpoint: ${testResult.status === "success" ? "✅" : "❌"}`);
+  console.log(`   Homepage: ${homepageResult.status === "success" ? "✅ PASSED" : "❌ FAILED"}`);
+  console.log(`   Health: ${healthResult.status === "success" ? "✅ PASSED" : "❌ FAILED"}`);
+  console.log(`   Test Endpoint: ${testResult.status === "success" ? "✅ PASSED" : "❌ FAILED"}`);
   console.log("");
 
   if (allPassed) {
-    console.log("✅ All tests passed!");
-    console.log("");
-    console.log("💡 Tip: To use browser automation (Act.browser), install Playwright:");
-    console.log("   npm install playwright && npx playwright install chromium");
+    console.log("✅ All gates passed! Production is ready.");
     process.exit(0);
   } else {
-    console.log("❌ Some tests failed");
+    console.log("❌ Some gates failed. Production is not ready.");
     process.exit(1);
   }
 }

@@ -25,10 +25,10 @@
   
   <!-- Content -->
   <div class="relative z-10 max-w-4xl mx-auto text-center">
-    <h2 class="text-4xl sm:text-5xl md:text-6xl lg:text-7xl font-bold mb-8 text-black leading-tight">
+    <h2 class="text-4xl sm:text-5xl md:text-6xl lg:text-7xl font-bold mb-8 text-black leading-tigher">
       Take control of AI-generated code
     </h2>
-    <p class="text-xl sm:text-2xl md:text-3xl text-gray-900 mb-12 max-w-3xl mx-auto leading-relaxed">
+    <p class="text-xl sm:text-2xl md:text-3xl text-gray-900 mb-12 max-w-3xl mx-auto leading-tighter">
       Define constraints. Validate against reality.
     </p>
     

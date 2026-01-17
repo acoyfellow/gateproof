@@ -5,7 +5,7 @@
     style="background-image: url('/chaos.jpg');"
   >
     <!-- Dark overlay for text readability -->
-    <div class="absolute inset-0 bg-black/60"></div>
+    <div class="absolute inset-0 bg-blac"></div>
   </div>
   
   <!-- Content -->
@@ -14,24 +14,22 @@
       The Chaos
     </h2>
     
-    <p class="text-xl sm:text-2xl md:text-3xl text-gray-100 mb-12 max-w-3xl mx-auto leading-relaxed">
+    <p class="text-xl sm:text-2xl md:text-3xl text-gray-100 mb-12 max-w-3xl mx-auto leading-relaxed text-balance text-shadow-lg">
       Without gateproof, AI-generated code runs unchecked. Errors cascade. 
       Systems fail silently. Reality diverges from expectations.
     </p>
     
-    <div class="grid sm:grid-cols-3 gap-6 max-w-3xl mx-auto">
-      <div class="p-8 bg-red-950/40 border border-red-800/50 rounded backdrop-blur-sm">
-        <p class="text-lg font-semibold text-red-100 mb-2">Unpredictable behavior</p>
-        <p class="text-sm text-red-200/80">Code runs without validation</p>
-      </div>
-      <div class="p-8 bg-red-950/40 border border-red-800/50 rounded backdrop-blur-sm">
-        <p class="text-lg font-semibold text-red-100 mb-2">Cascading failures</p>
-        <p class="text-sm text-red-200/80">Errors propagate unchecked</p>
-      </div>
-      <div class="p-8 bg-red-950/40 border border-red-800/50 rounded backdrop-blur-sm">
-        <p class="text-lg font-semibold text-red-100 mb-2">No validation</p>
-        <p class="text-sm text-red-200/80">Reality diverges from code</p>
-      </div>
+    <div class="grid sm:grid-cols-3 gap-6 max-w-6xl mx-auto">
+      {#each [
+        { title: "Unpredictable behavior", desc: "Code runs without validation" },
+        { title: "Cascading failures", desc: "Errors propagate unchecked" },
+        { title: "No validation", desc: "Reality diverges from code" }
+      ] as item}
+        <div class="p-8 bg-red-950/40 border border-red-800/50 rounded backdrop-blur-sm">
+          <p class="text-2xl font-semibold text-red-100 mb-2">{item.title}</p>
+          <p class="text-lg text-red-200/80">{item.desc}</p>
+        </div>
+      {/each}
     </div>
   </div>
 </section>

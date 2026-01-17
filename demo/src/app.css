@@ -16,7 +16,7 @@
 }
 
 body {
-  font-family: 'JetBrains Mono', monospace;
+  font-family: 'Google Sans Code', monospace;
   background: var(--color-background);
   color: var(--color-foreground);
 }

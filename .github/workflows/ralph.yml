@@ -11,6 +11,11 @@ jobs:
     permissions:
       contents: write
     steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+
       - name: Check kill switch
         id: kill_switch
         run: |
@@ -18,11 +23,6 @@ jobs:
             echo "Ralph loop is paused (kill switch active)"
             exit 0
           fi
-
-      - name: Checkout code
-        uses: actions/checkout@v4
-        with:
-          token: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Setup Bun
         uses: oven-sh/setup-bun@v2

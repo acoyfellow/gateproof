@@ -87,18 +87,18 @@
     class="absolute inset-0 bg-cover bg-center bg-no-repeat"
     style="background-image: url('/heaven.jpg');"
   >
-    <!-- Light overlay for text readability -->
-    <div class="absolute inset-0 bg-white/20"></div>
+    <!-- Gold overlay for text readability -->
+    <div class="absolute inset-0 bg-amber-50/30"></div>
   </div>
   
   <!-- Content -->
   <div class="relative z-10 max-w-6xl mx-auto px-4 sm:px-6 py-16">
     <!-- Header -->
     <div class="text-center mb-12 md:mb-16">
-      <h2 class="text-4xl sm:text-5xl md:text-6xl lg:text-7xl font-bold mb-6 text-gray-900 leading-tight">
+      <h2 class="text-4xl sm:text-5xl md:text-6xl lg:text-7xl font-bold mb-6 text-amber-900 leading-tight">
         The Order
       </h2>
-      <p class="text-xl sm:text-2xl md:text-3xl max-w-3xl mx-auto text-gray-700 leading-relaxed">
+      <p class="text-xl sm:text-2xl md:text-3xl max-w-3xl mx-auto text-amber-800 leading-relaxed">
         The observation layer for building software in reverse. Define constraints. Let AI build within them. Validate against reality.
       </p>
     </div>
@@ -108,38 +108,38 @@
       <!-- Left: Explanation -->
       <div class="space-y-8">
         <!-- The Inversion -->
-        <div class="p-8 bg-white/80 backdrop-blur-sm border border-gray-200/50 rounded-lg shadow-lg">
-          <h3 class="text-2xl font-bold mb-4 text-gray-900">The Inversion</h3>
-          <p class="text-lg leading-relaxed mb-6 text-gray-700">
+        <div class="p-8 bg-amber-50/90 backdrop-blur-sm border border-amber-200/60 rounded-lg shadow-lg">
+          <h3 class="text-2xl font-bold mb-4 text-amber-900">The Inversion</h3>
+          <p class="text-lg leading-relaxed mb-6 text-amber-800">
             Software development is inverting. The question is not whether AI will write code—it is whether we will control it or it will control us.
           </p>
           <div class="grid sm:grid-cols-2 gap-4">
-            <div class="p-4 rounded-lg bg-pink-50/80 border border-pink-200/50">
-              <p class="text-xs uppercase tracking-wider mb-2 font-semibold text-pink-700">Before</p>
-              <p class="text-sm text-gray-900">Humans write, debug, maintain. Every feature manually implemented.</p>
+            <div class="p-4 rounded-lg bg-amber-100/90 border border-amber-300/60">
+              <p class="text-xs uppercase tracking-wider mb-2 font-semibold text-amber-800">Before</p>
+              <p class="text-sm text-amber-900">Humans write, debug, maintain. Every feature manually implemented.</p>
             </div>
-            <div class="p-4 rounded-lg bg-amber-50/80 border border-amber-200/50">
-              <p class="text-xs uppercase tracking-wider mb-2 font-semibold text-amber-700">After</p>
-              <p class="text-sm text-gray-900">Humans define constraints. AI builds within them. Systems validate.</p>
+            <div class="p-4 rounded-lg bg-amber-200/90 border border-amber-400/60">
+              <p class="text-xs uppercase tracking-wider mb-2 font-semibold text-amber-900">After</p>
+              <p class="text-sm text-amber-900">Humans define constraints. AI builds within them. Systems validate.</p>
             </div>
           </div>
         </div>
         
         <!-- Three Primitives -->
-        <div class="p-8 bg-white/80 backdrop-blur-sm border border-gray-200/50 rounded-lg shadow-lg">
-          <h3 class="text-2xl font-bold mb-6 text-gray-900">Three Primitives</h3>
+        <div class="p-8 bg-amber-50/90 backdrop-blur-sm border border-amber-200/60 rounded-lg shadow-lg">
+          <h3 class="text-2xl font-bold mb-6 text-amber-900">Three Primitives</h3>
           <div class="space-y-4">
-            <div class="p-4 rounded-lg bg-gray-50/80">
-              <p class="text-lg font-semibold text-gray-900 mb-2">Observe</p>
-              <p class="text-base text-gray-700">Connect to observability backends. Stream real logs from production.</p>
+            <div class="p-4 rounded-lg bg-amber-100/80">
+              <p class="text-lg font-semibold text-amber-900 mb-2">Observe</p>
+              <p class="text-base text-amber-800">Connect to observability backends. Stream real logs from production.</p>
             </div>
-            <div class="p-4 rounded-lg bg-gray-50/80">
-              <p class="text-lg font-semibold text-gray-900 mb-2">Act</p>
-              <p class="text-base text-gray-700">Trigger actions—deploy, automate, execute—that generate observable behavior.</p>
+            <div class="p-4 rounded-lg bg-amber-100/80">
+              <p class="text-lg font-semibold text-amber-900 mb-2">Act</p>
+              <p class="text-base text-amber-800">Trigger actions—deploy, automate, execute—that generate observable behavior.</p>
             </div>
-            <div class="p-4 rounded-lg bg-gray-50/80">
-              <p class="text-lg font-semibold text-gray-900 mb-2">Assert</p>
-              <p class="text-base text-gray-700">Validate that logs match constraints. Real logs from real systems.</p>
+            <div class="p-4 rounded-lg bg-amber-100/80">
+              <p class="text-lg font-semibold text-amber-900 mb-2">Assert</p>
+              <p class="text-base text-amber-800">Validate that logs match constraints. Real logs from real systems.</p>
             </div>
           </div>
         </div>
@@ -154,16 +154,16 @@
       
       <!-- Right: Real Gate Demo -->
       <div class="lg:sticky lg:top-8 h-fit">
-        <div class="p-8 bg-white/80 backdrop-blur-sm border border-gray-200/50 rounded-lg shadow-lg">
+        <div class="p-8 bg-amber-50/90 backdrop-blur-sm border border-amber-200/60 rounded-lg shadow-lg">
           <!-- Terminal header -->
-          <div class="flex items-center justify-between mb-4 pb-4 border-b border-gray-200">
+          <div class="flex items-center justify-between mb-4 pb-4 border-b border-amber-300/50">
             <div class="flex items-center gap-2">
               <div class="flex gap-1.5">
                 <div class="w-2.5 h-2.5 rounded-full bg-red-500"></div>
                 <div class="w-2.5 h-2.5 rounded-full bg-yellow-500"></div>
                 <div class="w-2.5 h-2.5 rounded-full bg-green-500"></div>
               </div>
-              <span class="text-xs ml-2 text-gray-600 font-mono">gateproof test</span>
+              <span class="text-xs ml-2 text-amber-700 font-mono">gateproof test</span>
             </div>
             <div class="flex items-center gap-2">
               {#if state === 'running'}
@@ -173,7 +173,7 @@
               {:else if state === 'failed'}
                 <span class="text-xs text-red-600 font-medium">Failed</span>
               {:else}
-                <span class="text-xs text-gray-400 font-medium">Ready</span>
+                <span class="text-xs text-amber-600 font-medium">Ready</span>
               {/if}
             </div>
           </div>
@@ -250,7 +250,7 @@
             {#if state !== 'idle'}
               <button
                 onclick={resetGate}
-                class="flex items-center gap-2 px-4 py-2 text-sm font-medium transition-colors border border-gray-300 text-gray-700 rounded hover:bg-gray-100"
+                class="flex items-center gap-2 px-4 py-2 text-sm font-medium transition-colors border border-amber-300 text-amber-700 rounded hover:bg-amber-100"
               >
                 <span>Reset</span>
               </button>

@@ -8,5 +8,10 @@ export default defineConfig({
     watch: {
       ignored: ['**/.alchemy/**']
     }
+  },
+  build: {
+    rollupOptions: {
+      external: ['playwright']
+    }
   }
 });

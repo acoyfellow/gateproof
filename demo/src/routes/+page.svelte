@@ -3,6 +3,7 @@
   import ChaosSection from '$lib/components/ChaosSection.svelte';
   import TransitionSection from '$lib/components/TransitionSection.svelte';
   import HeavenSection from '$lib/components/HeavenSection.svelte';
+  import PatternsSection from '$lib/components/PatternsSection.svelte';
   import CTASection from '$lib/components/CTASection.svelte';
   import LogoMark from '$lib/components/LogoMark.svelte';
   import InfoDrawer from '$lib/components/InfoDrawer.svelte';
@@ -38,6 +39,7 @@
   <ChaosSection />
   <TransitionSection />
   <HeavenSection onInfoClick={openInfoDrawer} />
+  <PatternsSection />
   <CTASection onDemoClick={scrollToDemo} onInfoClick={openInfoDrawer} />
   <InfoDrawer isOpen={infoOpen} onClose={closeInfoDrawer} />
 </main>
