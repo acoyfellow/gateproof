@@ -1,0 +1,31 @@
+{
+  "name": "cloudflare-sveltekit",
+  "private": true,
+  "version": "0.0.1",
+  "type": "module",
+  "scripts": {
+    "build": "bun x @sveltejs/kit sync && bun x vite build",
+    "vite": "vite",
+    "check:watch": "svelte-kit sync && svelte-check --tsconfig ./tsconfig.json --watch",
+    "check": "svelte-kit sync && svelte-check --tsconfig ./tsconfig.json",
+    "deploy": "alchemy deploy --env-file ../.env",
+    "destroy": "alchemy destroy --env-file ../.env",
+    "dev": "alchemy dev --env-file ../.env",
+    "prepare": "svelte-kit sync || echo ''",
+    "preview": "vite preview"
+  },
+  "devDependencies": {
+    "@cloudflare/workers-types": "^4.20250805.0",
+    "@sveltejs/adapter-auto": "^6.0.1",
+    "@sveltejs/adapter-cloudflare": "^7.0.3",
+    "@sveltejs/kit": "^2.21.2",
+    "@sveltejs/vite-plugin-svelte": "^5.1.0",
+    "@tailwindcss/vite": "^4.1.9",
+    "alchemy": "^0.83.1",
+    "svelte": "^5.33.14",
+    "svelte-check": "^4.2.1",
+    "tailwindcss": "^4.1.9",
+    "typescript": "^5.9.3",
+    "vite": "^6.3.5"
+  }
+}

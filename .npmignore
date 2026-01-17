@@ -1,0 +1,43 @@
+# Source files
+src/
+test/
+examples/
+docs/
+
+# Development files
+tsconfig.json
+tsconfig.build.json
+*.test.ts
+*.spec.ts
+
+# Build artifacts (keep dist/)
+*.tsbuildinfo
+
+# Development tools
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# Documentation (keep README.md and LICENSE)
+NPM-READINESS-AUDIT.md
+demo.html
+
+# Git
+.git/
+.gitignore
+
+# Dependencies
+node_modules/
+
+# Environment
+.env
+.env.local
+
+# Logs
+*.log
+npm-debug.log*
+
+# OS
+.DS_Store
+Thumbs.db

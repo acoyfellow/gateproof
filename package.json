@@ -1,0 +1,74 @@
+{
+  "name": "gateproof",
+  "version": "0.1.0",
+  "type": "module",
+  "description": "E2E testing harness. Observe logs, run actions, assert results.",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    },
+    "./cloudflare": {
+      "types": "./dist/cloudflare/index.d.ts",
+      "import": "./dist/cloudflare/index.js"
+    }
+  },
+  "files": [
+    "dist",
+    "README.md",
+    "LICENSE"
+  ],
+  "scripts": {
+    "build": "bun run build:tsc",
+    "build:tsc": "tsc -p tsconfig.build.json",
+    "typecheck": "tsc --noEmit",
+    "test": "bun test",
+    "test:demo": "bun test test/demo.test.ts",
+    "test:production": "bun test test/demo.production.test.ts",
+    "example": "bun run patterns/basic/simple-gate.ts",
+    "pattern:basic": "bun run patterns/basic/*.ts",
+    "pattern:cloudflare": "bun run patterns/cloudflare/*.ts",
+    "gate:production": "bun run gates/production/smoke.gate.ts",
+    "gate:local": "bun run gates/local/demo.gate.ts",
+    "gate:all": "bun run gates/production/smoke.gate.ts && bun run gates/local/demo.gate.ts",
+    "demo:gate": "bun run gate:production",
+    "prepush": "bun run typecheck && bun test --exclude test/demo.production.test.ts",
+    "prepublishOnly": "bun run build && bun test"
+  },
+  "keywords": [
+    "e2e",
+    "testing",
+    "observability",
+    "effect"
+  ],
+  "author": "Jordan Coeyman <jordan@coey.dev>",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/acoyfellow/gateproof.git"
+  },
+  "homepage": "https://github.com/acoyfellow/gateproof#readme",
+  "bugs": {
+    "url": "https://github.com/acoyfellow/gateproof/issues"
+  },
+  "dependencies": {
+    "@effect/schema": "^0.75.5",
+    "alchemy": "^0.83.1",
+    "effect": "^3.19.14"
+  },
+  "peerDependencies": {
+    "playwright": ""
+  },
+  "peerDependenciesMeta": {
+    "playwright": {
+      "optional": true
+    }
+  },
+  "devDependencies": {
+    "@types/node": "^24.10.8",
+    "bun-types": "^1.3.6",
+    "typescript": "^5.9.3"
+  }
+}
