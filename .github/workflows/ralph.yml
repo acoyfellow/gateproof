@@ -1,0 +1,93 @@
+name: Ralph Loop
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+jobs:
+  ralph:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - name: Check kill switch
+        id: kill_switch
+        run: |
+          if [ -f .ralph/PAUSED ]; then
+            echo "Ralph loop is paused (kill switch active)"
+            exit 0
+          fi
+
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Setup Bun
+        uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: latest
+
+      - name: Install dependencies
+        run: bun install
+
+      - name: Run agent
+        id: agent
+        run: |
+          # Replace with your agent CLI (claude, opencode, aider, etc.)
+          cat AGENTS.md | claude --dangerously-skip-permissions --print || true
+
+      - name: Run tests
+        id: tests
+        run: |
+          bun test --exclude test/demo.production.test.ts || exit 1
+
+      - name: Check for changes
+        id: changes
+        run: |
+          if git diff --quiet; then
+            echo "No changes detected - guardrail triggered"
+            exit 1
+          fi
+
+      - name: Read failure count
+        id: failures
+        run: |
+          if [ -f .ralph/failures ]; then
+            FAILURES=$(cat .ralph/failures)
+          else
+            FAILURES=0
+          fi
+          echo "failures=$FAILURES" >> $GITHUB_OUTPUT
+
+      - name: Handle success
+        if: success()
+        run: |
+          echo "0" > .ralph/failures
+          echo "Success - resetting failure count"
+
+      - name: Handle failure
+        if: failure()
+        run: |
+          FAILURES=${{ steps.failures.outputs.failures }}
+          NEW_FAILURES=$((FAILURES + 1))
+          echo "$NEW_FAILURES" > .ralph/failures
+          echo "Failure count: $NEW_FAILURES"
+          
+          if [ $NEW_FAILURES -ge 5 ]; then
+            touch .ralph/PAUSED
+            echo "Auto-paused after 5 consecutive failures"
+          fi
+
+      - name: Configure git
+        run: |
+          git config user.name "Ralph Loop"
+          git config user.email "ralph@gateproof"
+
+      - name: Commit and push
+        if: success()
+        run: |
+          git add -A
+          git commit -m "chore: ralph loop iteration" || exit 0
+          git push || exit 0
