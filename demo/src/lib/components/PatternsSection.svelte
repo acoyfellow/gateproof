@@ -7,22 +7,23 @@
   
   const patterns = {
     basic: {
-      title: 'Basic Patterns',
-      description: 'Minimal examples showing core gateproof patterns',
+      title: 'Common Use Cases',
+      description: 'Real scenarios where gateproof saves time',
       examples: [
         {
-          name: 'Simple Gate',
-          description: 'The simplest possible gate - minimal surface area',
+          name: 'Did My Deploy Work?',
+          description: 'After deploying, validate it actually works by checking real logs',
           code: `import { Gate, Act, Assert } from "gateproof";
 import { CloudflareProvider } from "gateproof/cloudflare";
 
+// After deploying, did it actually work?
 const provider = CloudflareProvider({
   accountId: process.env.CLOUDFLARE_ACCOUNT_ID,
   apiToken: process.env.CLOUDFLARE_API_TOKEN
 });
 
 const gate = {
-  name: "simple-gate",
+  name: "post-deploy-check",
   observe: provider.observe({
     backend: "analytics",
     dataset: "worker_logs"
@@ -30,55 +31,111 @@ const gate = {
   act: [
     Act.browser({ url: "https://my-worker.workers.dev" })
   ],
-  assert: [Assert.noErrors()],
+  assert: [
+    Assert.noErrors(),  // No errors in logs
+    Assert.hasAction("request_received")  // Request was actually processed
+  ],
   stop: { idleMs: 3000, maxMs: 10000 }
 };
 
 const result = await Gate.run(gate);
-if (result.status !== "success") process.exit(1);`
+if (result.status !== "success") {
+  console.error("Deploy validation failed!");
+  process.exit(1);
+}`,
         },
         {
-          name: 'HTTP Validation',
-          description: 'Validate HTTP endpoints without log observation',
+          name: 'Is My API Actually Healthy?',
+          description: 'Check real error rates from production logs, not just HTTP status codes',
           code: `import { Gate, Act, Assert } from "gateproof";
+import { CloudflareProvider } from "gateproof/cloudflare";
+
+// HTTP 200 doesn't mean no errors in logs
+const provider = CloudflareProvider({ accountId, apiToken });
 
 const gate = {
-  name: "http-validation",
-  observe: createEmptyBackend(),
+  name: "api-health-check",
+  observe: provider.observe({
+    backend: "analytics",
+    dataset: "worker_logs"
+  }),
   act: [
-    Act.exec("curl https://api.example.com/health")
+    Act.exec("curl https://api.example.com/users"),
+    Act.exec("curl https://api.example.com/posts"),
+    Act.wait(2000)  // Wait for logs to propagate
   ],
   assert: [
-    Assert.custom("http_ok", (logs) => {
-      // Custom validation logic
-      return true;
+    Assert.noErrors(),  // Real errors from logs, not just HTTP codes
+    Assert.hasAction("request_received"),
+    Assert.custom("acceptable_latency", (logs) => {
+      const latencies = logs
+        .filter(l => l.stage === "worker")
+        .map(l => l.durationMs || 0);
+      return latencies.every(ms => ms < 500);
     })
   ],
-  stop: { idleMs: 1000, maxMs: 5000 }
+  stop: { idleMs: 3000, maxMs: 15000 }
 };
 
 await Gate.run(gate);`
+        },
+        {
+          name: 'Did I Break Something?',
+          description: 'Before merging, verify your changes don\'t break production workflows',
+          code: `import { Gate, Act, Assert } from "gateproof";
+import { CloudflareProvider } from "gateproof/cloudflare";
+
+// Run this before merging to main
+const provider = CloudflareProvider({ accountId, apiToken });
+
+const gate = {
+  name: "pre-merge-validation",
+  observe: provider.observe({
+    backend: "analytics",
+    dataset: "worker_logs"
+  }),
+  act: [
+    Act.browser({ url: "https://staging.example.com/checkout" }),
+    Act.browser({ url: "https://staging.example.com/api/orders" })
+  ],
+  assert: [
+    Assert.noErrors(),
+    Assert.hasAction("checkout_complete"),
+    Assert.hasAction("order_created")
+  ],
+  stop: { idleMs: 5000, maxMs: 20000 }
+};
+
+const result = await Gate.run(gate);
+if (result.status !== "success") {
+  console.error("❌ Pre-merge check failed - don't merge!");
+  process.exit(1);
+}
+console.log("✅ All checks passed - safe to merge");`
         }
       ]
     },
     cloudflare: {
-      title: 'Cloudflare Patterns',
-      description: 'Production-ready patterns for Cloudflare Workers',
+      title: 'Cloudflare Backends',
+      description: 'Choose the right backend for your environment',
       examples: [
         {
-          name: 'Analytics Engine',
-          description: 'Recommended backend for production use',
-          code: `const provider = CloudflareProvider({ accountId, apiToken });
+          name: 'Production: Analytics Engine',
+          description: 'Recommended for production - reliable, scalable, cost-effective',
+          code: `import { CloudflareProvider } from "gateproof/cloudflare";
 
+const provider = CloudflareProvider({ accountId, apiToken });
+
+// Best for production - handles scale, low cost
 const gate = {
   observe: provider.observe({
     backend: "analytics",
     dataset: "worker_logs",
-    pollInterval: 1000
+    pollInterval: 1000  // Poll every second
   }),
   act: [
     Act.exec("curl https://my-worker.workers.dev/api/test"),
-    Act.wait(2000)
+    Act.wait(2000)  // Wait for logs to propagate
   ],
   assert: [
     Assert.noErrors(),
@@ -89,25 +146,34 @@ const gate = {
 };`
         },
         {
-          name: 'Workers Logs API',
-          description: 'Real-time log access via Workers Logs API',
-          code: `const provider = CloudflareProvider({ accountId, apiToken });
+          name: 'Real-time: Workers Logs API',
+          description: 'Instant log access - perfect for debugging and development',
+          code: `import { CloudflareProvider } from "gateproof/cloudflare";
 
+const provider = CloudflareProvider({ accountId, apiToken });
+
+// Real-time logs - great for debugging
 const gate = {
   observe: provider.observe({
     backend: "workers-logs",
     workerName: "my-worker"
   }),
   act: [Act.browser({ url: "https://my-worker.workers.dev" })],
-  assert: [Assert.noErrors(), Assert.hasAction("request_received")],
+  assert: [
+    Assert.noErrors(),
+    Assert.hasAction("request_received")
+  ],
   stop: { idleMs: 3000, maxMs: 10000 }
 };`
         },
         {
-          name: 'CLI Stream',
-          description: 'Local development with wrangler dev',
-          code: `const provider = CloudflareProvider({ accountId, apiToken });
+          name: 'Local Dev: CLI Stream',
+          description: 'Test locally with wrangler dev - see logs as they happen',
+          code: `import { CloudflareProvider } from "gateproof/cloudflare";
 
+const provider = CloudflareProvider({ accountId, apiToken });
+
+// Local development - stream logs from wrangler dev
 const gate = {
   observe: provider.observe({
     backend: "cli-stream",
@@ -116,61 +182,75 @@ const gate = {
   act: [Act.exec("curl http://localhost:8787")],
   assert: [Assert.noErrors()],
   stop: { idleMs: 2000, maxMs: 10000 }
-};`
+};
+
+// Run: wrangler dev & bun run gates/local/my-gate.gate.ts`
         }
       ]
     },
     'ci-cd': {
-      title: 'CI/CD Patterns',
-      description: 'Run gates in continuous integration pipelines',
+      title: 'CI/CD Integration',
+      description: 'Block bad deploys automatically - catch errors before users do',
       examples: [
         {
-          name: 'GitHub Actions',
-          description: 'Production smoke gate in CI',
-          code: `// .github/workflows/gate.yml
-- name: Run gates
+          name: 'GitHub Actions: Block Bad Deploys',
+          description: 'Automatically validate production after deploy - fail CI if broken',
+          code: `# .github/workflows/deploy.yml
+- name: Deploy to production
+  run: wrangler deploy
+
+- name: Validate deployment
   run: bun run gates/production/smoke.gate.ts
   env:
     CLOUDFLARE_ACCOUNT_ID: \${{ secrets.CF_ACCOUNT_ID }}
     CLOUDFLARE_API_TOKEN: \${{ secrets.CF_API_TOKEN }}
+  # If this fails, the workflow fails - deploy is blocked
 
-// gates/production/smoke.gate.ts
+# gates/production/smoke.gate.ts
 const gate = {
-  name: "ci-production-smoke",
+  name: "post-deploy-validation",
   observe: provider.observe({ backend: "analytics" }),
   act: [
     Act.browser({ url: process.env.PRODUCTION_URL, headless: true }),
-    Act.wait(2000)
+    Act.wait(2000)  // Wait for logs
   ],
   assert: [
-    Assert.noErrors(),
-    Assert.hasAction("request_received")
+    Assert.noErrors(),  // No errors in production logs
+    Assert.hasAction("request_received")  // Actually processed requests
   ],
   stop: { idleMs: 3000, maxMs: 15000 }
 };
 
 const result = await Gate.run(gate);
-if (result.status !== "success") process.exit(1);`
+if (result.status !== "success") {
+  console.error("❌ Production validation failed!");
+  process.exit(1);  // Fails CI - prevents bad deploy
+}`,
         }
       ]
     },
     advanced: {
-      title: 'Advanced Patterns',
-      description: 'Custom backends and advanced use cases',
+      title: 'Advanced Use Cases',
+      description: 'Extend gateproof to work with any observability system',
       examples: [
         {
-          name: 'Custom Backend',
-          description: 'Plug in any observability system',
+          name: 'Custom Backend: Any Observability System',
+          description: 'Plug in Datadog, New Relic, or any log system - gateproof works with anything',
           code: `import { createObserveResource, type Backend } from "gateproof";
 import { Effect } from "effect";
 
-function createApiBackend(apiUrl: string): Backend {
+// Works with any observability backend
+function createDatadogBackend(apiKey: string): Backend {
   return {
     start: () => Effect.gen(function* () {
       return {
         async *[Symbol.asyncIterator]() {
-          // Poll API and yield logs
-          const logs = await fetch(apiUrl).then(r => r.json());
+          // Poll your observability API
+          const response = await fetch(
+            \`https://api.datadoghq.com/api/v1/logs\`,
+            { headers: { "DD-API-KEY": apiKey } }
+          );
+          const logs = await response.json();
           for (const log of logs) yield log;
         }
       };
@@ -180,30 +260,60 @@ function createApiBackend(apiUrl: string): Backend {
 }
 
 const gate = {
-  observe: createObserveResource(createApiBackend("https://api.example.com/logs")),
+  observe: createObserveResource(createDatadogBackend(process.env.DATADOG_API_KEY)),
   act: [Act.exec("curl https://api.example.com/trigger")],
   assert: [Assert.noErrors()],
   stop: { idleMs: 2000, maxMs: 10000 }
-};`
+};
+
+// Same API, works with any backend`
         },
         {
-          name: 'Multiple Gates',
-          description: 'Run gates in sequence for comprehensive validation',
-          code: `const gates = [
-  { name: "smoke", /* ... */ },
-  { name: "api", /* ... */ },
-  { name: "e2e", /* ... */ }
+          name: 'Multi-Step Validation',
+          description: 'Validate complex workflows end-to-end - ensure each step completes',
+          code: `// Validate a complete user journey
+const gates = [
+  {
+    name: "user-signup",
+    observe: provider.observe({ backend: "analytics" }),
+    act: [Act.browser({ url: "https://app.example.com/signup" })],
+    assert: [
+      Assert.hasAction("user_created"),
+      Assert.noErrors()
+    ],
+    stop: { idleMs: 3000, maxMs: 10000 }
+  },
+  {
+    name: "email-sent",
+    observe: provider.observe({ backend: "analytics" }),
+    act: [Act.wait(5000)],  // Wait for email
+    assert: [
+      Assert.hasAction("email_sent"),
+      Assert.hasAction("verification_email_queued")
+    ],
+    stop: { idleMs: 5000, maxMs: 15000 }
+  },
+  {
+    name: "onboarding-complete",
+    observe: provider.observe({ backend: "analytics" }),
+    act: [Act.browser({ url: "https://app.example.com/onboarding" })],
+    assert: [
+      Assert.hasAction("onboarding_started"),
+      Assert.hasAction("onboarding_completed")
+    ],
+    stop: { idleMs: 3000, maxMs: 20000 }
+  }
 ];
 
+// Run all gates - fail if any step breaks
 for (const gate of gates) {
   const result = await Gate.run(gate);
   if (result.status !== "success") {
-    console.error(\`Gate \${gate.name} failed\`);
+    console.error(\`❌ \${gate.name} failed - workflow broken\`);
     process.exit(1);
   }
 }
-
-console.log("All gates passed");`
+console.log("✅ Complete workflow validated");`
         }
       ]
     }
