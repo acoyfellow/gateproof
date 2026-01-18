@@ -19,7 +19,7 @@
   <!-- Content -->
   <div class="relative z-10 flex flex-col items-start gap-8 px-4 text-left max-3xl mx-auto">
     <h1 class="text-5xl sm:text-6xl md:text-7xl lg:text-8xl font-bold tracking-tight text-white leading-tight">
-      <img src="/logo.svg" alt="gateproof" class="w-auto h-20 inline-block" />
+      <img src="/logo.svg" alt="gateproof" class="w-auto h-32 inline-block" />
       <span class="sr-only">gateproof</span>
     </h1>
     

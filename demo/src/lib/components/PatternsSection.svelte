@@ -320,7 +320,7 @@ console.log("✅ Complete workflow validated");`
   };
 </script>
 
-<section class="relative min-h-screen flex items-center justify-center overflow-hidden bg-gradient-to-b from-amber-50 to-white py-20">
+<section class="relative min-h-screen flex items-center justify-center overflow-hidden bg-linear-to-b from-amber-50 to-white py-20 text-balance">
   <div class="relative z-10 max-w-7xl mx-auto px-4 sm:px-6">
     <!-- Header -->
     <div class="text-center mb-12">

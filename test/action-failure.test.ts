@@ -44,7 +44,8 @@ test("action-failure: deploy action handles wrangler failure", async () => {
     name: "deploy-failure-test",
     observe: createTestObserveResource(queue),
     act: [Act.deploy({ worker: "nonexistent-worker" })],
-    assert: []
+    assert: [],
+    stop: { idleMs: 1000, maxMs: 10000 }
   };
 
   const result = await Gate.run(gate);

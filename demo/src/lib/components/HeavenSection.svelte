@@ -92,7 +92,7 @@
   </div>
   
   <!-- Content -->
-  <div class="relative z-10 max-w-6xl mx-auto px-4 sm:px-6 py-16">
+  <div class="relative z-10 max-w-6xl mx-auto px-4 sm:px-6 py-16 text-balance">
     <!-- Header -->
     <div class="text-center mb-12 md:mb-16">
       <h2 class="text-4xl sm:text-5xl md:text-6xl lg:text-7xl font-bold mb-6 text-amber-900 leading-tight">

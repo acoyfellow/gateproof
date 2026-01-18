@@ -116,12 +116,12 @@ test.skipIf(!hasCredentials)("real-backend: end-to-end gate with real backend", 
 
   // Should complete
   expect(["success", "timeout", "failed"]).toContain(result.status);
-  
+
   // If successful, should have logs
   if (result.status === "success") {
     expect(result.logs.length).toBeGreaterThanOrEqual(0);
   }
-});
+}, { timeout: 60000 });
 
 test("real-backend: tests are skipped without credentials", () => {
   // This test always passes - it's just to document that real backend tests

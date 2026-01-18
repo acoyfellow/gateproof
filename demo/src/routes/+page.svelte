@@ -31,10 +31,6 @@
 </svelte:head>
 
 <main class="relative" style="background: var(--color-background);">
-  <!-- Fixed Logo Mark -->
-  <div class="fixed top-4 left-4 sm:top-6 sm:left-6 z-50">
-    <LogoMark size={28} className="sm:w-9 sm:h-9" />
-  </div>
   <HeroSection onInfoClick={openInfoDrawer} />
   <ChaosSection />
   <TransitionSection />

@@ -13,7 +13,7 @@
   }
 </script>
 
-<section class="relative min-h-screen flex items-center justify-center w-full px-4 sm:px-6">
+<section class="relative min-h-screen flex items-center justify-center w-full px-4 sm:px-6 text-balance">
   <!-- Full bleed background image -->
   <div 
     class="absolute inset-0 bg-cover bg-center bg-no-repeat"
