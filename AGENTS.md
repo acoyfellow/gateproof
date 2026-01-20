@@ -84,6 +84,19 @@ gateproof/
 - Keep the API minimal and focused
 - Ensure all tests pass
 
+## Agent-First Promise
+
+gateproof is optimized for agent understanding (AX). The API is intentionally tiny so it can stay in an agent's context window.
+
+**Promise: test against reality.** A gate executes real actions, listens to real observability data, and returns evidence that the system behaved as expected.
+
+What agents want from the contract:
+- **Small, stable vocabulary**: Gate / Act / Assert.
+- **Deterministic IO**: actions are the only side effects; assertions are pure.
+- **Evidence over prose**: logs + summarized evidence.
+- **Clear failure modes**: timeout vs. assertion vs. observability error.
+- **Composable checkpoints**: gates represent executable checkpoints in a plan.
+
 ## Constraints & Patterns
 
 ### Code Style
