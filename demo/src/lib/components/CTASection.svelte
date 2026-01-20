@@ -13,7 +13,7 @@
   }
 </script>
 
-<section class="relative min-h-screen flex items-center justify-center w-full px-4 sm:px-6 text-balance">
+<section class="relative min-h-screen flex items-center justify-center w-full px-4 sm:px-8 text-balance">
   <!-- Full bleed background image -->
   <div 
     class="absolute inset-0 bg-cover bg-center bg-no-repeat"
@@ -21,6 +21,8 @@
   >
     <!-- Dark overlay for text readability -->
     <div class="absolute inset-0 bg-white/50"></div>
+
+      <div class="absolute inset-0 bg-linear-to-b from-white via-white/30 to-transparent"></div>
   </div>
   
   <!-- Content -->

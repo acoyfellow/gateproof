@@ -1,15 +1,15 @@
-<section class="relative min-h-screen flex items-center justify-center overflow-hidden">
+<section class="relative min-h-screen flex items-center justify-center py-20">
   <!-- Full bleed background image -->
   <div 
     class="absolute inset-0 bg-cover bg-center bg-no-repeat"
     style="background-image: url('/chaos.jpg');"
   >
     <!-- Dark overlay for text readability -->
-    <div class="absolute inset-0 bg-blac"></div>
+    <div class="absolute inset-0 bg-black/10 bg-linear-to-l from-black via-black/10 to-transparent"></div>
   </div>
   
   <!-- Content -->
-  <div class="relative z-10 max-w-4xl mx-auto px-4 text-center">
+  <div class="relative z-10 max-w-4xl mx-auto px-4 sm:px-8 text-center">
     <h2 class="text-4xl sm:text-5xl md:text-6xl lg:text-7xl font-bold mb-8 text-white leading-tight">
       The Chaos
     </h2>

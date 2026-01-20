@@ -29,7 +29,7 @@ const result = await Gate.run({
 if (result.status !== "success") process.exit(1);`;
 </script>
 
-<section class="relative flex items-center justify-center overflow-hidden p-20">
+<section class="relative flex items-center justify-center overflow-hidden py-12 sm:py-20">
   <!-- Full bleed background image -->
   <div 
     class="absolute inset-0 bg-cover bg-center bg-no-repeat"
@@ -46,10 +46,12 @@ if (result.status !== "success") process.exit(1);`;
         rgba(255, 255, 255, 0.1) 100%
       );"
     ></div>
+
+    <div class="absolute inset-0 bg-linear-to-b from-black via-black/30 to-transparent"></div>
   </div>
   
   <!-- Content -->
-  <div class="relative z-10 flex flex-col items-center gap-12 px-4 max-w-5xl mx-auto">
+  <div class="relative z-10 flex flex-col items-center gap-12 px-4 sm:px-8 max-w-5xl mx-auto">
     <h2 class="text-5xl sm:text-6xl md:text-7xl lg:text-8xl font-bold leading-tight text-center">
       <span class="text-white">From Chaos</span><br/>
       <span class="text-amber-300">to Order</span>
@@ -61,8 +63,8 @@ if (result.status !== "success") process.exit(1);`;
     </p>
     
     <!-- Code Example -->
-    <div class="my-8 bg-black/60 backdrop-blur-sm border border-amber-300/30 rounded-lg shadow-xl max-w-4xl w-full">
-      <div class="bg-gray-900 rounded-lg p-4 overflow-x-auto">
+    <div class="my-8 bg-black/60 backdrop-blur-sm border border-amber-300/30 rounded-lg shadow-xl max-w-4xl w-full min-w-0">
+      <div class="bg-gray-900 rounded-lg p-4 overflow-x-auto min-w-0">
         <CodeBlock code={codeSnippet} language="typescript" />
       </div>
     </div>

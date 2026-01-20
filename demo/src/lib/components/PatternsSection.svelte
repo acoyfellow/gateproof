@@ -321,7 +321,7 @@ console.log("✅ Complete workflow validated");`
 </script>
 
 <section class="relative min-h-screen flex items-center justify-center overflow-hidden bg-linear-to-b from-amber-50 to-white py-20 text-balance">
-  <div class="relative z-10 max-w-7xl mx-auto px-4 sm:px-6">
+  <div class="relative z-10 max-w-7xl mx-auto px-4 sm:px-8">
     <!-- Header -->
     <div class="text-center mb-12">
       <h2 class="text-4xl sm:text-5xl md:text-6xl font-bold mb-4 text-amber-900">
@@ -354,7 +354,7 @@ console.log("✅ Complete workflow validated");`
             <h3 class="text-2xl font-bold text-amber-900 mb-2">{example.name}</h3>
             <p class="text-amber-700">{example.description}</p>
           </div>
-          <div class="bg-gray-900 p-4 overflow-x-auto">
+          <div class="bg-gray-900 p-4 overflow-x-auto min-w-0">
             <CodeBlock code={example.code} language="typescript" />
           </div>
         </div>

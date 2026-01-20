@@ -34,9 +34,9 @@
   });
 </script>
 
-<div class="text-xs font-mono leading-relaxed">
+<div class="text-xs font-mono leading-relaxed min-w-0">
   {#if loading}
-    <pre class="text-gray-100 whitespace-pre"><code>{code}</code></pre>
+    <pre class="text-gray-100 whitespace-pre overflow-x-auto"><code>{code}</code></pre>
   {:else}
     {@html highlightedHtml}
   {/if}
@@ -47,10 +47,20 @@
     background: transparent !important;
     padding: 0 !important;
     margin: 0 !important;
+    min-width: 0;
+    overflow-x: auto;
   }
   
   :global(.shiki code) {
     font-size: 0.75rem;
     line-height: 1.5;
+    white-space: pre;
+    word-break: normal;
+    overflow-wrap: normal;
+  }
+  
+  :global(.shiki pre) {
+    overflow-x: auto;
+    min-width: 0;
   }
 </style>
