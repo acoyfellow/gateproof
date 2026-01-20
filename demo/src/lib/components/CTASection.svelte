@@ -27,17 +27,17 @@
   
   <!-- Content -->
   <div class="relative z-10 max-w-4xl mx-auto text-center">
-    <h2 class="text-4xl sm:text-5xl md:text-6xl lg:text-7xl font-bold mb-8 text-black leading-tigher">
+    <h2 class="text-4xl sm:text-5xl md:text-6xl lg:text-7xl font-bold mb-8 leading-tigher text-amber-800">
       Take control of AI-generated code
     </h2>
-    <p class="text-xl sm:text-2xl md:text-3xl text-gray-900 mb-12 max-w-3xl mx-auto leading-tighter">
+    <p class="text-xl sm:text-2xl md:text-3x mb-12 max-w-3xl mx-auto leading-tighter text-amber-800">
       Define constraints. Validate against reality.
     </p>
     
     <div class="flex flex-col sm:flex-row items-center justify-center gap-6 mb-10">
       <button
         onclick={scrollToDemo}
-        class="px-8 py-4 bg-amber-500 hover:bg-amber-600 text-black text-lg font-medium rounded-lg transition-colors"
+        class="px-8 py-4 bg-amber-500 hover:bg-amber-600 text-amber-100 text-lg font-medium rounded-lg transition-colors"
       >
         Try the Demo
       </button>
@@ -46,7 +46,7 @@
         href="https://github.com/acoyfellow/gateproof"
         target="_blank"
         rel="noopener noreferrer"
-        class="px-8 py-4 border-2 border-black/30 hover:border-black/60 text-black text-lg font-medium rounded-lg transition-colors"
+        class="px-8 py-4 border-2 border-amber/30 hover:border-amber/60 text-amber-700 text-lg font-medium rounded-lg transition-colors"
       >
         View on GitHub
       </a>
@@ -54,7 +54,7 @@
     
     <button
       onclick={() => onInfoClick?.()}
-      class="text-base text-gray-800 hover:text-black transition-colors"
+      class="text-base text-amber-700 hover:text-amber-800 transition-colors"
     >
       Read the documentation
     </button>

@@ -106,7 +106,7 @@
     <!-- Two column layout -->
     <div class="grid lg:grid-cols-2 gap-12 lg:gap-16">
       <!-- Left: Explanation -->
-      <div class="space-y-8">
+      <div class="space-y-24">
         <!-- The Inversion -->
         <div class="p-8 bg-amber-50/90 backdrop-blur-sm border border-amber-200/60 rounded-lg shadow-lg">
           <h3 class="text-2xl font-bold mb-4 text-amber-900">The Inversion</h3>

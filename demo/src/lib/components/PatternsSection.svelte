@@ -333,7 +333,7 @@ console.log("✅ Complete workflow validated");`
     </div>
     
     <!-- Category Tabs -->
-    <div class="flex flex-wrap justify-center gap-3 mb-8">
+    <div class="flex flex-wrap justify-center gap-3 mb-8 px-6">
       {#each Object.keys(patterns) as category}
         <button
           onclick={() => selectedCategory = category as PatternCategory}
@@ -347,7 +347,7 @@ console.log("✅ Complete workflow validated");`
     </div>
     
     <!-- Pattern Examples -->
-    <div class="space-y-6">
+    <div class="space-y-20">
       {#each patterns[selectedCategory].examples as example}
         <div class="bg-white rounded-lg shadow-lg border border-amber-200 overflow-hidden">
           <div class="p-6 border-b border-amber-200 bg-amber-50">
