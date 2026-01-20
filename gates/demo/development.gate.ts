@@ -1,19 +1,18 @@
 #!/usr/bin/env bun
 /**
  * Development Gate
- * 
+ *
  * Validates that the demo homepage loads correctly in development.
- * Assumes the dev server is running (start with `bun run dev`).
- * 
+ *
  * Usage:
- *   bun run demo/gates/development.gate.ts
- * 
+ *   bun run gates/demo/development.gate.ts
+ *
  * Environment variables:
  *   DEV_URL - Development server URL (defaults to http://localhost:5173)
  */
 
-import { Gate, Act, Assert } from "../../src/index";
-import { createEmptyObserveResource, runGateWithErrorHandling } from "../../src/utils";
+import { Gate, Act, Assert, createHttpObserveResource } from "../../src/index";
+import { runGateWithErrorHandling } from "../../src/utils";
 
 const devUrl = process.env.DEV_URL || "http://localhost:5173";
 
@@ -21,30 +20,38 @@ async function main() {
   console.log(`🚪 Running Development Gate: ${devUrl}`);
   console.log("");
 
+  // Check if dev server is available
+  let isAvailable = false;
+  try {
+    const response = await fetch(devUrl, { signal: AbortSignal.timeout(2000) });
+    isAvailable = response.ok;
+  } catch {
+    isAvailable = false;
+  }
+
+  if (!isAvailable) {
+    console.log("⚠️  Dev server not available. Skipping gates.");
+    console.log("   Start the server with: cd demo && bun run dev");
+    process.exit(0);
+  }
+
   // Gate 1: Homepage loads with expected content
   console.log("📄 Gate 1: Homepage loads correctly");
   const homepageGate = {
     name: "development-homepage",
-    observe: createEmptyObserveResource(),
+    observe: createHttpObserveResource({ url: devUrl, pollInterval: 500 }),
     act: [
       Act.wait(500),
     ],
     assert: [
-      Assert.custom("homepage_accessible", async () => {
-        const response = await fetch(devUrl);
-        if (!response.ok) {
-          console.error(`   HTTP ${response.status}: ${response.statusText}`);
-          const text = await response.text().catch(() => "");
-          if (text) console.error(`   Response: ${text.substring(0, 200)}`);
-          return false;
-        }
-        const html = await response.text();
-        const hasTitle = html.includes("gateproof");
-        const hasSubtitle = html.includes("The observation layer for building software in reverse");
-        if (!hasTitle || !hasSubtitle) {
-          console.error(`   Missing expected content. Has title: ${hasTitle}, Has subtitle: ${hasSubtitle}`);
-        }
-        return hasTitle && hasSubtitle;
+      Assert.custom("homepage_accessible", async (logs) => {
+        const httpLog = logs.find(l => l.stage === "http");
+        if (!httpLog) return false;
+        if (httpLog.status !== "success") return false;
+        const body = httpLog.data?.body as string;
+        if (!body) return false;
+        return body.includes("gateproof") &&
+               body.includes("The observation layer for building software in reverse");
       }),
     ],
     stop: { idleMs: 1000, maxMs: 10000 },

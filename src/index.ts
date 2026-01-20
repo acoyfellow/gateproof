@@ -253,3 +253,4 @@ export type { ObserveResource } from "./observe";
 export type { Provider } from "./provider";
 export { createEmptyBackend, createEmptyObserveResource, runGateWithErrorHandling } from "./utils";
 export { createTestObserveResource } from "./test-helpers";
+export { createHttpObserveResource } from "./http-backend";

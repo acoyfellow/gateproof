@@ -12,7 +12,9 @@
     "destroy": "alchemy destroy --env-file ../.env",
     "dev": "alchemy dev --env-file ../.env",
     "prepare": "svelte-kit sync || echo ''",
-    "preview": "vite preview"
+    "preview": "vite preview",
+    "gate:docs": "bun run gates/docs/llms-txt.gate.ts",
+    "gate:all": "bun run gate:docs"
   },
   "devDependencies": {
     "@cloudflare/workers-types": "^4.20250805.0",

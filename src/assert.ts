@@ -20,7 +20,7 @@ export type Assertion =
   | { _tag: "NoErrors" }
   | { _tag: "HasAction"; action: string }
   | { _tag: "HasStage"; stage: string }
-  | { _tag: "Custom"; fn: (logs: Log[]) => boolean; name: string };
+  | { _tag: "Custom"; fn: (logs: Log[]) => boolean | Promise<boolean>; name: string };
 
 export namespace Assert {
   export function noErrors(): Assertion {
@@ -37,7 +37,7 @@ export namespace Assert {
 
   export function custom(
     name: string,
-    fn: (logs: Log[]) => boolean
+    fn: (logs: Log[]) => boolean | Promise<boolean>
   ): Assertion {
     return { _tag: "Custom", fn, name };
   }
@@ -87,7 +87,7 @@ export namespace Assert {
             );
           }
         } else if (assertion._tag === "Custom") {
-          const passed = assertion.fn(logs);
+          const passed = yield* Effect.promise(() => Promise.resolve(assertion.fn(logs)));
           if (!passed) {
             failures.push(
               new AssertionFailed({

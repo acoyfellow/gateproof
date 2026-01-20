@@ -77,7 +77,7 @@ export const ExecExecutor: ActionExecutor = {
         },
         catch: (e) => new GateError({ cause: e })
       }).pipe(
-        Effect.timeout("30 seconds"),
+        Effect.timeout(`${action.timeoutMs ?? 30000} millis`),
         Effect.retry(Schedule.exponential("100 millis").pipe(Schedule.compose(Schedule.recurs(3)))),
         Effect.catchTag("TimeoutException", (e) => Effect.fail(new GateError({ cause: e })))
       );

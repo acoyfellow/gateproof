@@ -69,12 +69,12 @@ async function main() {
     name: "framework-tests",
     observe: createEmptyObserveResource(),
     act: [
-      Act.exec("bun test", { cwd: process.cwd() }),
+      Act.exec("bun test --timeout 30000", { cwd: process.cwd(), timeoutMs: 45000 }),
     ],
     assert: [
       Assert.custom("tests_succeed", async () => true),
     ],
-    stop: { idleMs: 1000, maxMs: 120000 },
+    stop: { idleMs: 1000, maxMs: 45000 },
     report: "json" as const,
   };
 

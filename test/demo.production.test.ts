@@ -33,7 +33,7 @@ test("production: health endpoint returns expected data", async () => {
   }
   const response = await fetch(`${productionUrl}/api/health`);
   expect(response.status).toBe(200);
-  const data = await response.json();
+  const data = await response.json() as { status: string; timestamp: string };
   expect(data.status).toBe("ok");
   expect(data.timestamp).toBeDefined();
 }, 10000);
@@ -45,7 +45,7 @@ test("production: test endpoint returns success with requestId", async () => {
   }
   const response = await fetch(`${productionUrl}/api/test`);
   expect(response.status).toBe(200);
-  const data = await response.json();
+  const data = await response.json() as { success: boolean; requestId: string; durationMs: number };
   expect(data.success).toBe(true);
   expect(data.requestId).toBeDefined();
   expect(typeof data.requestId).toBe("string");
@@ -109,7 +109,7 @@ test("production: gateproof can observe and validate production worker", async (
     assert: [
       Assert.custom("production_endpoint_works", async () => {
         const response = await fetch(`${productionUrl}/api/test`);
-        const data = await response.json();
+        const data = await response.json() as { success: boolean };
         return response.ok && data.success === true;
       }),
     ],

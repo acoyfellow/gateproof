@@ -1,19 +1,18 @@
 #!/usr/bin/env bun
 /**
  * Production Smoke Gate
- * 
+ *
  * Validates that production deployment is accessible and core endpoints work.
- * This is a "gate" that must pass before considering the deployment successful.
- * 
+ *
  * Usage:
  *   bun run gates/production/smoke.gate.ts
- * 
+ *
  * Environment variables:
  *   PRODUCTION_URL - Production URL (defaults to https://gateproof.coey.dev)
  */
 
-import { Gate, Act, Assert } from "../../src/index";
-import { createEmptyObserveResource, runGateWithErrorHandling } from "../../src/utils";
+import { Gate, Act, Assert, createHttpObserveResource } from "../../src/index";
+import { runGateWithErrorHandling } from "../../src/utils";
 
 const productionUrl = process.env.PRODUCTION_URL || "https://gateproof.coey.dev";
 
@@ -25,17 +24,16 @@ async function main() {
   console.log("📄 Gate 1: Homepage loads correctly");
   const homepageGate = {
     name: "production-homepage",
-    observe: createEmptyObserveResource(),
-    act: [
-      Act.wait(500),
-    ],
+    observe: createHttpObserveResource({ url: productionUrl, pollInterval: 500 }),
+    act: [Act.wait(500)],
     assert: [
-      Assert.custom("homepage_accessible", async () => {
-        const response = await fetch(productionUrl);
-        if (!response.ok) return false;
-        const html = await response.text();
-        return html.includes("gateproof") && 
-               html.includes("Building Software in Reverse");
+      Assert.custom("homepage_accessible", async (logs) => {
+        const httpLog = logs.find(l => l.stage === "http");
+        if (!httpLog) return false;
+        if (httpLog.status !== "success") return false;
+        const body = httpLog.data?.body as string;
+        if (!body) return false;
+        return body.includes("gateproof") && body.includes("Building Software in Reverse");
       }),
     ],
     stop: { idleMs: 1000, maxMs: 10000 },
@@ -54,16 +52,16 @@ async function main() {
   console.log("🏥 Gate 2: Health endpoint works");
   const healthGate = {
     name: "production-health",
-    observe: createEmptyObserveResource(),
-    act: [
-      Act.wait(500),
-    ],
+    observe: createHttpObserveResource({ url: `${productionUrl}/api/health`, pollInterval: 500 }),
+    act: [Act.wait(500)],
     assert: [
-      Assert.custom("health_endpoint_works", async () => {
-        const response = await fetch(`${productionUrl}/api/health`);
-        if (!response.ok) return false;
-        const data = await response.json();
-        return data.status === "ok" && typeof data.timestamp === "string";
+      Assert.custom("health_endpoint_works", async (logs) => {
+        const httpLog = logs.find(l => l.stage === "http");
+        if (!httpLog) return false;
+        if (httpLog.status !== "success") return false;
+        const body = httpLog.data?.body as { status?: string; timestamp?: string };
+        if (!body) return false;
+        return body.status === "ok" && typeof body.timestamp === "string";
       }),
     ],
     stop: { idleMs: 1000, maxMs: 10000 },
@@ -82,18 +80,18 @@ async function main() {
   console.log("🧪 Gate 3: Test endpoint works");
   const testGate = {
     name: "production-test-endpoint",
-    observe: createEmptyObserveResource(),
-    act: [
-      Act.wait(500),
-    ],
+    observe: createHttpObserveResource({ url: `${productionUrl}/api/test`, pollInterval: 500 }),
+    act: [Act.wait(500)],
     assert: [
-      Assert.custom("test_endpoint_works", async () => {
-        const response = await fetch(`${productionUrl}/api/test`);
-        if (!response.ok) return false;
-        const data = await response.json();
-        return data.success === true && 
-               typeof data.requestId === "string" &&
-               typeof data.durationMs === "number";
+      Assert.custom("test_endpoint_works", async (logs) => {
+        const httpLog = logs.find(l => l.stage === "http");
+        if (!httpLog) return false;
+        if (httpLog.status !== "success") return false;
+        const body = httpLog.data?.body as { success?: boolean; requestId?: string; durationMs?: number };
+        if (!body) return false;
+        return body.success === true &&
+               typeof body.requestId === "string" &&
+               typeof body.durationMs === "number";
       }),
     ],
     stop: { idleMs: 1000, maxMs: 10000 },
@@ -110,10 +108,10 @@ async function main() {
 
   // Summary
   console.log("📊 Gate Summary:");
-  const allPassed = homepageResult.status === "success" && 
-                    healthResult.status === "success" && 
+  const allPassed = homepageResult.status === "success" &&
+                    healthResult.status === "success" &&
                     testResult.status === "success";
-  
+
   console.log(`   Homepage: ${homepageResult.status === "success" ? "✅ PASSED" : "❌ FAILED"}`);
   console.log(`   Health: ${healthResult.status === "success" ? "✅ PASSED" : "❌ FAILED"}`);
   console.log(`   Test Endpoint: ${testResult.status === "success" ? "✅ PASSED" : "❌ FAILED"}`);

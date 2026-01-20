@@ -1,8 +1,5 @@
 import { test, expect } from "bun:test";
 import { Gate, Act, Assert } from "../src/index";
-import type { Log } from "../src/types";
-import { createTestObserveResource } from "../src/test-helpers";
-import { Effect, Queue, Runtime } from "effect";
 
 const baseUrl = process.env.DEMO_URL || "http://localhost:8787";
 
@@ -27,39 +24,6 @@ async function waitForWorker(maxRetries = 10): Promise<boolean> {
   return false;
 }
 
-function createTestObserveResource(queue: Queue.Queue<Log>) {
-  const backend = {
-    start: () =>
-      Effect.succeed<AsyncIterable<Log>>({
-        async *[Symbol.asyncIterator]() {
-          const runtime = Runtime.defaultRuntime;
-          const startTime = Date.now();
-          const maxWait = 5000;
-
-          while (Date.now() - startTime < maxWait) {
-            try {
-              const log = await Runtime.runPromise(runtime)(
-                Queue.take(queue).pipe(
-                  Effect.timeout("500 millis"),
-                  Effect.catchAll(() => Effect.succeed(null as Log | null))
-                )
-              );
-              if (log === null) {
-                await new Promise((resolve) => setTimeout(resolve, 100));
-                continue;
-              }
-              yield log;
-            } catch {
-              break;
-            }
-          }
-        },
-      }),
-    stop: () => Effect.void,
-  };
-  return createObserveResource(backend);
-}
-
 test("demo: worker is accessible", async () => {
   const available = await isWorkerAvailable();
   if (!available) {
@@ -77,7 +41,7 @@ test("demo: health endpoint returns expected data", async () => {
   }
   const response = await fetch(`${baseUrl}/api/health`);
   expect(response.status).toBe(200);
-  const data = await response.json();
+  const data = await response.json() as { status: string; timestamp: string };
   expect(data.status).toBe("ok");
   expect(data.timestamp).toBeDefined();
 });
@@ -89,7 +53,7 @@ test("demo: test endpoint returns success with requestId", async () => {
   }
   const response = await fetch(`${baseUrl}/api/test`);
   expect(response.status).toBe(200);
-  const data = await response.json();
+  const data = await response.json() as { success: boolean; requestId: string; durationMs: number };
   expect(data.success).toBe(true);
   expect(data.requestId).toBeDefined();
   expect(typeof data.requestId).toBe("string");

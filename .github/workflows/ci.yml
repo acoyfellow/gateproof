@@ -27,7 +27,6 @@ jobs:
         uses: actions/setup-node@v4
         with:
           node-version: ${{ matrix.runtime == 'node-18' && '18' || matrix.runtime == 'node-20' && '20' || '22' }}
-          cache: 'npm'
       
       - name: Install dependencies
         if: matrix.runtime == 'bun'
@@ -35,7 +34,7 @@ jobs:
       
       - name: Install dependencies
         if: matrix.runtime != 'bun'
-        run: npm ci
+        run: npm install
       
       - name: Type check
         run: ${{ matrix.runtime == 'bun' && 'bun run typecheck' || 'npm run typecheck' }}

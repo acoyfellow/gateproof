@@ -33,9 +33,11 @@
     "gate:production": "bun run gates/production/smoke.gate.ts",
     "gate:local": "bun run gates/local/demo.gate.ts",
     "gate:framework": "bun run gates/framework/integrity.gate.ts",
-    "gate:all": "bun run gates/production/smoke.gate.ts && bun run gates/local/demo.gate.ts",
+    "gate:demo": "bun run gates/demo/development.gate.ts",
+    "gate:dev": "bun run gate:framework && bun run gate:demo && bun run gate:local",
+    "gate:all": "bun run gate:dev && bun run gate:production",
     "demo:gate": "bun run gate:production",
-    "prepush": "bun run typecheck && bun test --exclude test/demo.production.test.ts",
+    "prepush": "bun run gate:dev",
     "prepublishOnly": "bun run build && bun test"
   },
   "keywords": [

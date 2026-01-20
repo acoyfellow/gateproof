@@ -4,7 +4,7 @@ export type Action =
   | { _tag: "Deploy"; worker: string }
   | { _tag: "Browser"; url: string; headless?: boolean; waitMs?: number }
   | { _tag: "Wait"; ms: number }
-  | { _tag: "Exec"; command: string; cwd?: string };
+  | { _tag: "Exec"; command: string; cwd?: string; timeoutMs?: number };
 
 export namespace Act {
   export function deploy(config: { worker: string }): Action {
@@ -28,7 +28,7 @@ export namespace Act {
     return { _tag: "Wait", ms };
   }
 
-  export function exec(command: string, opts?: { cwd?: string }): Action {
-    return { _tag: "Exec", command, cwd: opts?.cwd };
+  export function exec(command: string, opts?: { cwd?: string; timeoutMs?: number }): Action {
+    return { _tag: "Exec", command, cwd: opts?.cwd, timeoutMs: opts?.timeoutMs };
   }
 }
