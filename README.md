@@ -150,15 +150,24 @@ You can move fast AND have proof. You can iterate quickly AND validate against p
 
 ### Gates as Deterministic Paths
 
-Gates are **deterministic, provable paths**. They're not just tests—they're the specification itself.
+Gates are **deterministic, provable paths**. The file tree IS the gate tree.
+
+```
+gates/
+├── production/smoke.gate.ts    # Checkpoint: Production works
+├── local/demo.gate.ts          # Checkpoint: Local works
+└── framework/integrity.gate.ts # Checkpoint: Framework tests itself
+```
+
+**Directories = branches. Gate files = checkpoints. The path = the deterministic path.**
+
+Organize gates in `gates/` and the structure becomes your specification. Each gate file is executable proof. The file tree makes the deterministic path visible.
 
 **Traditional**: Write code → Write tests → Hope it works in production
 
 **Gate-driven**: Define gates → Build to pass through them → Prove it works
 
-Think of it like a PRD or task list, but executable and provable. You can't proceed to the next step until the current gate passes. Each gate is a checkpoint. Each gate is proof.
-
-The plan creator defines the gates. The builder must pass through them. The gates are the specification, the validation, and the proof—all in one.
+The plan creator defines the gates (by organizing the file tree). The builder must pass through them. The gates are the specification, the validation, and the proof—all in one.
 
 ## License
 

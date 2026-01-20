@@ -32,6 +32,7 @@
     "pattern:cloudflare": "bun run patterns/cloudflare/*.ts",
     "gate:production": "bun run gates/production/smoke.gate.ts",
     "gate:local": "bun run gates/local/demo.gate.ts",
+    "gate:framework": "bun run gates/framework/integrity.gate.ts",
     "gate:all": "bun run gates/production/smoke.gate.ts && bun run gates/local/demo.gate.ts",
     "demo:gate": "bun run gate:production",
     "prepush": "bun run typecheck && bun test --exclude test/demo.production.test.ts",
