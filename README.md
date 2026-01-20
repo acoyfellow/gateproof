@@ -4,6 +4,19 @@ E2E testing harness. Observe logs, run actions, assert results.
 
 **Minimal surface area. Maximum power.**
 
+## Agent-First Contract (AX)
+
+gateproof is built for agents first, humans second. The interface is intentionally tiny so it fits in an agent’s working context: **Gate** (spec), **Act** (side effects), **Assert** (truth checks).
+
+**Promise: test against reality.** An agent can run a gate against live observability data and receive verifiable evidence that the system behaved as intended. No mocks, no guesses—real logs, real actions, real proof.
+
+### What agents want from the contract
+- **Small, stable vocabulary**: Gate.run(spec) with explicit `observe`, `act`, `assert`.
+- **Deterministic IO**: actions are the only side effects; assertions are pure.
+- **Evidence over prose**: logs plus summarized evidence so context stays short.
+- **Clear failure modes**: timeouts, assertion failures, and observability errors are distinct.
+- **Composability**: gates can be chained as checkpoints in a plan.
+
 ## Quick Start
 
 ```typescript
@@ -30,6 +43,7 @@ That's it. Three concepts: **Gate**, **Act**, **Assert**.
 
 ### Gate.run(spec)
 Run a gate. Returns a result with status, logs, and evidence.
+`spec.name` is optional metadata for labeling a gate.
 
 ### Actions
 ```typescript
@@ -61,6 +75,19 @@ Assert.custom("name", fn)        // Custom: (logs) => boolean
   },
   error?: Error
 }
+```
+
+### Agent-friendly prompt snippet
+```typescript
+// Given a requirement, define the gate that proves it against reality.
+const gate = {
+  name: "agent-verified",
+  observe: provider.observe({ backend: "analytics", dataset: "worker_logs" }),
+  act: [Act.browser({ url })],
+  assert: [Assert.noErrors(), Assert.hasAction("request_received")]
+};
+const result = await Gate.run(gate);
+if (result.status !== "success") throw result.error;
 ```
 
 ## Plug Your Backend
