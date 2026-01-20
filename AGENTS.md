@@ -86,7 +86,7 @@ gateproof/
 
 ## Agent-First Promise
 
-gateproof is optimized for agent understanding (AX). The API is intentionally tiny so it can stay in an agent's context window.
+gateproof is optimized for agent experience. The API is intentionally tiny so it can stay in an agent's context window.
 
 **Promise: test against reality.** A gate executes real actions, listens to real observability data, and returns evidence that the system behaved as expected.
 

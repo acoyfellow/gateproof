@@ -43,6 +43,7 @@ That's it. Three concepts: **Gate**, **Act**, **Assert**.
 
 ### Gate.run(spec)
 Run a gate. Returns a result with status, logs, and evidence.
+`spec.name` is optional metadata for labeling a gate.
 
 ### Actions
 ```typescript
