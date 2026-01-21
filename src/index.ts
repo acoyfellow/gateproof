@@ -8,6 +8,8 @@ import { ObservabilityError } from "./observe";
 import { Schema } from "@effect/schema";
 import { Act } from "./act";
 import { getActionExecutor } from "./action-executors";
+import type { PreflightSpec } from "./preflight";
+import { runPreflight, PreflightError } from "./preflight";
 
 export class GateError extends Schema.TaggedError<GateError>()("GateError", {
   cause: Schema.Unknown
@@ -22,10 +24,11 @@ export class LogTimeoutError extends Schema.TaggedError<LogTimeoutError>()(
   }
 ) {}
 
-export type GateErrorType = GateError | LogTimeoutError | AssertionFailed | AssertionAggregateFailed | ObservabilityError;
+export type GateErrorType = GateError | LogTimeoutError | AssertionFailed | AssertionAggregateFailed | ObservabilityError | PreflightError;
 
 export interface GateSpec {
   name?: string;
+  preflight?: PreflightSpec;
   observe: ObserveResource;
   act: Action[];
   assert: Assertion[];
@@ -154,6 +157,38 @@ export namespace Gate {
           const startedAt = Date.now();
           const stop = spec.stop ?? { idleMs: 3000, maxMs: 15000 };
 
+          // Run preflight check if specified
+          if (spec.preflight) {
+            const preflightResult = yield* runPreflight(spec.preflight).pipe(
+              Effect.tap(() => Effect.log("Preflight check started")),
+              Effect.either
+            );
+
+            if (Either.isLeft(preflightResult)) {
+              return handleGateError(preflightResult.left, startedAt, []);
+            }
+
+            const result = preflightResult.right;
+            
+            if (result.decision === "DENY") {
+              const error = new PreflightError({
+                cause: `Preflight denied: ${result.justification}`
+              });
+              return handleGateError(error, startedAt, []);
+            }
+
+            if (result.decision === "ASK") {
+              yield* Effect.log(`Preflight requires clarification: ${result.justification}`);
+              if (result.questions && result.questions.length > 0) {
+                yield* Effect.log(`Questions: ${result.questions.join(", ")}`);
+              }
+              // For now, we'll continue execution even with ASK
+              // In a real implementation, this might pause for human input
+            }
+
+            yield* Effect.log(`Preflight check passed: ${result.decision} - ${result.justification}`);
+          }
+
           yield* Effect.sleep("200 millis");
 
           let actionError: GateError | null = null;
@@ -248,6 +283,9 @@ function printResult(report: GateSpec["report"], result: GateResult): void {
 
 export { Act } from "./act";
 export { Assert } from "./assert";
+export { Preflight, runPreflight } from "./preflight";
+export type { PreflightSpec, PreflightResult, PreflightDecision, PreflightAction } from "./preflight";
+export { PreflightError } from "./preflight";
 export type { Log, GateResult, LogFilter } from "./types";
 export type { ObserveResource } from "./observe";
 export type { Provider } from "./provider";
