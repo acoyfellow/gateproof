@@ -45,6 +45,8 @@ That's it. Four concepts: **Preflight**, **Gate**, **Act**, **Assert**.
 ### Preflight.check(spec)
 **NEW**: Run a preflight safety check before executing actions. Returns ALLOW, ASK, or DENY.
 
+Requires `OPENAI_API_KEY` environment variable for full LLM extraction. Without it, preflight returns low confidence scores.
+
 ```typescript
 import { Preflight } from "gateproof";
 
@@ -208,6 +210,7 @@ gateproof works great in CI/CD. See `patterns/ci-cd/github-actions.ts` for examp
 - Node.js 18+ or Bun
 - `playwright` (optional, for Act.browser)
 - Cloudflare credentials (for CloudflareProvider, or bring your own backend)
+- `OPENAI_API_KEY` environment variable (optional, for Preflight.check with full LLM extraction)
 
 ## Why gateproof?
 

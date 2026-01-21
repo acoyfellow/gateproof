@@ -267,15 +267,55 @@ if (result.decision === "DENY") {
 
 The current implementation includes:
 
-1. **Mock LLM Extraction**: A simulated documentation extractor that returns structured data
+1. **OpenAI LLM Extraction**: Uses OpenAI API to extract structured information from documentation
 2. **Decision Logic**: Complete evaluation of all safety criteria
 3. **Gate Integration**: Seamless integration with the Gate.run pipeline
+4. **Optional Operation**: Works without API key (returns low confidence scores)
+
+### Setup
+
+To use preflight checks with full LLM extraction:
+
+```bash
+export OPENAI_API_KEY="your-api-key-here"
+```
+
+Without an API key, preflight will still run but with low confidence scores (0.0-0.3), which typically results in ASK or DENY decisions.
+
+### How It Works
+
+1. **Fetch Documentation**: Uses native `fetch()` to retrieve docs from the specified URL
+2. **LLM Extraction**: Calls OpenAI API with a structured prompt to extract:
+   - Capability: What the tool does
+   - Inputs: Required parameters
+   - Outputs: Return values
+   - Constraints: Limitations and boundaries
+   - Failure modes: Error conditions
+   - Invocation: Usage syntax
+   - Authority: Authentication requirements
+   - Reversibility: Whether actions can be undone
+3. **Confidence Scoring**: LLM rates confidence (0.0-1.0) for each dimension
+4. **Decision Evaluation**: Applies 7 rules to determine ALLOW/ASK/DENY
+
+### Model Selection
+
+Default model: `gpt-4o-mini` (fast, cost-effective)
+
+Override with `modelId` parameter:
+```typescript
+Preflight.check({
+  url: "https://api.example.com/docs",
+  intent: "delete data",
+  action: "delete",
+  modelId: "gpt-4o"  // Use more capable model for critical operations
+})
+```
 
 ### Future Enhancements
 
 Future versions may include:
 
-1. **Real LLM Integration**: Connect to OpenCode Zen or similar services for actual doc extraction
+1. **Caching**: Cache extraction results by URL to reduce API calls
 2. **Confidence Tuning**: Adjust confidence thresholds for different risk levels
 3. **Custom Rules**: Allow users to define custom evaluation rules
 4. **Caching**: Cache extraction results to avoid repeated LLM calls

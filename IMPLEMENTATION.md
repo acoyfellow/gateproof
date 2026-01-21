@@ -15,7 +15,9 @@ Successfully implemented a complete preflight boundary system for gateproof that
    - `PreflightAction` type: "read" | "write" | "delete" | "execute"
    - `PreflightError` class: Effect-based error handling
    - `Preflight.check()` function: main API for preflight validation
-   - `extractDocumentation()`: mock LLM extraction (ready for real LLM integration)
+   - `extractDocumentation()`: Real OpenAI LLM integration for documentation extraction
+   - `fetchDocumentation()`: URL fetching using native fetch API
+   - `callOpenAI()`: OpenAI API integration with structured extraction prompt
    - `evaluateDecision()`: implements 7-rule decision logic
 
 ### Decision Logic (7 Rules)
@@ -102,17 +104,19 @@ Added only one new function to the public API: `Preflight.check()`
 - Similar to `Act.*` and `Assert.*` patterns
 - Easy to understand and remember
 
-### 3. Mock LLM Implementation
-Current implementation uses a mock LLM extractor that:
-- Returns realistic structured data
-- Allows most operations (ALLOW decisions)
-- Demonstrates the structure and flow
-- Can be easily replaced with real LLM integration
+### 3. Real LLM Integration
+Current implementation uses OpenAI for documentation extraction:
+- Fetches documentation from URLs using native fetch API
+- Calls OpenAI API with structured extraction prompt adapted from doclint
+- Extracts 8 dimensions: capability, inputs, outputs, constraints, failure_modes, invocation, authority, reversibility
+- Returns confidence scores (0.0-1.0) for each dimension
+- Optional: Falls back to low confidence scores if OPENAI_API_KEY is not set
 
-This approach allows:
-- Immediate usability and testing
-- No external dependencies
-- Clear interface for future real LLM integration
+This approach provides:
+- Real production validation against actual documentation
+- Agent-first design: tests against reality, not mocks
+- Minimal dependencies: only uses native fetch, no external SDKs
+- Flexible: can override model with modelId parameter
 
 ### 4. Consequence Scoring
 Implemented clear consequence scores for different action types:
