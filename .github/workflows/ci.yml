@@ -91,9 +91,9 @@ jobs:
       - name: Build
         run: bun run build
       
-      - name: Publish to NPM
-        run: npm publish
-        env:
-          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
-        # Uncomment when ready to publish:
-        # if: false
+      # - name: Publish to NPM
+      #   run: npm publish
+      #   env:
+      #     NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+      #   # Uncomment when ready to publish:
+      #   # if: false

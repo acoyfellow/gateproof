@@ -1,0 +1,56 @@
+# gateproof
+
+Production assertion framework. Define what success looks like, then validate it against real systems.
+
+## When to use
+
+- **Jest/Vitest**: Unit tests, isolated logic
+- **Playwright**: Browser E2E, user flows
+- **gateproof**: Production validation, deploy gates, log assertions
+
+Use gateproof when you need to assert against production systems, validate deployments, or gate CI/CD pipelines.
+
+## Core Pattern: Observe → Act → Assert
+
+```typescript
+import { Gate, Observe, Act, Assert } from "gateproof";
+
+const result = await Gate.run({
+  name: "smoke-test",
+  observe: Observe.logs({ source: "cloudflare" }),
+  act: [
+    Act.fetch("https://api.example.com/health"),
+    Act.wait(1000),
+  ],
+  assert: [
+    Assert.noErrors(),
+    Assert.hasStage("request-complete"),
+  ],
+  stop: { idleMs: 2000, maxMs: 10000 },
+});
+
+if (result.status === "failed") {
+  console.error("Gate failed:", result.error);
+  process.exit(1);
+}
+console.log("Gate passed!");
+process.exit(0);
+```
+
+## API
+
+| Function | Purpose |
+|----------|---------|
+| `Gate.run(spec)` | Execute gate, returns `{ status, logs, evidence }` |
+| `Observe.logs(opts)` | Stream logs from backend (cloudflare, vercel) |
+| `Act.fetch(url)` | Make HTTP request |
+| `Act.wait(ms)` | Pause execution |
+| `Assert.noErrors()` | Fail if any error logs |
+| `Assert.hasStage(s)` | Require specific stage in logs |
+| `Assert.custom(name, fn)` | Custom assertion function |
+
+## Install
+
+```bash
+bun add gateproof
+```
