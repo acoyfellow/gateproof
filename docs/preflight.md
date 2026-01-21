@@ -280,7 +280,11 @@ To use preflight checks with full LLM extraction:
 export OPENAI_API_KEY="your-api-key-here"
 ```
 
-Without an API key, preflight will still run but with low confidence scores (0.0-0.3), which typically results in ASK or DENY decisions.
+Without an API key, preflight will still run with test-friendly fallback:
+- **Read operations** (intents containing "read", "get", "fetch"): Returns moderate confidence scores (0.5-0.7), typically resulting in ALLOW decisions for basic operations
+- **Write/Delete/Execute operations**: Returns low confidence scores (0.0-0.3), typically resulting in ASK or DENY decisions
+
+This allows tests to run without external API dependencies while maintaining safety for destructive operations.
 
 ### How It Works
 
