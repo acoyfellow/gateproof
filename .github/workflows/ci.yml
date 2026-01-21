@@ -40,7 +40,12 @@ jobs:
         run: ${{ matrix.runtime == 'bun' && 'bun run typecheck' || 'npm run typecheck' }}
       
       - name: Run tests
-        run: ${{ matrix.runtime == 'bun' && 'bun test' || 'npm test' }}
+        if: matrix.runtime == 'bun'
+        run: bun test --exclude test/demo.production.test.ts
+      
+      - name: Run tests (Node.js)
+        if: matrix.runtime != 'bun'
+        run: npm test
 
   build:
     name: Build

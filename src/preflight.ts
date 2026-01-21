@@ -82,14 +82,14 @@ function extractDocumentation(
       authority: "requires authentication",
       reversibility: "operation is reversible",
       confidence: {
-        capability: 0.8,
-        inputs: 0.7,
-        outputs: 0.7,
-        constraints: 0.6,
-        failure_modes: 0.5,
-        invocation: 0.8,
-        authority: 0.7,
-        reversibility: 0.6
+        capability: 0.9,
+        inputs: 0.85,
+        outputs: 0.85,
+        constraints: 0.8,
+        failure_modes: 0.8,
+        invocation: 0.9,
+        authority: 0.85,
+        reversibility: 0.8
       }
     };
 
