@@ -47,7 +47,16 @@ interface DocExtraction {
 
 /**
  * Mock LLM extraction function - simulates extracting structured info from docs
- * In production, this would call an external LLM service
+ * In production, this would call an external LLM service (e.g., via OpenCode Zen)
+ * with a structured extraction prompt to parse documentation and return:
+ * - Capabilities: what the API/tool can do
+ * - Inputs: required and optional parameters
+ * - Outputs: expected return values
+ * - Constraints: limits, boundaries, rate limits
+ * - Failure modes: error conditions and handling
+ * - Invocation: syntax, examples, and usage patterns
+ * - Authority: authentication and authorization requirements
+ * - Reversibility: whether operations can be undone
  */
 function extractDocumentation(
   url: string,
@@ -58,7 +67,7 @@ function extractDocumentation(
     // Mock extraction - returns a simulated extraction result
     // In a real implementation, this would:
     // 1. Fetch the document from the URL
-    // 2. Call an LLM (via OpenCode Zen or similar) with the doclint extraction prompt
+    // 2. Call an LLM with a structured extraction prompt
     // 3. Parse the JSON response
     
     // For now, we return a mock result that allows most operations
@@ -175,7 +184,20 @@ function evaluateDecision(
   // Rule 7: Uncertainty vs. Consequence
   if (questions.length > 0) {
     const uncertaintyScore = questions.length;
-    const consequenceScore = action === "delete" ? 3 : action === "write" ? 2 : action === "execute" ? 2 : 1;
+    
+    // Consequence scores reflect the blast radius and risk level:
+    // - delete: 3 (highest risk - data loss, irreversible)
+    // - write: 2 (medium risk - data modification)
+    // - execute: 2 (medium risk - arbitrary code execution)
+    // - read: 1 (lowest risk - no modifications)
+    const CONSEQUENCE_SCORES = {
+      delete: 3,
+      write: 2,
+      execute: 2,
+      read: 1
+    } as const;
+    
+    const consequenceScore = CONSEQUENCE_SCORES[action];
     
     if (uncertaintyScore > consequenceScore) {
       return {

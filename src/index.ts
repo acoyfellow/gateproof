@@ -8,8 +8,7 @@ import { ObservabilityError } from "./observe";
 import { Schema } from "@effect/schema";
 import { Act } from "./act";
 import { getActionExecutor } from "./action-executors";
-import type { PreflightSpec } from "./preflight";
-import { runPreflight, PreflightError } from "./preflight";
+import { runPreflight, PreflightError, type PreflightSpec } from "./preflight";
 
 export class GateError extends Schema.TaggedError<GateError>()("GateError", {
   cause: Schema.Unknown
