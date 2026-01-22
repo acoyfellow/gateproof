@@ -27,9 +27,16 @@ export function validateCommand(command: string): Effect.Effect<string, GateErro
   if (!command || typeof command !== "string") {
     return Effect.fail(new GateError({ cause: new Error("Command must be a non-empty string") }));
   }
-  const dangerous = /[;&|`$(){}[\]<>]/;
-  if (dangerous.test(command)) {
-    return Effect.fail(new GateError({ cause: new Error("Command contains dangerous characters") }));
+  // Extremely strict shell safety: block common shell metacharacters and expansion patterns
+  const dangerous =
+    /[;&|`$(){}[\]<>\\'"\n\r\t]/;
+  const envExpansion = /\$\w+|\$\{[^}]+\}/;
+  if (dangerous.test(command) || envExpansion.test(command)) {
+    return Effect.fail(
+      new GateError({
+        cause: new Error("Command contains potentially dangerous shell characters")
+      })
+    );
   }
   return Effect.succeed(command);
 }
