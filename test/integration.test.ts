@@ -1,27 +1,22 @@
-import { test, expect, beforeEach, afterEach } from "bun:test";
+import { test, expect } from "bun:test";
 import { Gate, Act, Assert } from "../src/index";
 import type { Log } from "../src/types";
 import { createTestObserveResource } from "../src/test-helpers";
 import { Effect, Queue, Runtime } from "effect";
 
-interface IntegrationTestContext {
-  queue: Queue.Queue<Log>;
+async function withQueue<T>(fn: (queue: Queue.Queue<Log>) => Promise<T>): Promise<T> {
+  const runtime = Runtime.defaultRuntime;
+  const queue = await Runtime.runPromise(runtime)(Queue.unbounded<Log>());
+  try {
+    return await fn(queue);
+  } finally {
+    await Runtime.runPromise(runtime)(Queue.shutdown(queue));
+  }
 }
 
-const ctx: IntegrationTestContext = {
-  queue: {} as Queue.Queue<Log>
-};
 
-beforeEach(async () => {
-  ctx.queue = await Runtime.runPromise(Runtime.defaultRuntime)(Queue.unbounded<Log>());
-});
-
-afterEach(async () => {
-  await Runtime.runPromise(Runtime.defaultRuntime)(Queue.shutdown(ctx.queue));
-});
-
-
-test("integration: successful gate with wait action collects logs", async () => {
+test("integration: successful gate with wait action collects logs", () =>
+  withQueue(async (queue) => {
   const logs: Log[] = [
     {
       timestamp: new Date().toISOString(),
@@ -32,12 +27,12 @@ test("integration: successful gate with wait action collects logs", async () => 
   ];
 
   await Runtime.runPromise(Runtime.defaultRuntime)(
-    Effect.forEach(logs, (log) => Queue.offer(ctx.queue, log))
+    Effect.forEach(logs, (log) => Queue.offer(queue, log))
   );
 
   const gate = {
     name: "integration-test-1",
-    observe: createTestObserveResource(ctx.queue),
+    observe: createTestObserveResource(queue),
     act: [Act.wait(200)],
     assert: [Assert.noErrors(), Assert.hasAction("request_received")],
     stop: { idleMs: 1000, maxMs: 5000 }
@@ -49,9 +44,11 @@ test("integration: successful gate with wait action collects logs", async () => 
   expect(result.logs.length).toBeGreaterThan(0);
   expect(result.evidence.actionsSeen).toContain("request_received");
   expect(result.evidence.errorTags).toHaveLength(0);
-});
+  })
+);
 
-test("integration: gate with sequence of actions processes in order", async () => {
+test("integration: gate with sequence of actions processes in order", () =>
+  withQueue(async (queue) => {
   const logs: Log[] = [
     {
       timestamp: new Date().toISOString(),
@@ -68,12 +65,12 @@ test("integration: gate with sequence of actions processes in order", async () =
   ];
 
   await Runtime.runPromise(Runtime.defaultRuntime)(
-    Effect.forEach(logs, (log) => Queue.offer(ctx.queue, log))
+    Effect.forEach(logs, (log) => Queue.offer(queue, log))
   );
 
   const gate = {
     name: "integration-sequence-test",
-    observe: createTestObserveResource(ctx.queue),
+    observe: createTestObserveResource(queue),
     act: [
       Act.wait(100),
       Act.wait(100),
@@ -91,9 +88,11 @@ test("integration: gate with sequence of actions processes in order", async () =
   expect(result.status).toBe("success");
   expect(result.evidence.actionsSeen).toContain("action_1");
   expect(result.evidence.actionsSeen).toContain("action_2");
-});
+  })
+);
 
-test("integration: gate fails when assertion is not met", async () => {
+test("integration: gate fails when assertion is not met", () =>
+  withQueue(async (queue) => {
   const logs: Log[] = [
     {
       timestamp: new Date().toISOString(),
@@ -104,12 +103,12 @@ test("integration: gate fails when assertion is not met", async () => {
   ];
 
   await Runtime.runPromise(Runtime.defaultRuntime)(
-    Effect.forEach(logs, (log) => Queue.offer(ctx.queue, log))
+    Effect.forEach(logs, (log) => Queue.offer(queue, log))
   );
 
   const gate = {
     name: "integration-fail-test",
-    observe: createTestObserveResource(ctx.queue),
+    observe: createTestObserveResource(queue),
     act: [Act.wait(100)],
     assert: [Assert.hasAction("nonexistent_action")],
     stop: { idleMs: 1000, maxMs: 5000 }
@@ -119,9 +118,11 @@ test("integration: gate fails when assertion is not met", async () => {
 
   expect(result.status).toBe("failed");
   expect(result.error).toBeDefined();
-});
+  })
+);
 
-test("integration: gate detects errors in logs", async () => {
+test("integration: gate detects errors in logs", () =>
+  withQueue(async (queue) => {
   const logs: Log[] = [
     {
       timestamp: new Date().toISOString(),
@@ -132,12 +133,12 @@ test("integration: gate detects errors in logs", async () => {
   ];
 
   await Runtime.runPromise(Runtime.defaultRuntime)(
-    Effect.forEach(logs, (log) => Queue.offer(ctx.queue, log))
+    Effect.forEach(logs, (log) => Queue.offer(queue, log))
   );
 
   const gate = {
     name: "integration-error-test",
-    observe: createTestObserveResource(ctx.queue),
+    observe: createTestObserveResource(queue),
     act: [Act.wait(100)],
     assert: [Assert.noErrors()],
     stop: { idleMs: 1000, maxMs: 5000 }
@@ -147,9 +148,11 @@ test("integration: gate detects errors in logs", async () => {
 
   expect(result.status).toBe("failed");
   expect(result.evidence.errorTags).toContain("TestError");
-});
+  })
+);
 
-test("integration: gate with custom assertion evaluates custom logic", async () => {
+test("integration: gate with custom assertion evaluates custom logic", () =>
+  withQueue(async (queue) => {
   const logs: Log[] = [
     {
       timestamp: new Date().toISOString(),
@@ -168,12 +171,12 @@ test("integration: gate with custom assertion evaluates custom logic", async () 
   ];
 
   await Runtime.runPromise(Runtime.defaultRuntime)(
-    Effect.forEach(logs, (log) => Queue.offer(ctx.queue, log))
+    Effect.forEach(logs, (log) => Queue.offer(queue, log))
   );
 
   const gate = {
     name: "integration-custom-test",
-    observe: createTestObserveResource(ctx.queue),
+    observe: createTestObserveResource(queue),
     act: [Act.wait(100)],
     assert: [
       Assert.custom("avg_duration_ok", (logs: Log[]) => {
@@ -189,9 +192,11 @@ test("integration: gate with custom assertion evaluates custom logic", async () 
   const result = await Gate.run(gate);
 
   expect(result.status).toBe("success");
-});
+  })
+);
 
-test("integration: gate executes shell commands via exec action", async () => {
+test("integration: gate executes shell commands via exec action", () =>
+  withQueue(async (queue) => {
   const logs: Log[] = [
     {
       timestamp: new Date().toISOString(),
@@ -202,14 +207,14 @@ test("integration: gate executes shell commands via exec action", async () => {
   ];
 
   await Runtime.runPromise(Runtime.defaultRuntime)(
-    Effect.forEach(logs, (log) => Queue.offer(ctx.queue, log))
+    Effect.forEach(logs, (log) => Queue.offer(queue, log))
   );
 
   const gate = {
     name: "integration-exec-test",
-    observe: createTestObserveResource(ctx.queue),
+    observe: createTestObserveResource(queue),
     act: [
-      Act.exec("echo 'test'"),
+      Act.exec("echo test"),
       Act.wait(100)
     ],
     assert: [Assert.noErrors()],
@@ -219,18 +224,20 @@ test("integration: gate executes shell commands via exec action", async () => {
   const result = await Gate.run(gate);
 
   expect(result.status).toBe("success");
-});
+  })
+);
 
-test("integration: gate fails when exec command returns non-zero exit code", async () => {
+test("integration: gate fails when exec command returns non-zero exit code", () =>
+  withQueue(async (queue) => {
   const logs: Log[] = [];
 
   await Runtime.runPromise(Runtime.defaultRuntime)(
-    Effect.forEach(logs, (log) => Queue.offer(ctx.queue, log))
+    Effect.forEach(logs, (log) => Queue.offer(queue, log))
   );
 
   const gate = {
     name: "integration-exec-fail-test",
-    observe: createTestObserveResource(ctx.queue),
+    observe: createTestObserveResource(queue),
     act: [
       Act.exec("exit 1"),
       Act.wait(100)
@@ -243,9 +250,11 @@ test("integration: gate fails when exec command returns non-zero exit code", asy
 
   expect(result.status).toBe("failed");
   expect(result.error).toBeDefined();
-});
+  })
+);
 
-test("integration: gate with multiple assertions validates all conditions", async () => {
+test("integration: gate with multiple assertions validates all conditions", () =>
+  withQueue(async (queue) => {
   const logs: Log[] = [
     {
       timestamp: new Date().toISOString(),
@@ -268,12 +277,12 @@ test("integration: gate with multiple assertions validates all conditions", asyn
   ];
 
   await Runtime.runPromise(Runtime.defaultRuntime)(
-    Effect.forEach(logs, (log) => Queue.offer(ctx.queue, log))
+    Effect.forEach(logs, (log) => Queue.offer(queue, log))
   );
 
   const gate = {
     name: "integration-multi-assert-test",
-    observe: createTestObserveResource(ctx.queue),
+    observe: createTestObserveResource(queue),
     act: [Act.wait(100)],
     assert: [
       Assert.noErrors(),
@@ -293,9 +302,11 @@ test("integration: gate with multiple assertions validates all conditions", asyn
   expect(result.evidence.stagesSeen).toContain("worker");
   expect(result.evidence.stagesSeen).toContain("durable_object");
   expect(result.evidence.stagesSeen).toContain("container");
-});
+  })
+);
 
-test("integration: gate outputs structured JSON report", async () => {
+test("integration: gate outputs structured JSON report", () =>
+  withQueue(async (queue) => {
   const logs: Log[] = [
     {
       timestamp: new Date().toISOString(),
@@ -306,12 +317,12 @@ test("integration: gate outputs structured JSON report", async () => {
   ];
 
   await Runtime.runPromise(Runtime.defaultRuntime)(
-    Effect.forEach(logs, (log) => Queue.offer(ctx.queue, log))
+    Effect.forEach(logs, (log) => Queue.offer(queue, log))
   );
 
   const gate = {
     name: "integration-json-report-test",
-    observe: createTestObserveResource(ctx.queue),
+    observe: createTestObserveResource(queue),
     act: [Act.wait(100)],
     assert: [Assert.noErrors()],
     stop: { idleMs: 1000, maxMs: 5000 },
@@ -324,18 +335,20 @@ test("integration: gate outputs structured JSON report", async () => {
   expect(result.evidence).toBeDefined();
   expect(result.logs).toBeDefined();
   expect(result.durationMs).toBeGreaterThan(0);
-});
+  })
+);
 
-test("integration: gate completes with no logs on idle timeout", async () => {
+test("integration: gate completes with no logs on idle timeout", () =>
+  withQueue(async (queue) => {
   const logs: Log[] = [];
 
   await Runtime.runPromise(Runtime.defaultRuntime)(
-    Effect.forEach(logs, (log) => Queue.offer(ctx.queue, log))
+    Effect.forEach(logs, (log) => Queue.offer(queue, log))
   );
 
   const gate = {
     name: "integration-idle-no-logs-test",
-    observe: createTestObserveResource(ctx.queue),
+    observe: createTestObserveResource(queue),
     act: [Act.wait(100)],
     assert: [Assert.noErrors()],
     stop: { idleMs: 500, maxMs: 10000 }
@@ -345,9 +358,11 @@ test("integration: gate completes with no logs on idle timeout", async () => {
 
   expect(result.status).toBe("success");
   expect(result.logs.length).toBe(0);
-});
+  })
+);
 
-test("integration: gate completes when idle timeout reached", async () => {
+test("integration: gate completes when idle timeout reached", () =>
+  withQueue(async (queue) => {
   const logs: Log[] = [
     {
       timestamp: new Date().toISOString(),
@@ -358,12 +373,12 @@ test("integration: gate completes when idle timeout reached", async () => {
   ];
 
   await Runtime.runPromise(Runtime.defaultRuntime)(
-    Effect.forEach(logs, (log) => Queue.offer(ctx.queue, log))
+    Effect.forEach(logs, (log) => Queue.offer(queue, log))
   );
 
   const gate = {
     name: "integration-idle-test",
-    observe: createTestObserveResource(ctx.queue),
+    observe: createTestObserveResource(queue),
     act: [Act.wait(100)],
     assert: [Assert.noErrors()],
     stop: { idleMs: 500, maxMs: 10000 }
@@ -373,9 +388,11 @@ test("integration: gate completes when idle timeout reached", async () => {
 
   expect(result.status).toBe("success");
   expect(result.durationMs).toBeGreaterThan(0);
-});
+  })
+);
 
-test("integration: gate collects multiple requestIds from logs", async () => {
+test("integration: gate collects multiple requestIds from logs", () =>
+  withQueue(async (queue) => {
   const logs: Log[] = [
     {
       timestamp: new Date().toISOString(),
@@ -401,12 +418,12 @@ test("integration: gate collects multiple requestIds from logs", async () => {
   ];
 
   await Runtime.runPromise(Runtime.defaultRuntime)(
-    Effect.forEach(logs, (log) => Queue.offer(ctx.queue, log))
+    Effect.forEach(logs, (log) => Queue.offer(queue, log))
   );
 
   const gate = {
     name: "integration-request-id-test",
-    observe: createTestObserveResource(ctx.queue),
+    observe: createTestObserveResource(queue),
     act: [Act.wait(100)],
     assert: [
       Assert.noErrors(),
@@ -425,9 +442,11 @@ test("integration: gate collects multiple requestIds from logs", async () => {
   expect(result.evidence.requestIds).toContain("req-1");
   expect(result.evidence.requestIds).toContain("req-2");
   expect(result.evidence.requestIds).toContain("req-3");
-});
+  })
+);
 
-test("integration: gate respects custom data in logs", async () => {
+test("integration: gate respects custom data in logs", () =>
+  withQueue(async (queue) => {
   const logs: Log[] = [
     {
       timestamp: new Date().toISOString(),
@@ -442,12 +461,12 @@ test("integration: gate respects custom data in logs", async () => {
   ];
 
   await Runtime.runPromise(Runtime.defaultRuntime)(
-    Effect.forEach(logs, (log) => Queue.offer(ctx.queue, log))
+    Effect.forEach(logs, (log) => Queue.offer(queue, log))
   );
 
   const gate = {
     name: "integration-custom-data-test",
-    observe: createTestObserveResource(ctx.queue),
+    observe: createTestObserveResource(queue),
     act: [Act.wait(100)],
     assert: [
       Assert.noErrors(),
@@ -465,9 +484,11 @@ test("integration: gate respects custom data in logs", async () => {
   expect(result.status).toBe("success");
   expect(result.logs[0].data).toBeDefined();
   expect(result.logs[0].data?.customField).toBe("customValue");
-});
+  })
+);
 
-test("integration: gate handles multiple error tags correctly", async () => {
+test("integration: gate handles multiple error tags correctly", () =>
+  withQueue(async (queue) => {
   const logs: Log[] = [
       {
         timestamp: new Date().toISOString(),
@@ -489,12 +510,12 @@ test("integration: gate handles multiple error tags correctly", async () => {
   ];
 
   await Runtime.runPromise(Runtime.defaultRuntime)(
-    Effect.forEach(logs, (log) => Queue.offer(ctx.queue, log))
+    Effect.forEach(logs, (log) => Queue.offer(queue, log))
   );
 
   const gate = {
     name: "integration-multi-error-test",
-    observe: createTestObserveResource(ctx.queue),
+    observe: createTestObserveResource(queue),
     act: [Act.wait(100)],
     assert: [Assert.noErrors()],
     stop: { idleMs: 1000, maxMs: 5000 }
@@ -505,4 +526,5 @@ test("integration: gate handles multiple error tags correctly", async () => {
   expect(result.status).toBe("failed");
   expect(result.evidence.errorTags).toContain("ErrorType1");
   expect(result.evidence.errorTags).toContain("ErrorType2");
-});
+  })
+);

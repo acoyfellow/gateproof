@@ -52,4 +52,4 @@ test("action-failure: deploy action handles wrangler failure", async () => {
 
   // Deploy may fail if wrangler not available or worker doesn't exist
   expect(["success", "failed"]).toContain(result.status);
-});
+}, 15000);
