@@ -96,6 +96,10 @@ The sequence: PRD story → gate file → gate execution → story marked "done"
 
 Progress is not declared. It is proven.
 
+## Design notes
+
+- [Effect and Schema: Gateproof's Foundation](docs/effect-and-schema.md)
+
 ## Quick Start
 
 The API is minimal: three concepts (Gate, Act, Assert). Here's a gate:
