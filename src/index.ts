@@ -98,12 +98,12 @@ function runAction(action: Action): Effect.Effect<void, GateError> {
  * 
  * Behavior:
  * - **maxMs**: Maximum total time to wait for logs. If exceeded, returns LogTimeoutError.
- * - **idleMs**: If no logs arrive for this duration AND we have collected logs, return early.
+ * - **idleMs**: If no logs arrive for this duration, return early (with collected logs if any, or empty array if none).
  * 
  * Examples:
  * - Stream produces logs continuously: collects until maxLogs or maxMs exceeded
  * - Stream stops producing logs: if idleMs elapsed and we have logs, return them
- * - Stream never produces logs: returns empty array if maxMs not exceeded, otherwise timeout error
+ * - Stream never produces logs: waits for idleMs then returns empty array if maxMs not exceeded, otherwise timeout error
  * - Stream error: preserved in LogTimeoutError.cause
  */
 function collectLogs(
@@ -159,8 +159,24 @@ function collectLogs(
       return Array.from(collected);
     }
 
-    // No logs collected and we haven't exceeded maxMs yet – return empty,
-    // caller may decide how to handle this (often treated as failure by assertions).
+    // No logs collected yet. Wait for idleMs before giving up, unless maxMs would be exceeded.
+    if (idleTime < stop.idleMs) {
+      const remainingIdle = stop.idleMs - idleTime;
+      const remainingMax = stop.maxMs - totalTime;
+      const waitTime = Math.min(remainingIdle, remainingMax);
+      
+      if (waitTime > 0) {
+        yield* Effect.sleep(`${waitTime} millis`);
+        
+        // After waiting, check if maxMs is now exceeded
+        const afterWaitTime = Date.now() - startTime;
+        if (afterWaitTime > stop.maxMs) {
+          return yield* Effect.fail(makeLogTimeoutError(stop));
+        }
+      }
+    }
+
+    // No logs collected after waiting – return empty array.
     return [];
   });
 }
