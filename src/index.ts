@@ -159,8 +159,24 @@ function collectLogs(
       return Array.from(collected);
     }
 
-    // No logs collected and we haven't exceeded maxMs yet – return empty,
-    // caller may decide how to handle this (often treated as failure by assertions).
+    // No logs collected yet. Wait for idleMs before giving up, unless maxMs would be exceeded.
+    if (idleTime < stop.idleMs) {
+      const remainingIdle = stop.idleMs - idleTime;
+      const remainingMax = stop.maxMs - totalTime;
+      const waitTime = Math.min(remainingIdle, remainingMax);
+      
+      if (waitTime > 0) {
+        yield* Effect.sleep(`${waitTime} millis`);
+        
+        // After waiting, check if maxMs is now exceeded
+        const afterWaitTime = Date.now() - startTime;
+        if (afterWaitTime > stop.maxMs) {
+          return yield* Effect.fail(makeLogTimeoutError(stop));
+        }
+      }
+    }
+
+    // No logs collected after waiting – return empty array.
     return [];
   });
 }
