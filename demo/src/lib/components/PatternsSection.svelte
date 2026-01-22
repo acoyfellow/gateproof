@@ -7,40 +7,46 @@
   
   const patterns = {
     basic: {
-      title: 'Common Use Cases',
-      description: 'Real scenarios where gateproof saves time',
+      title: 'Stories as Gates',
+      description: 'PRD defines stories. Gates verify them. Reality decides.',
       examples: [
         {
-          name: 'Did My Deploy Work?',
-          description: 'After deploying, validate it actually works by checking real logs',
-          code: `import { Gate, Act, Assert } from "gateproof";
+          name: 'Story: Deploy Verification',
+          description: 'PRD defines story. Gate verifies it. Work halts if gate fails.',
+          code: `// prd.ts
+export const stories = [
+  {
+    id: "post-deploy-check",
+    title: "Deploy works without errors",
+    gateFile: "./gates/post-deploy-check.gate.ts",
+    status: "pending"
+  }
+];
+
+// gates/post-deploy-check.gate.ts
+import { Gate, Act, Assert } from "gateproof";
 import { CloudflareProvider } from "gateproof/cloudflare";
 
-// After deploying, did it actually work?
 const provider = CloudflareProvider({
   accountId: process.env.CLOUDFLARE_ACCOUNT_ID,
   apiToken: process.env.CLOUDFLARE_API_TOKEN
 });
 
-const gate = {
+const result = await Gate.run({
   name: "post-deploy-check",
   observe: provider.observe({
     backend: "analytics",
     dataset: "worker_logs"
   }),
-  act: [
-    Act.browser({ url: "https://my-worker.workers.dev" })
-  ],
+  act: [Act.browser({ url: "https://my-worker.workers.dev" })],
   assert: [
-    Assert.noErrors(),  // No errors in logs
-    Assert.hasAction("request_received")  // Request was actually processed
-  ],
-  stop: { idleMs: 3000, maxMs: 10000 }
-};
+    Assert.noErrors(),
+    Assert.hasAction("request_received")
+  ]
+});
 
-const result = await Gate.run(gate);
 if (result.status !== "success") {
-  console.error("Deploy validation failed!");
+  console.error("Gate failed. Stop here.");
   process.exit(1);
 }`,
         },

@@ -6,6 +6,7 @@
 import { Effect } from "effect";
 import { Gate, type GateSpec, type GateResult } from "./index";
 import { createObserveResource, type Backend } from "./observe";
+import type { Log } from "./types";
 
 /**
  * Creates an empty backend that yields no logs
@@ -13,7 +14,8 @@ import { createObserveResource, type Backend } from "./observe";
  */
 export function createEmptyBackend(): Backend {
   return {
-    start: () => Effect.succeed<AsyncIterable<any>>({
+    start: () =>
+      Effect.succeed<AsyncIterable<Log>>({
       async *[Symbol.asyncIterator]() {
         return;
       },
@@ -40,8 +42,9 @@ export async function runGateWithErrorHandling(
 ): Promise<GateResult> {
   try {
     return await Gate.run(gate);
-  } catch (error: any) {
-    console.error(`   ❌ Error: ${error.message || error}`);
+  } catch (unknownError) {
+    const error = unknownError instanceof Error ? unknownError : new Error(String(unknownError));
+    console.error(`   ❌ Error: ${error.message}`);
     return {
       status: "failed" as const,
       durationMs: 0,

@@ -10,21 +10,25 @@ export interface CliStreamConfig {
 
 function parseLogLine(line: string): Effect.Effect<Log, ObservabilityError> {
   return Effect.gen(function* () {
-    const parsed = yield* Effect.try({
-      try: () => JSON.parse(line),
+    const parsed = yield* Effect.try<Log & { message?: unknown }, ObservabilityError>({
+      try: () => JSON.parse(line) as Log & { message?: unknown },
       catch: (e) => createObservabilityError(e)
     });
 
-    const msg = (parsed as any).message;
+    const msg = parsed.message;
     
     if (typeof msg === "string") {
-      const innerResult = yield* Effect.try({
+      const innerResult = yield* Effect.try<unknown, ObservabilityError>({
         try: () => JSON.parse(msg),
-        catch: () => null
+        catch: () => createObservabilityError(new Error("Failed to parse inner JSON"))
       }).pipe(Effect.either);
 
-      if (Either.isRight(innerResult)) {
-        return { ...(parsed as any), ...(innerResult.right as any) } as Log;
+      if (Either.isRight(innerResult) && innerResult.right && typeof innerResult.right === "object") {
+        const merged = {
+          ...parsed,
+          ...(innerResult.right as Record<string, unknown>)
+        } as Log;
+        return merged;
       }
     }
     

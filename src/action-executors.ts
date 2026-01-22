@@ -1,4 +1,5 @@
 import { Effect, Schedule } from "effect";
+import type { Browser, Page } from "playwright";
 import type { Action } from "./act";
 import { GateError } from "./index";
 import { validateCommand, validateUrl, validateWorkerName } from "./validation";
@@ -52,6 +53,16 @@ export const DeployExecutor: ActionExecutor = {
   }
 };
 
+/**
+ * Executes shell commands.
+ * 
+ * **SECURITY WARNING**: Commands are executed with `shell: true`, which means
+ * shell interpretation occurs. The `validateCommand` function blocks dangerous
+ * characters, but this executor should only be used with trusted input.
+ * 
+ * For untrusted input, consider using `execFile` with explicit argument arrays
+ * instead of shell execution.
+ */
 export const ExecExecutor: ActionExecutor = {
   execute(action) {
     if (action._tag !== "Exec") {
@@ -97,7 +108,8 @@ export const BrowserExecutor: ActionExecutor = {
           try: async () => {
             try {
               const pw = await import("playwright");
-              return await pw.chromium.launch({ headless: action.headless });
+              const browser: Browser = await pw.chromium.launch({ headless: action.headless });
+              return browser;
             } catch (e) {
               throw new Error(`Playwright not available: ${e instanceof Error ? e.message : String(e)}`);
             }
@@ -107,18 +119,18 @@ export const BrowserExecutor: ActionExecutor = {
         (browser) =>
           Effect.gen(function* () {
             const page = yield* Effect.tryPromise({
-              try: () => browser.newPage(),
+              try: () => (browser as Browser).newPage(),
               catch: (e) => new GateError({ cause: e })
             });
             yield* Effect.tryPromise({
-              try: () => (page as any).goto(action.url),
+              try: () => (page as Page).goto(action.url),
               catch: (e) => new GateError({ cause: e })
             });
             yield* Effect.sleep(`${action.waitMs ?? 5000} millis`);
           }),
         (browser) =>
           Effect.tryPromise({
-            try: () => (browser as any).close(),
+            try: () => (browser as Browser).close(),
             catch: () => undefined
           }).pipe(Effect.catchAll(() => Effect.void))
       ).pipe(
@@ -140,6 +152,6 @@ export function getActionExecutor(action: Action): ActionExecutor {
     case "Browser":
       return BrowserExecutor;
     default:
-      throw new Error(`Unknown action type: ${(action as any)._tag}`);
+      throw new Error("Unknown action type");
   }
 }
