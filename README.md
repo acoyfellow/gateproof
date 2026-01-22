@@ -2,15 +2,13 @@
 
 E2E testing harness. Observe logs, run actions, assert results.
 
-**Minimal surface area. Maximum power.**
-
 ## What gateproof does
 
 gateproof **executes gates**. It does not define intent, plans, or workflows.
 
 A gate is a test specification: observe logs, run actions, assert results. gateproof runs it and returns evidence.
 
-You define gates. gateproof executes them.
+You define stories (gates) in your PRD. gateproof executes gate files.
 
 **Authority chain:**
 - **PRD (`prd.ts` / `prd.json`)** — authority on intent, order, and state
@@ -46,7 +44,7 @@ export const stories = [
 ];
 ```
 
-This is how it works. Each story references a gate file. The gate file uses gateproof's API:
+Each story references a gate file. The gate file uses gateproof's API:
 
 ```typescript
 // gates/user-signup.gate.ts
@@ -86,19 +84,21 @@ if (result.status !== "success") process.exit(1);
 }
 ```
 
-**gateproof does not parse or own your PRD.** It's your repo's artifact. You decide the format. gateproof only executes the gate files your PRD references.
+**gateproof does not parse or own your PRD.** It's your repo's artifact. **You decide the format. gateproof only executes the gate files your PRD references.**
 
 Stories carry state. The PRD tracks which stories are pending, in progress, or done. gateproof does not manage this state. It only enforces: proceed only when gates pass.
 
 ## How it works
 
-The PRD defines stories. Stories reference gate files. Gate files use gateproof's API. CI enforces gates pass before merge/deploy.
+The PRD defines stories. Stories reference gate files. Gate files use gateproof's API. Gates can be enforced in CI before merge/deploy.
 
 The sequence: PRD story → gate file → gate execution → story marked "done" only when gate passes.
 
 Progress is not declared. It is proven.
 
 ## Quick Start
+
+The API is minimal: three concepts (Gate, Act, Assert). Here's a gate:
 
 ```typescript
 import { Gate, Act, Assert } from "gateproof";
@@ -120,8 +120,6 @@ if (result.status !== "success") process.exit(1);
 ```
 
 This gate is a story verification. The PRD points at it.
-
-Three concepts: **Gate**, **Act**, **Assert**.
 
 ## Core API
 
@@ -204,13 +202,6 @@ See `patterns/` for complete examples:
 ## CI/CD
 
 gateproof enforces gates in CI/CD. See `patterns/ci-cd/github-actions.ts` for examples.
-
-## When to use gateproof
-
-Use gateproof when:
-- You need to validate against production observability data
-- You want stories to be executable
-- Progress must be proven, not declared
 
 ## Requirements
 
