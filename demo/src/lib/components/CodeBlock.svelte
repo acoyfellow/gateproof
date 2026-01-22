@@ -5,9 +5,10 @@
   interface Props {
     code: string;
     language?: string;
+    wrap?: boolean;
   }
 
-  let { code, language = 'typescript' }: Props = $props();
+  let { code, language = 'typescript', wrap = false }: Props = $props();
   
   let highlightedHtml = $state<string>('');
   let loading = $state(true);
@@ -34,9 +35,9 @@
   });
 </script>
 
-<div class="text-xs font-mono leading-relaxed min-w-0 w-full">
+<div class="text-xs font-mono leading-relaxed min-w-0 w-full" class:wrap>
   {#if loading}
-    <pre class="text-gray-100 whitespace-pre overflow-x-auto sm:whitespace-pre sm:overflow-x-auto">
+    <pre class="text-gray-100 whitespace-pre overflow-x-auto sm:whitespace-pre sm:overflow-x-auto" class:pre-wrap={wrap} class:overflow-x-hidden={wrap}>
       <code>{code}</code>
     </pre>
   {:else}
@@ -45,6 +46,17 @@
 </div>
 
 <style>
+  .wrap :global(.shiki),
+  .wrap :global(.shiki pre) {
+    overflow-x: hidden !important;
+  }
+
+  .wrap :global(.shiki code) {
+    white-space: pre-wrap !important;
+    word-break: break-word !important;
+    overflow-wrap: anywhere !important;
+  }
+
   :global(.shiki) {
     background: transparent !important;
     padding: 0 !important;

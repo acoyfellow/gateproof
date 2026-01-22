@@ -1,11 +1,116 @@
 <script lang="ts">
   import CodeBlock from './CodeBlock.svelte';
   
-  type PatternCategory = 'basic' | 'cloudflare' | 'ci-cd' | 'advanced';
+  type PatternCategory = 'prd' | 'basic' | 'cloudflare' | 'ci-cd' | 'advanced';
   
-  let selectedCategory = $state<PatternCategory>('basic');
+  let selectedCategory = $state<PatternCategory>('prd');
   
   const patterns = {
+    prd: {
+      title: 'PRD.ts',
+      description: 'Your PRD is code. Stories point at gates. Gates return evidence.',
+      examples: [
+        {
+          name: 'PRD.ts: stories + dependencies',
+          description: 'A PRD is just a typed list of stories. You own the format.',
+          language: "typescript",
+          code: `// patterns/prd/prd.ts
+export type StoryStatus = "pending" | "blocked" | "done";
+
+export type Story = {
+  id: "user-signup" | "email-verification";
+  title: string;
+  gateFile: string;
+  dependsOn?: Story["id"][];
+  status: StoryStatus;
+};
+
+export const prd = {
+  stories: [
+    {
+      id: "user-signup",
+      title: "User can sign up",
+      gateFile: "./gates/user-signup.gate.ts",
+      status: "pending"
+    },
+    {
+      id: "email-verification",
+      title: "Email verification works",
+      gateFile: "./gates/email-verification.gate.ts",
+      dependsOn: ["user-signup"],
+      status: "blocked"
+    }
+  ]
+} satisfies { stories: readonly Story[] };`
+        },
+        {
+          name: 'Gate file: prove the story',
+          description: 'A gate is executable proof. If it fails, stop.',
+          language: "typescript",
+          code: `// patterns/prd/gates/user-signup.gate.ts
+import { Gate, Act, Assert } from "gateproof";
+import { CloudflareProvider } from "gateproof/cloudflare";
+
+export function runUserSignupGate() {
+  const provider = CloudflareProvider({
+    accountId: process.env.CLOUDFLARE_ACCOUNT_ID!,
+    apiToken: process.env.CLOUDFLARE_API_TOKEN!
+  });
+
+  return Gate.run({
+    name: "user-signup",
+    observe: provider.observe({ backend: "analytics", dataset: "worker_logs" }),
+    act: [Act.browser({ url: "https://app.example.com/signup" })],
+    assert: [Assert.noErrors(), Assert.hasAction("user_created")]
+  });
+}`
+        },
+        {
+          name: 'Runner: execute the next story',
+          description: 'Your runner chooses what to run next. gateproof only executes.',
+          language: "typescript",
+          code: `// patterns/prd/run-prd.ts
+import { prd } from "./prd";
+
+for (const story of prd.stories) {
+  const gateUrl = new URL(story.gateFile, import.meta.url).href;
+  const { run } = await import(gateUrl);
+  const result = await run();
+  if (result.status !== "success") process.exit(1);
+}
+process.exit(0);`
+        }
+        ,
+        {
+          name: 'Ralph loop: agent-in-the-loop until done',
+          description: 'Minimal loop: run the PRD, feed failures to the agent, repeat. Pause + guardrails included.',
+          language: "bash",
+          code: `# patterns/prd/ralph-loop.sh
+set -euo pipefail
+mkdir -p .ralph
+
+[[ -f .ralph/PAUSED ]] && exit 0
+git diff --quiet || exit 1
+
+failures=0
+[[ -f .ralph/failures ]] && failures="$(cat .ralph/failures)"
+
+while true; do
+  output="$(bun run patterns/prd/run-prd.ts 2>&1)" || true
+  echo "$output"
+
+  bun run patterns/prd/run-prd.ts && exit 0
+
+  failures="$((failures + 1))"
+  echo "$failures" > .ralph/failures
+  [[ "$failures" -ge 5 ]] && { touch .ralph/PAUSED; exit 1; }
+
+  printf "%s\n\n%s\n" "$(cat AGENTS.md)" "$output" | claude --dangerously-skip-permissions --print
+  git diff --quiet && exit 1
+done`
+        }
+      ]
+    },
     basic: {
       title: 'Stories as Gates',
       description: 'PRD defines stories. Gates verify them. Reality decides.',
@@ -13,6 +118,7 @@
         {
           name: 'Story: Deploy Verification',
           description: 'PRD defines story. Gate verifies it. Work halts if gate fails.',
+          language: "typescript",
           code: `// prd.ts
 export const stories = [
   {
@@ -28,8 +134,8 @@ import { Gate, Act, Assert } from "gateproof";
 import { CloudflareProvider } from "gateproof/cloudflare";
 
 const provider = CloudflareProvider({
-  accountId: process.env.CLOUDFLARE_ACCOUNT_ID,
-  apiToken: process.env.CLOUDFLARE_API_TOKEN
+  accountId: process.env.CLOUDFLARE_ACCOUNT_ID!,
+  apiToken: process.env.CLOUDFLARE_API_TOKEN!
 });
 
 const result = await Gate.run({
@@ -53,6 +159,7 @@ if (result.status !== "success") {
         {
           name: 'Is My API Actually Healthy?',
           description: 'Check real error rates from production logs, not just HTTP status codes',
+          language: "typescript",
           code: `import { Gate, Act, Assert } from "gateproof";
 import { CloudflareProvider } from "gateproof/cloudflare";
 
@@ -88,6 +195,7 @@ await Gate.run(gate);`
         {
           name: 'Did I Break Something?',
           description: 'Before merging, verify your changes don\'t break production workflows',
+          language: "typescript",
           code: `import { Gate, Act, Assert } from "gateproof";
 import { CloudflareProvider } from "gateproof/cloudflare";
 
@@ -114,10 +222,10 @@ const gate = {
 
 const result = await Gate.run(gate);
 if (result.status !== "success") {
-  console.error("❌ Pre-merge check failed - don't merge!");
+  console.error("Pre-merge check failed - don't merge.");
   process.exit(1);
 }
-console.log("✅ All checks passed - safe to merge");`
+console.log("All checks passed - safe to merge.");`
         }
       ]
     },
@@ -128,6 +236,7 @@ console.log("✅ All checks passed - safe to merge");`
         {
           name: 'Production: Analytics Engine',
           description: 'Recommended for production - reliable, scalable, cost-effective',
+          language: "typescript",
           code: `import { CloudflareProvider } from "gateproof/cloudflare";
 
 const provider = CloudflareProvider({ accountId, apiToken });
@@ -154,6 +263,7 @@ const gate = {
         {
           name: 'Real-time: Workers Logs API',
           description: 'Instant log access - perfect for debugging and development',
+          language: "typescript",
           code: `import { CloudflareProvider } from "gateproof/cloudflare";
 
 const provider = CloudflareProvider({ accountId, apiToken });
@@ -175,6 +285,7 @@ const gate = {
         {
           name: 'Local Dev: CLI Stream',
           description: 'Test locally with wrangler dev - see logs as they happen',
+          language: "typescript",
           code: `import { CloudflareProvider } from "gateproof/cloudflare";
 
 const provider = CloudflareProvider({ accountId, apiToken });
@@ -201,6 +312,7 @@ const gate = {
         {
           name: 'GitHub Actions: Block Bad Deploys',
           description: 'Automatically validate production after deploy - fail CI if broken',
+          language: "bash",
           code: `# .github/workflows/deploy.yml
 - name: Deploy to production
   run: wrangler deploy
@@ -229,7 +341,7 @@ const gate = {
 
 const result = await Gate.run(gate);
 if (result.status !== "success") {
-  console.error("❌ Production validation failed!");
+  console.error("Production validation failed.");
   process.exit(1);  // Fails CI - prevents bad deploy
 }`,
         }
@@ -242,6 +354,7 @@ if (result.status !== "success") {
         {
           name: 'Custom Backend: Any Observability System',
           description: 'Plug in Datadog, New Relic, or any log system - gateproof works with anything',
+          language: "typescript",
           code: `import { createObserveResource, type Backend } from "gateproof";
 import { Effect } from "effect";
 
@@ -277,6 +390,7 @@ const gate = {
         {
           name: 'Multi-Step Validation',
           description: 'Validate complex workflows end-to-end - ensure each step completes',
+          language: "typescript",
           code: `// Validate a complete user journey
 const gates = [
   {
@@ -315,11 +429,11 @@ const gates = [
 for (const gate of gates) {
   const result = await Gate.run(gate);
   if (result.status !== "success") {
-    console.error(\`❌ \${gate.name} failed - workflow broken\`);
+    console.error(\`\${gate.name} failed - workflow broken\`);
     process.exit(1);
   }
 }
-console.log("✅ Complete workflow validated");`
+console.log("Complete workflow validated.");`
         }
       ]
     }
@@ -360,8 +474,8 @@ console.log("✅ Complete workflow validated");`
             <h3 class="text-2xl font-bold text-amber-900 mb-2">{example.name}</h3>
             <p class="text-amber-700">{example.description}</p>
           </div>
-          <div class="bg-gray-900 p-4 overflow-x-auto min-w-0">
-            <CodeBlock code={example.code} language="typescript" />
+          <div class="bg-gray-900 p-4 overflow-hidden min-w-0">
+            <CodeBlock code={example.code} language={example.language ?? "typescript"} wrap />
           </div>
         </div>
       {/each}
@@ -370,7 +484,7 @@ console.log("✅ Complete workflow validated");`
     <!-- Footer CTA -->
     <div class="text-center mt-12">
       <a
-        href="https://github.com/gateproof/gateproof/tree/main/patterns"
+        href="https://github.com/acoyfellow/gateproof/tree/main/patterns"
         target="_blank"
         rel="noopener noreferrer"
         class="inline-flex items-center gap-2 px-6 py-3 bg-amber-500 hover:bg-amber-600 text-white font-medium rounded-lg transition-colors"
