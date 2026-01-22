@@ -14,10 +14,22 @@
       The Chaos
     </h2>
     
-    <p class="text-xl sm:text-2xl md:text-3xl text-gray-100 mb-12 max-w-3xl mx-auto leading-relaxed text-balance text-shadow-lg">
+    <p class="text-xl sm:text-2xl md:text-3xl text-gray-100 mb-8 max-w-3xl mx-auto leading-relaxed text-balance text-shadow-lg">
       Without gates, progress is declared, not proven. Stories marked "done" without verification. 
       Work proceeds on assumptions. Reality diverges from intention.
     </p>
+    
+    <div class="mb-12 text-gray-300 text-lg font-mono">
+      observe → fail → <span class="text-red-400 line-through">fix</span> → <span class="text-red-400 line-through">accept</span>
+    </div>
+    
+    <div class="mb-12 max-w-4xl mx-auto p-6 bg-red-950/60 border border-red-800/70 rounded backdrop-blur-sm">
+      <p class="text-lg text-red-100 mb-3 font-semibold">The trap:</p>
+      <p class="text-base text-red-200/90 leading-relaxed">
+        Story marked "done". Next story starts. Assumption: previous story works. It doesn't. Work continues. System breaks. 
+        You discover the failure weeks later, when assumptions have compounded into cascading failures.
+      </p>
+    </div>
     
     <div class="grid sm:grid-cols-3 gap-6 max-w-6xl mx-auto">
       {#each [

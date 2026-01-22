@@ -14,8 +14,24 @@
     stage?: string;
   };
   
-  let state = $state<GateState>('idle');
-  let logs = $state<LogLine[]>([]);
+  let state = $state<GateState>('failed');
+  let logs = $state<LogLine[]>([
+    {
+      timestamp: new Date(Date.now() - 2000).toISOString(),
+      level: 'info',
+      message: 'Observing logs...'
+    },
+    {
+      timestamp: new Date(Date.now() - 1500).toISOString(),
+      level: 'info',
+      message: 'Acting: browser navigation to /signup'
+    },
+    {
+      timestamp: new Date(Date.now() - 1000).toISOString(),
+      level: 'error',
+      message: 'Checking assertions...'
+    }
+  ]);
   let result = $state<{
     status: string;
     durationMs: number;
@@ -25,7 +41,12 @@
       errorTags: string[];
     };
     error?: { message: string; name: string };
-  } | null>(null);
+  }>({
+    status: 'failed',
+    durationMs: 1234,
+    evidence: { actionsSeen: [], stagesSeen: [], errorTags: [] },
+    error: { message: "No action 'user_created' found in logs.", name: 'AssertionError' }
+  });
   
   async function runGate() {
     state = 'running';
@@ -75,9 +96,30 @@
   }
   
   function resetGate() {
-    state = 'idle';
-    logs = [];
-    result = null;
+    state = 'failed';
+    logs = [
+      {
+        timestamp: new Date(Date.now() - 2000).toISOString(),
+        level: 'info',
+        message: 'Observing logs...'
+      },
+      {
+        timestamp: new Date(Date.now() - 1500).toISOString(),
+        level: 'info',
+        message: 'Acting: browser navigation to /signup'
+      },
+      {
+        timestamp: new Date(Date.now() - 1000).toISOString(),
+        level: 'error',
+        message: 'Checking assertions...'
+      }
+    ];
+    result = {
+      status: 'failed',
+      durationMs: 1234,
+      evidence: { actionsSeen: [], stagesSeen: [], errorTags: [] },
+      error: { message: "No action 'user_created' found in logs.", name: 'AssertionError' }
+    };
   }
 </script>
 
@@ -180,17 +222,7 @@
           
           <!-- Terminal content -->
           <div class="h-64 overflow-y-auto p-4 font-mono text-xs bg-gray-900 rounded mb-4">
-            {#if state === 'idle'}
-              <div class="flex flex-col gap-2 text-gray-400">
-                <div class="flex items-center gap-2">
-                  <span class="text-amber-400">$</span>
-                  <span>bun run gates/user-signup.gate.ts</span>
-                </div>
-                <div class="text-gray-500 text-xs mt-2">
-                  Run gate to verify story. If it fails, work halts.
-                </div>
-              </div>
-            {:else if state === 'running'}
+            {#if state === 'running'}
               <div class="flex items-center gap-2 text-gray-400 mb-2">
                 <span class="text-amber-400">$</span>
                 <span>Running gate...</span>

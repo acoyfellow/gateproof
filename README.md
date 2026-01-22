@@ -19,11 +19,11 @@ You define gates. gateproof executes them.
 
 gateproof never decides *what* to build. It only decides *when you are allowed to proceed*.
 
-## Make your PRD executable
+## Stories as gates
 
-Humans and agents work through stories. A PRD (Product Requirements Document) is a collection of stories.
+A PRD (Product Requirements Document) defines stories. Stories are gates. Each story references a gate file. The gate file verifies the story against reality.
 
-**Make your PRD executable.** Write your stories as gates. Let reality decide when you can move forward.
+Reality decides when you can proceed.
 
 ### prd.ts example
 
@@ -46,7 +46,7 @@ export const stories = [
 ];
 ```
 
-Each story references a gate file. The gate file uses gateproof's API:
+This is how it works. Each story references a gate file. The gate file uses gateproof's API:
 
 ```typescript
 // gates/user-signup.gate.ts
@@ -90,15 +90,11 @@ if (result.status !== "success") process.exit(1);
 
 Stories carry state. The PRD tracks which stories are pending, in progress, or done. gateproof does not manage this state. It only enforces: proceed only when gates pass.
 
-## How to use in a repo
+## How it works
 
-1. **Define your PRD** (`prd.ts` or `prd.json`) with stories that reference gate files.
-2. **Write gate files** in `gates/` (or `stories/`) using gateproof's API.
-3. **Run gates** to verify stories: `bun run gates/user-signup.gate.ts`
-4. **Enforce in CI**: merge/deploy only if required gates pass.
+The PRD defines stories. Stories reference gate files. Gate files use gateproof's API. CI enforces gates pass before merge/deploy.
 
-**Workflow:**
-- Update PRD story → implement change → run gate → only then mark story "done".
+The sequence: PRD story → gate file → gate execution → story marked "done" only when gate passes.
 
 Progress is not declared. It is proven.
 
@@ -222,13 +218,6 @@ Use gateproof when:
 - `playwright` (optional, for Act.browser)
 - Cloudflare credentials (for CloudflareProvider, or bring your own backend)
 
-## Why gateproof?
-
-Normal tests check code logic. gateproof checks production reality.
-
-Tests pass, deploy succeeds, production breaks. Tests validate code in isolation, not the system in reality.
-
-gateproof validates against **real observability data** from your production system.
 
 ## License
 
