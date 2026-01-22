@@ -24,10 +24,9 @@
     </h1>
     
     <p class="text-lg sm:text-2xl md:text-3xl max-w-3xl text-gray-100 leading-relaxed text-balance text-shadow-lg">
-      The observation layer for building software in reverse. <br />
-      Define constraints. <br />
-      Let AI build within them. <br />
-      Validate against reality.
+      Write your stories with gateproof. <br />
+      Make your PRD executable. <br />
+      Reality decides when you can move forward.
     </p>
     
     <button

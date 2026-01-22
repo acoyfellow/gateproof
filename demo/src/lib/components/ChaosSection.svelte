@@ -15,15 +15,15 @@
     </h2>
     
     <p class="text-xl sm:text-2xl md:text-3xl text-gray-100 mb-12 max-w-3xl mx-auto leading-relaxed text-balance text-shadow-lg">
-      Without gateproof, AI-generated code runs unchecked. Errors cascade. 
-      Systems fail silently. Reality diverges from expectations.
+      Without gates, progress is declared, not proven. Stories marked "done" without verification. 
+      Work proceeds on assumptions. Reality diverges from intention.
     </p>
     
     <div class="grid sm:grid-cols-3 gap-6 max-w-6xl mx-auto">
       {#each [
-        { title: "Unpredictable behavior", desc: "Code runs without validation" },
-        { title: "Cascading failures", desc: "Errors propagate unchecked" },
-        { title: "No validation", desc: "Reality diverges from code" }
+        { title: "Dishonest progress", desc: "Stories marked done without proof" },
+        { title: "Assumptions compound", desc: "Work builds on unverified claims" },
+        { title: "No verification", desc: "Reality diverges from intention" }
       ] as item}
         <div class="p-8 bg-red-950/40 border border-red-800/50 rounded backdrop-blur-sm">
           <p class="text-2xl font-semibold text-red-100 mb-2">{item.title}</p>

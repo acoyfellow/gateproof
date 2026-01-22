@@ -26,8 +26,8 @@
 </script>
 
 <svelte:head>
-  <title>gateproof - The observation layer for building software in reverse</title>
-  <meta name="description" content="Define constraints. Let AI build within them. Validate against reality." />
+  <title>gateproof - Write your stories with gates</title>
+  <meta name="description" content="Make your PRD executable. Reality decides when you can move forward." />
 </svelte:head>
 
 <main class="relative" style="background: var(--color-background);">

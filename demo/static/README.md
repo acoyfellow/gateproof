@@ -1,165 +1,103 @@
 # gateproof
 
-E2E testing harness. Observe logs, run actions, assert results.
+Write your stories with gates. Make your PRD executable. Reality decides when you can move forward.
 
-**Minimal surface area. Maximum power.**
+## What is a story?
 
-## Quick Start
+A story is a requirement. "User can sign up." "API responds without errors." "Deploy works."
+
+Stories live in your PRD (Product Requirements Document). Traditionally, stories are prose. They're marked "done" when someone says they're done.
+
+## What is a gate?
+
+A gate is executable verification. It observes logs, runs actions, asserts results.
+
+A gate file uses gateproof's API:
 
 ```typescript
 import { Gate, Act, Assert } from "gateproof";
-import { CloudflareProvider } from "gateproof/cloudflare";
-
-const provider = CloudflareProvider({
-  accountId: process.env.CLOUDFLARE_ACCOUNT_ID!,
-  apiToken: process.env.CLOUDFLARE_API_TOKEN!
-});
 
 const result = await Gate.run({
-  observe: provider.observe({ backend: "analytics", dataset: "worker_logs" }),
-  act: [Act.browser({ url: "https://my-worker.workers.dev" })],
-  assert: [Assert.noErrors(), Assert.hasAction("request_received")]
+  name: "user-signup",
+  observe: provider.observe({ backend: "analytics" }),
+  act: [Act.browser({ url: "https://app.example.com/signup" })],
+  assert: [Assert.noErrors(), Assert.hasAction("user_created")]
 });
 
 if (result.status !== "success") process.exit(1);
 ```
 
-That's it. Three concepts: **Gate**, **Act**, **Assert**.
+## Make your PRD executable
 
-## Core API
+Your PRD defines stories. Each story references a gate file. The gate file verifies the story.
 
-### Gate.run(spec)
-Run a gate. Returns a result with status, logs, and evidence.
-
-### Actions
-```typescript
-Act.exec("command")              // Run shell command
-Act.browser({ url, headless? })  // Browser automation (needs playwright)
-Act.wait(ms)                     // Sleep
-Act.deploy({ worker })           // Deploy marker
-```
-
-### Assertions
-```typescript
-Assert.noErrors()                // No error logs
-Assert.hasAction("name")         // Action was logged
-Assert.hasStage("worker")        // Stage was seen
-Assert.custom("name", fn)        // Custom: (logs) => boolean
-```
-
-### Result
-```typescript
-{
-  status: "success" | "failed" | "timeout",
-  durationMs: number,
-  logs: Log[],
-  evidence: {
-    requestIds: string[],
-    stagesSeen: string[],
-    actionsSeen: string[],
-    errorTags: string[]
-  },
-  error?: Error
-}
-```
-
-## Plug Your Backend
-
-gateproof works with any observability backend. Just implement the `Backend` interface:
+Stories carry state. The PRD tracks which stories are pending, in progress, or done. gateproof does not manage this state. It only enforces: proceed only when gates pass.
 
 ```typescript
-interface Backend {
-  start(): Effect.Effect<LogStream, ObservabilityError>;
-  stop(): Effect.Effect<void, ObservabilityError>;
-}
+// prd.ts
+export const stories = [
+  {
+    id: "user-signup",
+    title: "User can sign up",
+    gateFile: "./gates/user-signup.gate.ts",
+    status: "pending"
+  }
+];
 ```
 
-See `patterns/` for examples including:
-- Cloudflare Analytics Engine
-- Cloudflare Workers Logs API
-- CLI Stream (local dev)
-- Custom backends
+gateproof does not parse or own your PRD. It's your repo's artifact. You decide the format. gateproof only executes the gate files your PRD references.
 
-## Cloudflare Backends
+## The workflow
 
-```typescript
-const provider = CloudflareProvider({ accountId, apiToken });
+1. Update PRD story
+2. Implement the change
+3. Run the gate: `bun run gates/user-signup.gate.ts`
+4. Gate fails? Work halts. Fix the issue. Rerun the gate.
+5. Gate passes? Mark story "done". Proceed.
 
-// Analytics Engine (recommended)
-provider.observe({ backend: "analytics", dataset: "worker_logs" })
+Progress is not declared. It is proven.
 
-// Workers Logs API
-provider.observe({ backend: "workers-logs", workerName: "my-worker" })
+## Terminal example
 
-// CLI Stream (local dev)
-provider.observe({ backend: "cli-stream", workerName: "my-worker" })
+Work halts on failure:
+
+```
+$ bun run gates/user-signup.gate.ts
+
+Running gate: user-signup
+Observing logs...
+Acting: browser navigation to /signup
+Checking assertions...
+
+Gate failed. Stop here.
+Error: No action "user_created" found in logs.
+
+Fix the issue. Rerun the gate. Only proceed when it passes.
 ```
 
-## Examples
+Fix the bug. Rerun:
 
-See `patterns/` for complete examples:
-- `patterns/basic/` - Basic usage patterns
-- `patterns/cloudflare/` - Cloudflare-specific patterns
-- `patterns/ci-cd/` - CI/CD integration
-- `patterns/advanced/` - Advanced patterns
+```
+$ bun run gates/user-signup.gate.ts
 
-## CI/CD
+Running gate: user-signup
+Observing logs...
+Acting: browser navigation to /signup
+Checking assertions...
 
-gateproof works great in CI/CD. See `patterns/ci-cd/github-actions.ts` for examples.
+Gate passed. You may proceed.
+Duration: 1234ms
+Actions: user_created, signup_complete
+```
 
-## Common Questions
+## Three concepts
 
-**How is this different from Playwright?**
-- Playwright validates UI behavior. gateproof validates production logs. Your API might return 200 but log errors—Playwright won't catch that.
+**Gate**: Executable verification. Observe logs, run actions, assert results.
 
-**How is this different from Jest/Vitest?**
-- Jest validates code logic with mocks. gateproof validates production reality with real observability data.
+**Act**: Actions to perform. Browser automation, shell commands, waits.
 
-**How is this different from integration tests?**
-- Integration tests run in test environments with test data. gateproof runs against production/staging with real observability backends.
+**Assert**: Validations to check. No errors, has action, has stage, custom assertions.
 
-**How is this different from monitoring/alerting?**
-- Monitoring tells you something broke. gateproof prevents you from deploying broken code in the first place.
+gateproof executes gates. It does not define intent, plans, or workflows.
 
-**When should I use gateproof?**
-- Post-deploy validation, AI-generated code validation, pre-merge checks, or any time you need to validate against production observability data.
-
-## Requirements
-
-- Node.js 18+ or Bun
-- `playwright` (optional, for Act.browser)
-- Cloudflare credentials (for CloudflareProvider, or bring your own backend)
-
-## Why gateproof?
-
-Normal tests check code logic. gateproof checks production reality.
-
-Tests pass, deploy succeeds, production breaks. Why? Tests validate code in isolation, not the system in reality.
-
-gateproof validates against **real observability data** from your production system. It's the missing layer between "code works in test" and "code works in production."
-
-If you've deployed code that passed all tests but broke in production, gateproof solves that.
-
-## Philosophy
-
-### Where Two Worlds Collide
-
-There's a tension: move fast vs. validate everything. Both are necessary. gateproof is where both work together.
-
-You can move fast AND have proof. You can iterate quickly AND validate against production. Gates are the bridge.
-
-### Gates as Deterministic Paths
-
-Gates are **deterministic, provable paths**. They're not just tests—they're the specification itself.
-
-**Traditional**: Write code → Write tests → Hope it works in production
-
-**Gate-driven**: Define gates → Build to pass through them → Prove it works
-
-Think of it like a PRD or task list, but executable and provable. You can't proceed to the next step until the current gate passes. Each gate is a checkpoint. Each gate is proof.
-
-The plan creator defines the gates. The builder must pass through them. The gates are the specification, the validation, and the proof—all in one.
-
-## License
-
-MIT
+You define gates. gateproof executes them.

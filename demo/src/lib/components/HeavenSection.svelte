@@ -99,7 +99,7 @@
         The Order
       </h2>
       <p class="text-xl sm:text-2xl md:text-3xl max-w-3xl mx-auto text-amber-800 leading-relaxed">
-        The observation layer for building software in reverse. Define constraints. Let AI build within them. Validate against reality.
+        Write your stories with gateproof. Make your PRD executable. Reality decides when you can move forward.
       </p>
     </div>
     
@@ -107,20 +107,20 @@
     <div class="grid lg:grid-cols-2 gap-12 lg:gap-16">
       <!-- Left: Explanation -->
       <div class="space-y-24">
-        <!-- The Inversion -->
+        <!-- The Discipline -->
         <div class="p-8 bg-amber-50/90 backdrop-blur-sm border border-amber-200/60 rounded-lg shadow-lg">
-          <h3 class="text-2xl font-bold mb-4 text-amber-900">The Inversion</h3>
+          <h3 class="text-2xl font-bold mb-4 text-amber-900">The Discipline</h3>
           <p class="text-lg leading-relaxed mb-6 text-amber-800">
-            Software development is inverting. The question is not whether AI will write code—it is whether we will control it or it will control us.
+            Stories are gates. Each story has executable verification. Progress is proven, not declared.
           </p>
           <div class="grid sm:grid-cols-2 gap-4">
             <div class="p-4 rounded-lg bg-amber-100/90 border border-amber-300/60">
               <p class="text-xs uppercase tracking-wider mb-2 font-semibold text-amber-800">Before</p>
-              <p class="text-sm text-amber-900">Humans write, debug, maintain. Every feature manually implemented.</p>
+              <p class="text-sm text-amber-900">Stories marked done. Work proceeds. Assumptions compound.</p>
             </div>
             <div class="p-4 rounded-lg bg-amber-200/90 border border-amber-400/60">
               <p class="text-xs uppercase tracking-wider mb-2 font-semibold text-amber-900">After</p>
-              <p class="text-sm text-amber-900">Humans define constraints. AI builds within them. Systems validate.</p>
+              <p class="text-sm text-amber-900">PRD defines stories. Gates verify them. Reality decides.</p>
             </div>
           </div>
         </div>
@@ -181,9 +181,14 @@
           <!-- Terminal content -->
           <div class="h-64 overflow-y-auto p-4 font-mono text-xs bg-gray-900 rounded mb-4">
             {#if state === 'idle'}
-              <div class="flex items-center gap-2 text-gray-400">
-                <span class="text-amber-400">$</span>
-                <span>Ready to run gate...</span>
+              <div class="flex flex-col gap-2 text-gray-400">
+                <div class="flex items-center gap-2">
+                  <span class="text-amber-400">$</span>
+                  <span>bun run gates/user-signup.gate.ts</span>
+                </div>
+                <div class="text-gray-500 text-xs mt-2">
+                  Run gate to verify story. If it fails, work halts.
+                </div>
               </div>
             {:else if state === 'running'}
               <div class="flex items-center gap-2 text-gray-400 mb-2">
@@ -202,7 +207,7 @@
               {/if}
             {:else if result}
               {#if result.status === 'success'}
-                <div class="text-green-400 mb-2">✅ Gate passed</div>
+                <div class="text-green-400 mb-2">Gate passed. You may proceed.</div>
                 <div class="text-gray-400 text-xs mb-2">
                   Duration: {result.durationMs}ms
                 </div>
@@ -220,10 +225,13 @@
                   {/each}
                 {/if}
               {:else}
-                <div class="text-red-400 mb-2">❌ Gate failed</div>
+                <div class="text-red-400 mb-2">Gate failed. Stop here.</div>
                 {#if result.error}
                   <div class="text-red-300 text-xs mb-2">{result.error.message}</div>
                 {/if}
+                <div class="text-gray-500 text-xs mb-2 mt-2">
+                  Fix the issue. Rerun the gate. Only proceed when it passes.
+                </div>
                 {#if logs.length > 0}
                   {#each logs as log}
                     <div class="flex gap-2 mb-1 text-gray-300">
