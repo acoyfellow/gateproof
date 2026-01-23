@@ -127,9 +127,56 @@ This gate is a story verification. The PRD points at it.
 
 ## Core API
 
+### Preflight.check(spec)
+**NEW**: Run a preflight safety check before executing actions. Returns ALLOW, ASK, or DENY.
+
+Requires `OPENAI_API_KEY` environment variable for full LLM extraction. Without it, preflight returns low confidence scores.
+
+```typescript
+import { Preflight } from "gateproof";
+
+const result = await Effect.runPromise(
+  Preflight.check({
+    url: "https://docs.example.com/api",
+    intent: "delete user data",
+    action: "delete"
+  })
+);
+
+// result.decision: "ALLOW" | "ASK" | "DENY"
+// result.justification: string
+// result.questions?: string[] (when decision is "ASK")
+```
+
+The preflight boundary evaluates:
+- **Intent validation**: Is the action clearly documented?
+- **Authority check**: Are credentials/permissions documented?
+- **Effect bounding**: Are side effects clearly bounded?
+- **Failure semantics**: Are failure modes documented?
+- **Reversibility**: Is the operation reversible (for destructive actions)?
+- **Invocation integrity**: Is the invocation pattern documented?
+
+Preflight can be integrated into gates:
+
+```typescript
+const result = await Gate.run({
+  preflight: {
+    url: "https://api.example.com/docs",
+    intent: "delete cache entries",
+    action: "delete"
+  },
+  observe: provider.observe({ backend: "analytics", dataset: "logs" }),
+  act: [Act.exec("./cleanup.sh")],
+  assert: [Assert.noErrors()]
+});
+```
+
+If preflight returns `DENY`, the gate fails before actions execute.
+
 ### Gate.run(spec)
 Run a gate. Returns a result with status, logs, and evidence.
 `spec.name` is optional metadata for labeling a gate.
+`spec.preflight` is optional pre-action safety check.
 
 ### Actions
 ```typescript
@@ -207,12 +254,43 @@ See `patterns/` for complete examples:
 
 gateproof enforces gates in CI/CD. See `patterns/ci-cd/github-actions.ts` for examples.
 
+**When should I use preflight?**
+- Before executing potentially destructive or uncertain actions (delete, write, execute).
+- When working with agents that may hallucinate tool invocations or misunderstand documentation.
+- As a language-to-action boundary to ensure documentation clarity before proceeding.
+- To detect ambiguous or incomplete documentation that could lead to incorrect actions.
+
 ## Requirements
 
 - Node.js 18+ or Bun
 - `playwright` (optional, for Act.browser)
 - Cloudflare credentials (for CloudflareProvider, or bring your own backend)
+- `OPENAI_API_KEY` environment variable (optional, for Preflight.check with full LLM extraction)
 
+
+### The Language-to-Action Boundary
+
+**Preflight**: Building software in reverse, but starting even earlier—before any action is taken.
+
+Agents sometimes hallucinate how to call a tool or guess side effects because documentation is unclear. The preflight boundary closes the gap between *language* (documentation, intent) and *action* (execution, side effects).
+
+**The boundary asks**: Is it safe to proceed with this action *right now*, given what the documentation says?
+
+Three possible outcomes:
+- **ALLOW**: Everything is explicit and safe—proceed.
+- **ASK**: Intent is legible but details are missing—clarify first.
+- **DENY**: Intent is unclear or side effects are ambiguous—do not proceed.
+
+The preflight boundary evaluates:
+1. **Intent validation**: Is the agent's intent clearly mapped to a documented capability?
+2. **Authority check**: Are credentials/identity requirements documented?
+3. **Effect bounding**: Are side effects clearly bounded?
+4. **Failure semantics**: Are failure modes documented?
+5. **Reversibility**: For destructive actions, is reversibility documented?
+6. **Invocation integrity**: Is the invocation pattern (parameters, syntax) documented?
+7. **Uncertainty vs. consequence**: Do unanswered questions outweigh potential harm?
+
+Preflight is the missing stage between "I want to do X" and "I'm doing X." It's the bridge from intention to safe execution.
 
 ## License
 
