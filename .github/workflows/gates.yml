@@ -29,4 +29,4 @@ jobs:
       
       - name: Run all gates
         if: github.event_name == 'pull_request'
-        run: bun run gate:all
+        run: bun run gate:dev

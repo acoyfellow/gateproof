@@ -1,7 +1,18 @@
 <script lang="ts">
   import CodeBlock from './CodeBlock.svelte';
   
-  const codeSnippet = `import { Gate, Act, Assert } from "gateproof";
+  const codeSnippet = `// prd.ts
+export const stories = [
+  {
+    id: "api-health-check",
+    title: "API responds without errors",
+    gateFile: "./gates/api-health-check.gate.ts",
+    status: "pending"
+  }
+];
+
+// gates/api-health-check.gate.ts
+import { Gate, Act, Assert } from "gateproof";
 import { CloudflareProvider } from "gateproof/cloudflare";
 
 const provider = CloudflareProvider({
@@ -10,20 +21,16 @@ const provider = CloudflareProvider({
 });
 
 const result = await Gate.run({
+  name: "api-health-check",
   observe: provider.observe({
     backend: "analytics",
     dataset: "worker_logs"
   }),
-  act: [
-    Act.browser({
-      url: "https://my-worker.workers.dev"
-    })
-  ],
+  act: [Act.browser({ url: "https://my-worker.workers.dev" })],
   assert: [
     Assert.noErrors(),
     Assert.hasAction("request_received")
-  ],
-  stop: { idleMs: 3000, maxMs: 10000 }
+  ]
 });
 
 if (result.status !== "success") process.exit(1);`;
@@ -58,8 +65,8 @@ if (result.status !== "success") process.exit(1);`;
     </h2>
     
     <p class="text-center text-xl sm:text-2xl md:text-3xl font-medium max-w-3xl leading-relaxed text-white drop-shadow-lg">
-      Passing through the threshold<br/>
-      <span class="text-amber-300">from chaos to order</span>
+      Observe → fail → fix → accept<br/>
+      <span class="text-amber-300">reality decides</span>
     </p>
     
     <!-- Code Example -->

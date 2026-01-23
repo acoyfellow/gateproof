@@ -1,0 +1,14 @@
+export const DEFAULT_IDLE_MS = 3000;
+export const DEFAULT_MAX_MS = 15000;
+
+export const MAX_LOG_BUFFER = 50_000;
+export const LOG_BUFFER_CAPACITY = 1000;
+
+export const HTTP_DEFAULT_POLL_INTERVAL_MS = 1000;
+export const HTTP_DEFAULT_TIMEOUT_MS = 5000;
+export const HTTP_MAX_RESPONSE_SIZE_BYTES = 10 * 1024 * 1024;
+
+export const QUEUE_TAKE_TIMEOUT_MS = 100;
+export const QUEUE_DRAIN_LIMIT = 100;
+export const QUEUE_DRAIN_TIMEOUT_MS = 10;
+

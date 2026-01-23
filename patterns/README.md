@@ -13,6 +13,7 @@ gateproof has a minimal surface area. The effort should go into writing gates, n
 ```
 patterns/
 ├── basic/              # Basic usage patterns
+├── prd/                # PRD-as-code + ralph loop
 ├── cloudflare/         # Cloudflare-specific patterns
 ├── ci-cd/              # CI/CD integration patterns
 └── advanced/           # Advanced patterns
@@ -55,6 +56,12 @@ Running multiple gates in sequence for comprehensive validation.
 ```bash
 # Run a specific pattern
 bun run patterns/basic/simple-gate.ts
+
+# PRD-as-code example (runs story gates in order)
+bun run patterns/prd/run-prd.ts
+
+# Agent-in-the-loop loop (local)
+bash patterns/prd/ralph-loop.sh
 
 # Patterns are examples - modify them for your needs
 ```

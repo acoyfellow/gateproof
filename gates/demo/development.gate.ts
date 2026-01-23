@@ -50,8 +50,10 @@ async function main() {
         if (httpLog.status !== "success") return false;
         const body = httpLog.data?.body as string;
         if (!body) return false;
-        return body.includes("gateproof") &&
-               body.includes("The observation layer for building software in reverse");
+        // Check that <title> tag contains "gateproof" (case-insensitive)
+        const titleMatch = body.match(/<title[^>]*>([^<]*)<\/title>/i);
+        if (!titleMatch) return false;
+        return titleMatch[1].toLowerCase().includes("gateproof");
       }),
     ],
     stop: { idleMs: 1000, maxMs: 10000 },

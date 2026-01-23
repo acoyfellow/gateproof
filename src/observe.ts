@@ -1,6 +1,11 @@
 import { Effect, Queue, Runtime, Stream } from "effect";
 import type { Log, LogFilter, LogStream } from "./types";
 import { Schema } from "@effect/schema";
+import {
+  QUEUE_DRAIN_LIMIT,
+  QUEUE_DRAIN_TIMEOUT_MS,
+  QUEUE_TAKE_TIMEOUT_MS
+} from "./constants";
 
 export class ObservabilityError extends Schema.TaggedError<ObservabilityError>()(
   "ObservabilityError",
@@ -81,7 +86,7 @@ export function createLogStreamFromQueue(
         while (true) {
           const log = await Runtime.runPromise(runtime)(
             Queue.take(queue).pipe(
-              Effect.timeout("100 millis"),
+              Effect.timeout(`${QUEUE_TAKE_TIMEOUT_MS} millis`),
               Effect.catchAll(() => Effect.succeed(null as Log | null))
             )
           );
@@ -91,10 +96,10 @@ export function createLogStreamFromQueue(
       } finally {
         const remaining: Log[] = [];
         try {
-          for (let i = 0; i < 100; i++) {
+          for (let i = 0; i < QUEUE_DRAIN_LIMIT; i++) {
             const log = await Runtime.runPromise(runtime)(
               Queue.take(queue).pipe(
-                Effect.timeout("10 millis"),
+                Effect.timeout(`${QUEUE_DRAIN_TIMEOUT_MS} millis`),
                 Effect.catchAll(() => Effect.succeed(null as Log | null))
               )
             );

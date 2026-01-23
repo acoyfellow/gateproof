@@ -28,10 +28,10 @@
   <!-- Content -->
   <div class="relative z-10 max-w-4xl mx-auto text-center">
     <h2 class="text-4xl sm:text-5xl md:text-6xl lg:text-7xl font-bold mb-8 leading-tigher text-amber-800">
-      Take control of AI-generated code
+      Make your PRD executable
     </h2>
     <p class="text-xl sm:text-2xl md:text-3x mb-12 max-w-3xl mx-auto leading-tighter text-amber-800">
-      Define constraints. Validate against reality.
+      Write your stories with gates. Reality decides when you can move forward.
     </p>
     
     <div class="flex flex-col sm:flex-row items-center justify-center gap-6 mb-10">
