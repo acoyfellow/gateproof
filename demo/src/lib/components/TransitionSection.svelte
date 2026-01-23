@@ -2,38 +2,48 @@
   import CodeBlock from './CodeBlock.svelte';
   
   const codeSnippet = `// prd.ts
-export const stories = [
-  {
-    id: "api-health-check",
-    title: "API responds without errors",
-    gateFile: "./gates/api-health-check.gate.ts",
-    status: "pending"
-  }
-];
+import { definePrd, runPrd } from "gateproof/prd";
+
+export const prd = definePrd({
+  stories: [
+    {
+      id: "api-health-check",
+      title: "API responds without errors",
+      gateFile: "./gates/api-health-check.gate.ts"
+    }
+  ]
+});
+
+if (import.meta.main) {
+  const result = await runPrd(prd);
+  process.exit(result.success ? 0 : 1);
+}
 
 // gates/api-health-check.gate.ts
 import { Gate, Act, Assert } from "gateproof";
 import { CloudflareProvider } from "gateproof/cloudflare";
 
-const provider = CloudflareProvider({
-  accountId: process.env.CLOUDFLARE_ACCOUNT_ID,
-  apiToken: process.env.CLOUDFLARE_API_TOKEN
-});
+export async function run() {
+  const provider = CloudflareProvider({
+    accountId: process.env.CLOUDFLARE_ACCOUNT_ID,
+    apiToken: process.env.CLOUDFLARE_API_TOKEN
+  });
 
-const result = await Gate.run({
-  name: "api-health-check",
-  observe: provider.observe({
-    backend: "analytics",
-    dataset: "worker_logs"
-  }),
-  act: [Act.browser({ url: "https://my-worker.workers.dev" })],
-  assert: [
-    Assert.noErrors(),
-    Assert.hasAction("request_received")
-  ]
-});
+  const result = await Gate.run({
+    name: "api-health-check",
+    observe: provider.observe({
+      backend: "analytics",
+      dataset: "worker_logs"
+    }),
+    act: [Act.browser({ url: "https://my-worker.workers.dev" })],
+    assert: [
+      Assert.noErrors(),
+      Assert.hasAction("request_received")
+    ]
+  });
 
-if (result.status !== "success") process.exit(1);`;
+  return { status: result.status };
+}`;
 </script>
 
 <section class="relative flex items-center justify-center py-40">

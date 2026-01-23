@@ -19,23 +19,6 @@ async function main() {
   console.log(`🚪 Running Local Demo Gate: ${localUrl}`);
   console.log("");
 
-  // Check if local worker is available
-  let isAvailable = false;
-  try {
-    const response = await fetch(`${localUrl}/api/health`, {
-      signal: AbortSignal.timeout(2000),
-    });
-    isAvailable = response.ok;
-  } catch {
-    isAvailable = false;
-  }
-
-  if (!isAvailable) {
-    console.log("⚠️  Local worker not available. Skipping gates.");
-    console.log("   Start the worker with: wrangler dev --local --port 8787");
-    process.exit(0);
-  }
-
   // Gate 1: Health endpoint
   console.log("🏥 Gate 1: Health endpoint");
   const healthGate = {

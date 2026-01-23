@@ -49,13 +49,13 @@ if (result.status !== "success") process.exit(1);`
     {
       id: 'prd',
       tab: 'PRD.ts',
-      title: 'PRD.ts: stories + dependencies',
-      description: 'A PRD is just typed data. Stories can depend on other stories.',
+      title: 'PRD.ts: executable stories with dependencies',
+      description: 'Define your PRD. Make it executable. Run it with `bun run prd.ts`.',
       language: 'typescript',
-      code: `// patterns/prd/prd.ts
-import type { Story } from "gateproof";
+      code: `// prd.ts
+import { definePrd, runPrd } from "gateproof/prd";
 
-export const prd = {
+export const prd = definePrd({
   stories: [
     {
       id: "user-signup",
@@ -69,7 +69,19 @@ export const prd = {
       dependsOn: ["user-signup"]
     }
   ]
-} satisfies { stories: readonly Story[] };`
+});
+
+// Make it executable
+if (import.meta.main) {
+  const result = await runPrd(prd, { cwd: process.cwd() });
+  if (!result.success) {
+    if (result.failedStory) {
+      console.error(\`Failed at: \${result.failedStory.id}\`);
+    }
+    process.exit(1);
+  }
+  process.exit(0);
+}`
     },
     {
       id: 'cloudflare',
@@ -103,15 +115,15 @@ await Gate.run({
     {
       id: 'ci-cd',
       tab: 'CI/CD Integration',
-      title: 'CI: fail the deploy if the gate fails',
-      description: 'Run a production gate right after deploy; non-zero exits block the workflow.',
+      title: 'CI: fail the deploy if the PRD fails',
+      description: 'Run your PRD in CI; non-zero exits block the workflow. All stories execute in dependency order.',
       language: 'yaml',
       code: `# .github/workflows/deploy.yml
 - name: Deploy
   run: wrangler deploy
 
-- name: Validate deploy (gateproof)
-  run: bun run gates/production/smoke.gate.ts
+- name: Run PRD
+  run: bun run prd.ts
   env:
     CLOUDFLARE_ACCOUNT_ID: \${{ secrets.CF_ACCOUNT_ID }}
     CLOUDFLARE_API_TOKEN: \${{ secrets.CF_API_TOKEN }}

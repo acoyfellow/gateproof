@@ -19,7 +19,7 @@
       Work proceeds on assumptions. Reality diverges from intention.
     </p>
     
-    <div class="mb-12 text-gray-300 font-mono text-shadow-lg font-extrabold tracking-wide text-4xl bg-black/50 p-4 backdrop-blur-sm rounded-lg border border-black/10">
+    <div class="mb-12 text-gray-300 font-mono text-shadow-lg font-extrabold tracking-wide text-2xl md:text-4xl bg-black/50 p-4 backdrop-blur-sm rounded-lg border border-black/10">
       observe → fail → <span class="text-red-400 line-through">fix</span> → <span class="text-red-400 line-through">accept</span>
     </div>
     

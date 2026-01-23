@@ -13,6 +13,10 @@
     "./cloudflare": {
       "types": "./dist/cloudflare/index.d.ts",
       "import": "./dist/cloudflare/index.js"
+    },
+    "./prd": {
+      "types": "./dist/prd/index.d.ts",
+      "import": "./dist/prd/index.js"
     }
   },
   "files": [

@@ -85,7 +85,7 @@ await Gate.run({
           Reality decides when you can move forward.
         </p>
 
-        <p class="text-sm sm:text-base max-w-2xl text-white/70 leading-relaxed">
+        <p class="text-sm sm:text-base max-w-2xl text-white/70 leading-relaxed text-balance">
           Agents can’t fix what they can’t observe. Give them real logs — and a contract to assert against.
         </p>
 

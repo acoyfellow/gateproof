@@ -11,7 +11,7 @@ A gate is a test specification: observe logs, run actions, assert results. gatep
 You define stories (gates) in your PRD. gateproof executes gate files.
 
 **Authority chain:**
-- **PRD (`prd.ts` / `prd.json`)** — authority on intent, order, and state
+- **PRD (`prd.ts`)** — authority on intent, order, and dependencies
 - **Gate implementations** — authority on how reality is observed
 - **gateproof runtime** — authority on enforcement only
 
@@ -27,21 +27,36 @@ Reality decides when you can proceed.
 
 ```typescript
 // prd.ts
-export const stories = [
-  {
-    id: "user-signup",
-    title: "User can sign up",
-    gateFile: "./gates/user-signup.gate.ts",
-    status: "pending"
-  },
-  {
-    id: "email-verification",
-    title: "User receives verification email",
-    gateFile: "./gates/email-verification.gate.ts",
-    dependsOn: ["user-signup"],
-    status: "pending"
+import { definePrd } from "gateproof/prd";
+
+export const prd = definePrd({
+  stories: [
+    {
+      id: "user-signup",
+      title: "User can sign up",
+      gateFile: "./gates/user-signup.gate.ts",
+    },
+    {
+      id: "email-verification",
+      title: "User receives verification email",
+      gateFile: "./gates/email-verification.gate.ts",
+      dependsOn: ["user-signup"],
+    },
+  ],
+});
+
+// Make it executable
+if (import.meta.main) {
+  const { runPrd } = await import("gateproof/prd");
+  const result = await runPrd(prd, { cwd: process.cwd() });
+  if (!result.success) {
+    if (result.failedStory) {
+      console.error(`Failed at: ${result.failedStory.id}`);
+    }
+    process.exit(1);
   }
-];
+  process.exit(0);
+}
 ```
 
 Each story references a gate file. The gate file uses gateproof's API:
@@ -51,42 +66,29 @@ Each story references a gate file. The gate file uses gateproof's API:
 import { Gate, Act, Assert } from "gateproof";
 import { CloudflareProvider } from "gateproof/cloudflare";
 
-const provider = CloudflareProvider({
-  accountId: process.env.CLOUDFLARE_ACCOUNT_ID!,
-  apiToken: process.env.CLOUDFLARE_API_TOKEN!
-});
+export async function run() {
+  const provider = CloudflareProvider({
+    accountId: process.env.CLOUDFLARE_ACCOUNT_ID!,
+    apiToken: process.env.CLOUDFLARE_API_TOKEN!,
+  });
 
-const result = await Gate.run({
-  name: "user-signup",
-  observe: provider.observe({ backend: "analytics", dataset: "worker_logs" }),
-  act: [Act.browser({ url: "https://app.example.com/signup" })],
-  assert: [
-    Assert.noErrors(),
-    Assert.hasAction("user_created")
-  ]
-});
+  const result = await Gate.run({
+    name: "user-signup",
+    observe: provider.observe({ backend: "analytics", dataset: "worker_logs" }),
+    act: [Act.browser({ url: "https://app.example.com/signup" })],
+    assert: [
+      Assert.noErrors(),
+      Assert.hasAction("user_created"),
+    ],
+  });
 
-if (result.status !== "success") process.exit(1);
-```
-
-### prd.json example
-
-```json
-{
-  "stories": [
-    {
-      "id": "user-signup",
-      "title": "User can sign up",
-      "gateFile": "./gates/user-signup.gate.ts",
-      "status": "pending"
-    }
-  ]
+  return { status: result.status };
 }
 ```
 
 **gateproof does not parse or own your PRD.** It's your repo's artifact. **You decide the format. gateproof only executes the gate files your PRD references.**
 
-Stories carry state. The PRD tracks which stories are pending, in progress, or done. gateproof does not manage this state. It only enforces: proceed only when gates pass.
+Stories execute in dependency order. The runner stops on first failure. Progress is not declared. It is proven.
 
 ## How it works
 
@@ -94,7 +96,11 @@ The PRD defines stories. Stories reference gate files. Gate files use gateproof'
 
 The sequence: PRD story → gate file → gate execution → story marked "done" only when gate passes.
 
-Progress is not declared. It is proven.
+Run your PRD:
+
+```bash
+bun run prd.ts
+```
 
 ## Design notes
 
@@ -110,14 +116,14 @@ import { CloudflareProvider } from "gateproof/cloudflare";
 
 const provider = CloudflareProvider({
   accountId: process.env.CLOUDFLARE_ACCOUNT_ID!,
-  apiToken: process.env.CLOUDFLARE_API_TOKEN!
+  apiToken: process.env.CLOUDFLARE_API_TOKEN!,
 });
 
 const result = await Gate.run({
   name: "api-health-check",
   observe: provider.observe({ backend: "analytics", dataset: "worker_logs" }),
   act: [Act.browser({ url: "https://my-worker.workers.dev" })],
-  assert: [Assert.noErrors(), Assert.hasAction("request_received")]
+  assert: [Assert.noErrors(), Assert.hasAction("request_received")],
 });
 
 if (result.status !== "success") process.exit(1);
@@ -163,6 +169,42 @@ Assert.custom("name", fn)        // Custom: (logs) => boolean
 }
 ```
 
+## PRD Runner
+
+gateproof provides a PRD runner that executes stories in dependency order:
+
+```typescript
+import { definePrd, runPrd } from "gateproof/prd";
+
+const prd = definePrd({
+  stories: [
+    {
+      id: "story-1",
+      title: "First story",
+      gateFile: "./gates/story-1.gate.ts",
+    },
+    {
+      id: "story-2",
+      title: "Second story",
+      gateFile: "./gates/story-2.gate.ts",
+      dependsOn: ["story-1"],
+    },
+  ],
+});
+
+const result = await runPrd(prd, { cwd: process.cwd() });
+if (!result.success) {
+  console.error(`Failed at: ${result.failedStory?.id}`);
+  process.exit(1);
+}
+```
+
+The runner:
+- Validates dependencies (unknown IDs and cycles throw)
+- Topologically sorts stories by `dependsOn`
+- Executes gates in order
+- **Stops on first failure**
+
 ## Plug Your Backend
 
 gateproof works with any observability backend. Just implement the `Backend` interface:
@@ -202,17 +244,24 @@ See `patterns/` for complete examples:
 - `patterns/cloudflare/` - Cloudflare-specific patterns
 - `patterns/ci-cd/` - CI/CD integration
 - `patterns/advanced/` - Advanced patterns
+- `patterns/prd/` - PRD-as-code examples
 
 ## CI/CD
 
 gateproof enforces gates in CI/CD. See `patterns/ci-cd/github-actions.ts` for examples.
+
+Run your PRD in CI:
+
+```yaml
+- name: Run PRD
+  run: bun run prd.ts
+```
 
 ## Requirements
 
 - Node.js 18+ or Bun
 - `playwright` (optional, for Act.browser)
 - Cloudflare credentials (for CloudflareProvider, or bring your own backend)
-
 
 ## License
 

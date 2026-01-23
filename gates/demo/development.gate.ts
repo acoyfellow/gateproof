@@ -20,21 +20,6 @@ async function main() {
   console.log(`🚪 Running Development Gate: ${devUrl}`);
   console.log("");
 
-  // Check if dev server is available
-  let isAvailable = false;
-  try {
-    const response = await fetch(devUrl, { signal: AbortSignal.timeout(2000) });
-    isAvailable = response.ok;
-  } catch {
-    isAvailable = false;
-  }
-
-  if (!isAvailable) {
-    console.log("⚠️  Dev server not available. Skipping gates.");
-    console.log("   Start the server with: cd demo && bun run dev");
-    process.exit(0);
-  }
-
   // Gate 1: Homepage loads with expected content
   console.log("📄 Gate 1: Homepage loads correctly");
   const homepageGate = {
