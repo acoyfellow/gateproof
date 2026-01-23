@@ -13,13 +13,18 @@
   const wow = `import { Gate, Act, Assert } from "gateproof"
 import { CloudflareProvider } from "gateproof/cloudflare"
 
-const observe = CloudflareProvider({ accountId, apiToken })
-  .observe({ backend: "analytics", dataset: "worker_logs" })
+const Provider = CloudflareProvider({ accountId, apiToken });
 
-await Gate.run({ observe, act: [Act.wait(250)], assert: [Assert.noErrors()] })`;
+await Gate.run({ 
+  name: "smoke-test",
+  observe: Provider.observe({ backend: "analytics", dataset: "worker_logs" }), 
+  act: [ Act.wait(250) ], 
+  assert: [ Assert.noErrors() ],
+  stop: { idleMs: 3000, maxMs: 10000 }
+})`;
 </script>
 
-<section class="relative min-h-screen flex items-center justify-center overflow-hidden">
+<section class="relative min-h-screen flex items-center justify-center py-40">
   <!-- Full bleed background image -->
   <div 
     class="absolute inset-0 bg-cover bg-center bg-no-repeat"
@@ -79,6 +84,22 @@ await Gate.run({ observe, act: [Act.wait(250)], assert: [Assert.noErrors()] })`;
           Make your PRD executable. <br />
           Reality decides when you can move forward.
         </p>
+
+        <p class="text-sm sm:text-base max-w-2xl text-white/70 leading-relaxed">
+          Agents can’t fix what they can’t observe. Give them real logs — and a contract to assert against.
+        </p>
+
+        <div class="flex flex-wrap items-center gap-2">
+          <span class="inline-flex items-center rounded-full border border-white/25 bg-white/10 px-3 py-1 text-xs font-semibold tracking-wide text-white">
+            Observe
+          </span>
+          <span class="inline-flex items-center rounded-full border border-white/12 bg-black/20 px-3 py-1 text-xs tracking-wide text-white/75">
+            Act
+          </span>
+          <span class="inline-flex items-center rounded-full border border-white/12 bg-black/20 px-3 py-1 text-xs tracking-wide text-white/75">
+            Assert
+          </span>
+        </div>
 
         <div class="flex flex-wrap items-center gap-3">
           <button

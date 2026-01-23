@@ -36,7 +36,7 @@ const result = await Gate.run({
 if (result.status !== "success") process.exit(1);`;
 </script>
 
-<section class="relative flex items-center justify-center overflow-hidden py-12 sm:py-20">
+<section class="relative flex items-center justify-center py-40">
   <!-- Full bleed background image -->
   <div 
     class="absolute inset-0 bg-cover bg-center bg-no-repeat"

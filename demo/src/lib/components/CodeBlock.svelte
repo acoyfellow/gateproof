@@ -12,7 +12,6 @@
   
   let highlightedHtml = $state<string>('');
   let loading = $state(true);
-
   onMount(async () => {
     if (!browser) {
       loading = false;

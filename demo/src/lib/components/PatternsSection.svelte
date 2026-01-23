@@ -1,135 +1,83 @@
 <script lang="ts">
   import CodeBlock from './CodeBlock.svelte';
   
-  type PatternCategory = 'prd' | 'basic' | 'cloudflare' | 'ci-cd' | 'advanced';
-  
-  let selectedCategory = $state<PatternCategory>('prd');
-  
-  const patterns = {
-    prd: {
-      title: 'PRD.ts',
-      description: 'Your PRD is code. Stories point at gates. Gates return evidence.',
-      examples: [
-        {
-          name: 'PRD.ts: stories + dependencies',
-          description: 'A PRD is just a typed list of stories. You own the format.',
-          language: "typescript",
-          code: `// patterns/prd/prd.ts
-export type StoryStatus = "pending" | "blocked" | "done";
+  type PatternId = 'e2e' | 'prd' | 'cloudflare' | 'ci-cd' | 'advanced';
 
-export type Story = {
-  id: "user-signup" | "email-verification";
-  title: string;
-  gateFile: string;
-  dependsOn?: Story["id"][];
-  status: StoryStatus;
+  type Pattern = {
+    id: PatternId;
+    tab: string;
+    title: string;
+    description: string;
+    language?: string;
+    code: string;
+  };
+
+  const patterns: readonly Pattern[] = [
+    {
+      id: 'e2e',
+      tab: 'E2E (Story → Gate)',
+      title: 'One file: define a Story, run its Gate',
+      description: 'Minimal end-to-end: story metadata + gate execution in one file.',
+      language: 'typescript',
+      code: `// patterns/e2e.story-and-gate.ts
+import { Gate, Act, Assert, type Story } from "gateproof";
+import { CloudflareProvider } from "gateproof/cloudflare";
+
+// 1) The Story (your PRD can be a list of these)
+const story: Story = {
+  id: "user-signup",
+  title: "User can sign up",
+  gateFile: "./gates/user-signup.gate.ts"
 };
+
+// 2) The Gate (executable proof for that story)
+const provider = CloudflareProvider({
+  accountId: process.env.CLOUDFLARE_ACCOUNT_ID!,
+  apiToken: process.env.CLOUDFLARE_API_TOKEN!
+});
+
+const result = await Gate.run({
+  name: story.id,
+  observe: provider.observe({ backend: "analytics", dataset: "worker_logs" }),
+  act: [Act.browser({ url: "https://app.example.com/signup" })],
+  assert: [Assert.noErrors(), Assert.hasAction("user_created")],
+  stop: { idleMs: 3000, maxMs: 15000 }
+});
+
+if (result.status !== "success") process.exit(1);`
+    },
+    {
+      id: 'prd',
+      tab: 'PRD.ts',
+      title: 'PRD.ts: stories + dependencies',
+      description: 'A PRD is just typed data. Stories can depend on other stories.',
+      language: 'typescript',
+      code: `// patterns/prd/prd.ts
+import type { Story } from "gateproof";
 
 export const prd = {
   stories: [
     {
       id: "user-signup",
       title: "User can sign up",
-      gateFile: "./gates/user-signup.gate.ts",
-      status: "pending"
+      gateFile: "./gates/user-signup.gate.ts"
     },
     {
       id: "email-verification",
       title: "Email verification works",
       gateFile: "./gates/email-verification.gate.ts",
-      dependsOn: ["user-signup"],
-      status: "blocked"
+      dependsOn: ["user-signup"]
     }
   ]
 } satisfies { stories: readonly Story[] };`
-        },
-        {
-          name: 'Gate file: prove the story',
-          description: 'A gate is executable proof. If it fails, stop.',
-          language: "typescript",
-          code: `// patterns/prd/gates/user-signup.gate.ts
-import { Gate, Act, Assert } from "gateproof";
-import { CloudflareProvider } from "gateproof/cloudflare";
-
-export function runUserSignupGate() {
-  const provider = CloudflareProvider({
-    accountId: process.env.CLOUDFLARE_ACCOUNT_ID!,
-    apiToken: process.env.CLOUDFLARE_API_TOKEN!
-  });
-
-  return Gate.run({
-    name: "user-signup",
-    observe: provider.observe({ backend: "analytics", dataset: "worker_logs" }),
-    act: [Act.browser({ url: "https://app.example.com/signup" })],
-    assert: [Assert.noErrors(), Assert.hasAction("user_created")]
-  });
-}`
-        },
-        {
-          name: 'Runner: execute the next story',
-          description: 'Your runner chooses what to run next. gateproof only executes.',
-          language: "typescript",
-          code: `// patterns/prd/run-prd.ts
-import { prd } from "./prd";
-
-for (const story of prd.stories) {
-  const gateUrl = new URL(story.gateFile, import.meta.url).href;
-  const { run } = await import(gateUrl);
-  const result = await run();
-  if (result.status !== "success") process.exit(1);
-}
-process.exit(0);`
-        }
-        ,
-        {
-          name: 'Ralph loop: agent-in-the-loop until done',
-          description: 'Minimal loop: run the PRD, feed failures to the agent, repeat. Pause + guardrails included.',
-          language: "bash",
-          code: `# patterns/prd/ralph-loop.sh
-set -euo pipefail
-mkdir -p .ralph
-
-[[ -f .ralph/PAUSED ]] && exit 0
-git diff --quiet || exit 1
-
-failures=0
-[[ -f .ralph/failures ]] && failures="$(cat .ralph/failures)"
-
-while true; do
-  output="$(bun run patterns/prd/run-prd.ts 2>&1)" || true
-  echo "$output"
-
-  bun run patterns/prd/run-prd.ts && exit 0
-
-  failures="$((failures + 1))"
-  echo "$failures" > .ralph/failures
-  [[ "$failures" -ge 5 ]] && { touch .ralph/PAUSED; exit 1; }
-
-  printf "%s\n\n%s\n" "$(cat AGENTS.md)" "$output" | claude --dangerously-skip-permissions --print
-  git diff --quiet && exit 1
-done`
-        }
-      ]
     },
-    basic: {
-      title: 'Stories as Gates',
-      description: 'PRD defines stories. Gates verify them. Reality decides.',
-      examples: [
-        {
-          name: 'Story: Deploy Verification',
-          description: 'PRD defines story. Gate verifies it. Work halts if gate fails.',
-          language: "typescript",
-          code: `// prd.ts
-export const stories = [
-  {
-    id: "post-deploy-check",
-    title: "Deploy works without errors",
-    gateFile: "./gates/post-deploy-check.gate.ts",
-    status: "pending"
-  }
-];
-
-// gates/post-deploy-check.gate.ts
+    {
+      id: 'cloudflare',
+      tab: 'Cloudflare Backends',
+      title: 'Cloudflare: choose an observe backend',
+      description: 'Same gate API; swap the observe backend based on environment.',
+      language: 'typescript',
+      code: `// patterns/cloudflare/choose-backend.ts
 import { Gate, Act, Assert } from "gateproof";
 import { CloudflareProvider } from "gateproof/cloudflare";
 
@@ -138,306 +86,69 @@ const provider = CloudflareProvider({
   apiToken: process.env.CLOUDFLARE_API_TOKEN!
 });
 
-const result = await Gate.run({
-  name: "post-deploy-check",
-  observe: provider.observe({
-    backend: "analytics",
-    dataset: "worker_logs"
-  }),
-  act: [Act.browser({ url: "https://my-worker.workers.dev" })],
-  assert: [
-    Assert.noErrors(),
-    Assert.hasAction("request_received")
-  ]
+const observe = provider.observe({
+  backend: "analytics",
+  dataset: "worker_logs",
+  pollInterval: 1000
 });
 
-if (result.status !== "success") {
-  console.error("Gate failed. Stop here.");
-  process.exit(1);
-}`,
-        },
-        {
-          name: 'Is My API Actually Healthy?',
-          description: 'Check real error rates from production logs, not just HTTP status codes',
-          language: "typescript",
-          code: `import { Gate, Act, Assert } from "gateproof";
-import { CloudflareProvider } from "gateproof/cloudflare";
-
-// HTTP 200 doesn't mean no errors in logs
-const provider = CloudflareProvider({ accountId, apiToken });
-
-const gate = {
-  name: "api-health-check",
-  observe: provider.observe({
-    backend: "analytics",
-    dataset: "worker_logs"
-  }),
-  act: [
-    Act.exec("curl https://api.example.com/users"),
-    Act.exec("curl https://api.example.com/posts"),
-    Act.wait(2000)  // Wait for logs to propagate
-  ],
-  assert: [
-    Assert.noErrors(),  // Real errors from logs, not just HTTP codes
-    Assert.hasAction("request_received"),
-    Assert.custom("acceptable_latency", (logs) => {
-      const latencies = logs
-        .filter(l => l.stage === "worker")
-        .map(l => l.durationMs || 0);
-      return latencies.every(ms => ms < 500);
-    })
-  ],
+await Gate.run({
+  name: "post-deploy-check",
+  observe,
+  act: [Act.exec("curl https://my-worker.workers.dev")],
+  assert: [Assert.noErrors(), Assert.hasAction("request_received")],
   stop: { idleMs: 3000, maxMs: 15000 }
-};
-
-await Gate.run(gate);`
-        },
-        {
-          name: 'Did I Break Something?',
-          description: 'Before merging, verify your changes don\'t break production workflows',
-          language: "typescript",
-          code: `import { Gate, Act, Assert } from "gateproof";
-import { CloudflareProvider } from "gateproof/cloudflare";
-
-// Run this before merging to main
-const provider = CloudflareProvider({ accountId, apiToken });
-
-const gate = {
-  name: "pre-merge-validation",
-  observe: provider.observe({
-    backend: "analytics",
-    dataset: "worker_logs"
-  }),
-  act: [
-    Act.browser({ url: "https://staging.example.com/checkout" }),
-    Act.browser({ url: "https://staging.example.com/api/orders" })
-  ],
-  assert: [
-    Assert.noErrors(),
-    Assert.hasAction("checkout_complete"),
-    Assert.hasAction("order_created")
-  ],
-  stop: { idleMs: 5000, maxMs: 20000 }
-};
-
-const result = await Gate.run(gate);
-if (result.status !== "success") {
-  console.error("Pre-merge check failed - don't merge.");
-  process.exit(1);
-}
-console.log("All checks passed - safe to merge.");`
-        }
-      ]
+});`
     },
-    cloudflare: {
-      title: 'Cloudflare Backends',
-      description: 'Choose the right backend for your environment',
-      examples: [
-        {
-          name: 'Production: Analytics Engine',
-          description: 'Recommended for production - reliable, scalable, cost-effective',
-          language: "typescript",
-          code: `import { CloudflareProvider } from "gateproof/cloudflare";
-
-const provider = CloudflareProvider({ accountId, apiToken });
-
-// Best for production - handles scale, low cost
-const gate = {
-  observe: provider.observe({
-    backend: "analytics",
-    dataset: "worker_logs",
-    pollInterval: 1000  // Poll every second
-  }),
-  act: [
-    Act.exec("curl https://my-worker.workers.dev/api/test"),
-    Act.wait(2000)  // Wait for logs to propagate
-  ],
-  assert: [
-    Assert.noErrors(),
-    Assert.hasAction("request_received"),
-    Assert.hasStage("worker")
-  ],
-  stop: { idleMs: 3000, maxMs: 15000 }
-};`
-        },
-        {
-          name: 'Real-time: Workers Logs API',
-          description: 'Instant log access - perfect for debugging and development',
-          language: "typescript",
-          code: `import { CloudflareProvider } from "gateproof/cloudflare";
-
-const provider = CloudflareProvider({ accountId, apiToken });
-
-// Real-time logs - great for debugging
-const gate = {
-  observe: provider.observe({
-    backend: "workers-logs",
-    workerName: "my-worker"
-  }),
-  act: [Act.browser({ url: "https://my-worker.workers.dev" })],
-  assert: [
-    Assert.noErrors(),
-    Assert.hasAction("request_received")
-  ],
-  stop: { idleMs: 3000, maxMs: 10000 }
-};`
-        },
-        {
-          name: 'Local Dev: CLI Stream',
-          description: 'Test locally with wrangler dev - see logs as they happen',
-          language: "typescript",
-          code: `import { CloudflareProvider } from "gateproof/cloudflare";
-
-const provider = CloudflareProvider({ accountId, apiToken });
-
-// Local development - stream logs from wrangler dev
-const gate = {
-  observe: provider.observe({
-    backend: "cli-stream",
-    workerName: "my-worker"
-  }),
-  act: [Act.exec("curl http://localhost:8787")],
-  assert: [Assert.noErrors()],
-  stop: { idleMs: 2000, maxMs: 10000 }
-};
-
-// Run: wrangler dev & bun run gates/local/my-gate.gate.ts`
-        }
-      ]
-    },
-    'ci-cd': {
-      title: 'CI/CD Integration',
-      description: 'Block bad deploys automatically - catch errors before users do',
-      examples: [
-        {
-          name: 'GitHub Actions: Block Bad Deploys',
-          description: 'Automatically validate production after deploy - fail CI if broken',
-          language: "bash",
-          code: `# .github/workflows/deploy.yml
-- name: Deploy to production
+    {
+      id: 'ci-cd',
+      tab: 'CI/CD Integration',
+      title: 'CI: fail the deploy if the gate fails',
+      description: 'Run a production gate right after deploy; non-zero exits block the workflow.',
+      language: 'yaml',
+      code: `# .github/workflows/deploy.yml
+- name: Deploy
   run: wrangler deploy
 
-- name: Validate deployment
+- name: Validate deploy (gateproof)
   run: bun run gates/production/smoke.gate.ts
   env:
     CLOUDFLARE_ACCOUNT_ID: \${{ secrets.CF_ACCOUNT_ID }}
     CLOUDFLARE_API_TOKEN: \${{ secrets.CF_API_TOKEN }}
-  # If this fails, the workflow fails - deploy is blocked
-
-# gates/production/smoke.gate.ts
-const gate = {
-  name: "post-deploy-validation",
-  observe: provider.observe({ backend: "analytics" }),
-  act: [
-    Act.browser({ url: process.env.PRODUCTION_URL, headless: true }),
-    Act.wait(2000)  // Wait for logs
-  ],
-  assert: [
-    Assert.noErrors(),  // No errors in production logs
-    Assert.hasAction("request_received")  // Actually processed requests
-  ],
-  stop: { idleMs: 3000, maxMs: 15000 }
-};
-
-const result = await Gate.run(gate);
-if (result.status !== "success") {
-  console.error("Production validation failed.");
-  process.exit(1);  // Fails CI - prevents bad deploy
-}`,
-        }
-      ]
+    PRODUCTION_URL: \${{ secrets.PRODUCTION_URL }}`
     },
-    advanced: {
-      title: 'Advanced Use Cases',
-      description: 'Extend gateproof to work with any observability system',
-      examples: [
-        {
-          name: 'Custom Backend: Any Observability System',
-          description: 'Plug in Datadog, New Relic, or any log system - gateproof works with anything',
-          language: "typescript",
-          code: `import { createObserveResource, type Backend } from "gateproof";
+    {
+      id: 'advanced',
+      tab: 'Advanced Use Cases',
+      title: 'Custom backend: bring your own observability',
+      description: 'Implement `Backend` once; keep the Gate/Act/Assert contract.',
+      language: 'typescript',
+      code: `// patterns/advanced/custom-backend.ts
+import { createObserveResource, type Backend } from "gateproof";
 import { Effect } from "effect";
 
-// Works with any observability backend
-function createDatadogBackend(apiKey: string): Backend {
+function createBackend(): Backend {
   return {
-    start: () => Effect.gen(function* () {
-      return {
-        async *[Symbol.asyncIterator]() {
-          // Poll your observability API
-          const response = await fetch(
-            \`https://api.datadoghq.com/api/v1/logs\`,
-            { headers: { "DD-API-KEY": apiKey } }
-          );
-          const logs = await response.json();
-          for (const log of logs) yield log;
-        }
-      };
-    }),
+    start: () =>
+      Effect.gen(function* () {
+        return {
+          async *[Symbol.asyncIterator]() {
+            const response = await fetch("https://example.com/logs");
+            const logs = await response.json();
+            for (const log of logs) yield log;
+          }
+        };
+      }),
     stop: () => Effect.void
   };
 }
 
-const gate = {
-  observe: createObserveResource(createDatadogBackend(process.env.DATADOG_API_KEY)),
-  act: [Act.exec("curl https://api.example.com/trigger")],
-  assert: [Assert.noErrors()],
-  stop: { idleMs: 2000, maxMs: 10000 }
-};
-
-// Same API, works with any backend`
-        },
-        {
-          name: 'Multi-Step Validation',
-          description: 'Validate complex workflows end-to-end - ensure each step completes',
-          language: "typescript",
-          code: `// Validate a complete user journey
-const gates = [
-  {
-    name: "user-signup",
-    observe: provider.observe({ backend: "analytics" }),
-    act: [Act.browser({ url: "https://app.example.com/signup" })],
-    assert: [
-      Assert.hasAction("user_created"),
-      Assert.noErrors()
-    ],
-    stop: { idleMs: 3000, maxMs: 10000 }
-  },
-  {
-    name: "email-sent",
-    observe: provider.observe({ backend: "analytics" }),
-    act: [Act.wait(5000)],  // Wait for email
-    assert: [
-      Assert.hasAction("email_sent"),
-      Assert.hasAction("verification_email_queued")
-    ],
-    stop: { idleMs: 5000, maxMs: 15000 }
-  },
-  {
-    name: "onboarding-complete",
-    observe: provider.observe({ backend: "analytics" }),
-    act: [Act.browser({ url: "https://app.example.com/onboarding" })],
-    assert: [
-      Assert.hasAction("onboarding_started"),
-      Assert.hasAction("onboarding_completed")
-    ],
-    stop: { idleMs: 3000, maxMs: 20000 }
-  }
-];
-
-// Run all gates - fail if any step breaks
-for (const gate of gates) {
-  const result = await Gate.run(gate);
-  if (result.status !== "success") {
-    console.error(\`\${gate.name} failed - workflow broken\`);
-    process.exit(1);
-  }
-}
-console.log("Complete workflow validated.");`
-        }
-      ]
+export const observe = createObserveResource(createBackend());`
     }
-  };
+  ];
+
+  let selected = $state<PatternId>('e2e');
+  let current = $derived.by(() => patterns.find((p) => p.id === selected)!);
 </script>
 
 <section class="relative min-h-screen flex items-center justify-center overflow-hidden bg-linear-to-b from-amber-50 to-white py-20 text-balance">
@@ -454,31 +165,31 @@ console.log("Complete workflow validated.");`
     
     <!-- Category Tabs -->
     <div class="flex flex-wrap justify-center gap-3 mb-8 px-6">
-      {#each Object.keys(patterns) as category}
+      {#each patterns as pattern (pattern.id)}
         <button
-          onclick={() => selectedCategory = category as PatternCategory}
-          class="px-6 py-3 rounded-lg font-medium transition-all {selectedCategory === category 
+          onclick={() => selected = pattern.id}
+          class="px-6 py-3 rounded-lg font-medium transition-all {selected === pattern.id
             ? 'bg-amber-500 text-white shadow-lg' 
             : 'bg-amber-100 text-amber-800 hover:bg-amber-200'}"
         >
-          {patterns[category as PatternCategory].title}
+          {pattern.tab}
         </button>
       {/each}
     </div>
-    
-    <!-- Pattern Examples -->
-    <div class="space-y-20">
-      {#each patterns[selectedCategory].examples as example}
-        <div class="bg-white rounded-lg shadow-lg border border-amber-200 overflow-hidden">
-          <div class="p-6 border-b border-amber-200 bg-amber-50">
-            <h3 class="text-2xl font-bold text-amber-900 mb-2">{example.name}</h3>
-            <p class="text-amber-700">{example.description}</p>
-          </div>
-          <div class="bg-gray-900 p-4 overflow-hidden min-w-0">
-            <CodeBlock code={example.code} language={example.language ?? "typescript"} wrap />
-          </div>
+
+    <!-- Pattern -->
+    <div class="max-w-2xl mx-auto">
+      <div class="bg-white rounded-lg shadow-lg border border-amber-200 overflow-hidden">
+        <div class="p-6 border-b border-amber-200 bg-amber-50">
+          <h3 class="text-2xl font-bold text-amber-900 mb-2">{current.title}</h3>
+          <p class="text-amber-700">{current.description}</p>
         </div>
-      {/each}
+        <div class="bg-gray-900 p-4 overflow-hidden min-w-0">
+          {#key selected}
+            <CodeBlock code={current.code} language={current.language ?? "typescript"} wrap />
+          {/key}
+        </div>
+      </div>
     </div>
     
     <!-- Footer CTA -->
