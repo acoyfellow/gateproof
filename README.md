@@ -11,11 +11,11 @@ A gate is a test specification: observe logs, run actions, assert results. gatep
 You define stories (gates) in your PRD. gateproof executes gate files.
 
 **Authority chain:**
-- **PRD (`prd.ts`)** — authority on intent, order, and dependencies
+- **PRD (`prd.ts`)** — authority on intent, order, and dependencies (if you use the PRD runner)
 - **Gate implementations** — authority on how reality is observed
 - **gateproof runtime** — authority on enforcement only
 
-gateproof never decides *what* to build. It only decides *when you are allowed to proceed*.
+gateproof never decides *what* to build. It returns results; your CI/CD decides whether you are allowed to proceed.
 
 ## Stories as gates
 
@@ -48,11 +48,9 @@ export const prd = definePrd({
 // Make it executable
 if (import.meta.main) {
   const { runPrd } = await import("gateproof/prd");
-  const result = await runPrd(prd, { cwd: process.cwd() });
+  const result = await runPrd(prd);
   if (!result.success) {
-    if (result.failedStory) {
-      console.error(`Failed at: ${result.failedStory.id}`);
-    }
+    if (result.failedStory) console.error(`Failed at: ${result.failedStory.id}`);
     process.exit(1);
   }
   process.exit(0);
@@ -86,7 +84,7 @@ export async function run() {
 }
 ```
 
-**gateproof does not parse or own your PRD.** It's your repo's artifact. **You decide the format. gateproof only executes the gate files your PRD references.**
+**gateproof does not own your PRD’s intent or state.** If you choose to use `gateproof/prd`, your PRD must match a small capsule shape (`stories[]` with `id/title/gateFile/dependsOn?`). Otherwise, orchestrate gates however you want — gateproof only cares about executing gate files.
 
 Stories execute in dependency order. The runner stops on first failure. Progress is not declared. It is proven.
 
@@ -102,9 +100,56 @@ Run your PRD:
 bun run prd.ts
 ```
 
+## Hardening `prd.ts` (recommended)
+
+Treat `prd.ts` like code: typecheck + validate before push + enforce in CI.
+
+- **Validate PRD**:
+
+```bash
+bun run prd:validate
+```
+
+- **Pre-push (default for everyone on your team)**: add to your `prepush` script (Husky calls it).
+
+```json
+{
+  "scripts": {
+    "prepush": "bun run typecheck && bun run prd:validate && bun test"
+  }
+}
+```
+
+- **CI**: run the validator before running PRD/tests.
+
+```yaml
+- name: Validate PRD
+  run: bun run prd:validate
+```
+
+- **Monorepo**: validate any PRD file by path.
+
+```bash
+bun run scripts/prd-validate.ts packages/api/prd.ts
+```
+
 ## Design notes
 
 - [Effect and Schema: Gateproof's Foundation](docs/effect-and-schema.md)
+
+## Writing good gates (agent-first)
+
+Gates can fail loudly. They can also pass on silence if you write weak assertions.
+
+- **Always assert at least one positive signal**: `Assert.hasAction(...)` and/or `Assert.hasStage(...)`. If your backend can be silent, add an explicit “evidence must exist” custom assertion.
+- **Don’t rely on absence-only checks**: `Assert.noErrors()` alone can pass if you collect no logs.
+- **Treat observability as part of the system**: your confidence is bounded by what you can observe.
+
+## Limits / Non-goals
+
+- **Not a planner or orchestrator**: gateproof executes gates; your PRD (or CI) decides what to run and in what context.
+- **Not a truth oracle**: if your backend drops logs, a gate can be wrong. Gateproof can’t fix missing telemetry.
+- **Enforcement is external**: gateproof returns results; CI/CD decides whether to block merge/deploy.
 
 ## Quick Start
 
@@ -192,7 +237,7 @@ const prd = definePrd({
   ],
 });
 
-const result = await runPrd(prd, { cwd: process.cwd() });
+const result = await runPrd(prd);
 if (!result.success) {
   console.error(`Failed at: ${result.failedStory?.id}`);
   process.exit(1);

@@ -37,6 +37,10 @@ jobs:
       
       - name: Type check
         run: ${{ matrix.runtime == 'bun' && 'bun run typecheck' || 'npm run typecheck' }}
+
+      - name: Validate PRD (shape + deps + gate files)
+        if: matrix.runtime == 'bun'
+        run: bun run prd:validate
       
       - name: Run tests
         run: ${{ matrix.runtime == 'bun' && 'bun test' || 'npm test' }}

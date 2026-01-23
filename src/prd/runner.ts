@@ -1,8 +1,5 @@
+import { resolve } from "path";
 import type { Prd, Story, GateResult } from "./types";
-
-export interface RunPrdOptions {
-  cwd?: string;
-}
 
 export interface RunPrdResult {
   success: boolean;
@@ -82,37 +79,28 @@ function orderStories<TId extends string>(
  */
 export async function runPrd<TId extends string>(
   prd: Prd<TId>,
-  options: RunPrdOptions = {}
+  cwd: string = process.cwd()
 ): Promise<RunPrdResult> {
-  const cwd = options.cwd ?? process.cwd();
   const ordered = orderStories(prd.stories);
 
   for (const story of ordered) {
     try {
-      // Resolve gate file path relative to cwd
-      const path = await import("path");
-      const gatePath = path.resolve(cwd, story.gateFile);
-      // Use file:// URL for import (Bun supports this)
-      const gateUrl = `file://${gatePath}`;
-      const mod = await import(gateUrl);
-      const run: unknown = mod.run;
+      const gatePath = resolve(cwd, story.gateFile);
+      const mod = await import(`file://${gatePath}`);
+      const run = mod.run;
 
       if (typeof run !== "function") {
-        throw new Error(
-          `Gate file must export "run" function: ${story.gateFile}`
-        );
+        throw new Error(`Gate file must export "run" function: ${story.gateFile}`);
       }
 
       console.log(`\n--- ${story.id}: ${story.title}`);
-      const result = (await (run as () => Promise<GateResult>)()) as GateResult;
+      const result = (await run()) as GateResult;
 
       if (result.status !== "success") {
         return {
           success: false,
           failedStory: story,
-          error: new Error(
-            `Gate failed with status: ${result.status}`
-          ),
+          error: new Error(`Gate failed with status: ${result.status}`),
         };
       }
     } catch (error) {

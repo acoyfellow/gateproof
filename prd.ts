@@ -28,16 +28,12 @@ export const prd = definePrd({
 });
 
 if (import.meta.main) {
-  const result = await runPrd(prd, { cwd: process.cwd() });
+  const result = await runPrd(prd);
   if (!result.success) {
     if (result.failedStory) {
-      console.error(
-        `\n❌ PRD failed at story: ${result.failedStory.id} - ${result.failedStory.title}`
-      );
+      console.error(`\n❌ PRD failed at: ${result.failedStory.id} - ${result.failedStory.title}`);
     }
-    if (result.error) {
-      console.error(`Error: ${result.error.message}`);
-    }
+    if (result.error) console.error(`Error: ${result.error.message}`);
     process.exit(1);
   }
   console.log("\n✅ All PRD stories passed!");

@@ -1,3 +1,3 @@
-export type { Prd, Story, StoryStatus, GateResult } from "./types";
-export { definePrd, type StoryIdOf } from "./define-prd";
-export { runPrd, type RunPrdOptions, type RunPrdResult } from "./runner";
+export type { Prd, Story, GateResult } from "./types";
+export { definePrd } from "./define-prd";
+export { runPrd, type RunPrdResult } from "./runner";

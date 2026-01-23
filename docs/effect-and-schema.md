@@ -11,27 +11,26 @@ Effect is Gateproof's internal runtime discipline. It provides:
 
 Gateproof's `Gate.run` is implemented as an Effect. The public API returns a Promise, but internally everything is Effect.
 
-## Schema: Two Standardized Surfaces
+## Schema: What We Standardize (Today)
 
-Schema standardizes exactly two truth-carrying artifacts. Everything else remains user-owned.
+Effect is the runtime discipline inside Gateproof. Schema is used primarily for **tagged error types** (e.g. assertion failures, observability errors) so failures are structured and composable.
 
-### PRD Capsule Compatibility Contract
+### PRD “Capsule” Shape (simple, explicit)
 
-The PRD capsule shape (`Story + PRD`) is a compatibility contract. Gateproof does not parse or own your PRD, but if you choose to structure it as a capsule, Schema validates the envelope:
+Gateproof ships an optional PRD runner (`gateproof/prd`). If you use it, your PRD must match a small shape:
 
-- Story shape: `id`, `title`, `gateFile`, `status`, `dependsOn` (optional)
-- PRD metadata: version, module boundaries (for future sharding)
+- Story: `id`, `title`, `gateFile`, `dependsOn?`
+- PRD: `{ stories: Story[] }`
 
-This contract enables:
-- Validation that gate files exist and are executable
-- Future PRD sharding/indexing without rewriting (see Future-proofing)
-- Stable parsing for tooling that needs to understand PRD structure
+Validation today is intentionally boring:
+- Dependency existence + cycle detection (in the runner)
+- Gate file exists + exports `run()` (in `scripts/prd-validate.ts`)
 
-The PRD itself remains user-owned. Gateproof only validates the capsule shape if you use it.
+Gateproof does **not** own your PRD’s intent or state. It doesn’t mutate the PRD. It only uses the capsule shape if you opt into the runner/validator.
 
 ### Gate Result/Evidence Contract
 
-The `GateResult` shape is standardized via Schema:
+The `GateResult` shape is standardized as a TypeScript type:
 
 ```typescript
 {
@@ -62,11 +61,11 @@ To keep Gateproof minimal:
 - **Not inventing a DSL**: Gates are TypeScript files. No custom syntax, no configuration languages.
 - **Not turning Gateproof into a planner/orchestrator**: Gateproof executes gates. It does not decide which gates to run, when to run them, or how to sequence them. The PRD owns intent and state.
 
-## Future-Proofing: PRD Sharding
+## Future-Proofing: PRD Sharding (idea, not shipped)
 
-Schema makes later PRD sharding/indexing possible without rewriting.
+This is an idea worth preserving, but it’s not implemented in the current codebase.
 
-**The invariant**: A fresh agent only needs the actionable slice (stories with `status: "pending"` or `status: "in_progress"`).
+**The invariant**: A fresh agent only needs the actionable slice (e.g. stories not yet done, however you track that).
 
 **The mechanism**: Schema enables:
 - **Index PRD**: Contains story IDs, statuses, dependencies, and module references. Small, fast to load.

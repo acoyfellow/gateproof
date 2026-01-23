@@ -1,4 +1,4 @@
-import type { Prd, Story } from "./types";
+import type { Prd } from "./types";
 
 /**
  * Helper to define a PRD with type-safe story IDs.
@@ -9,8 +9,3 @@ export function definePrd<TId extends string>(
 ): Prd<TId> {
   return prd;
 }
-
-/**
- * Type helper to extract StoryId union from a PRD.
- */
-export type StoryIdOf<T extends Prd> = T["stories"][number]["id"];

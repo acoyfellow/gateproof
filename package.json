@@ -1,6 +1,6 @@
 {
   "name": "gateproof",
-  "version": "0.1.1",
+  "version": "0.1.2",
   "type": "module",
   "description": "E2E testing harness. Observe logs, run actions, assert results.",
   "main": "./dist/index.js",
@@ -28,6 +28,7 @@
     "build": "bun run build:tsc",
     "build:tsc": "tsc -p tsconfig.build.json",
     "typecheck": "tsc --noEmit",
+    "prd:validate": "bun run scripts/prd-validate.ts",
     "test": "bun test",
     "test:demo": "bun test test/demo.test.ts",
     "test:production": "bun test test/demo.production.test.ts",
@@ -41,7 +42,7 @@
     "gate:dev": "bun run gate:framework && bun run gate:demo && bun run gate:local",
     "gate:all": "bun run gate:dev && bun run gate:production",
     "demo:gate": "bun run gate:production",
-    "prepush": "bun run gate:dev",
+    "prepush": "bun run typecheck && bun run prd:validate && bun test",
     "prepublishOnly": "bun run build && bun test"
   },
   "keywords": [

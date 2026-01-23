@@ -1,11 +1,8 @@
-export type StoryStatus = "pending" | "done";
-
 export type Story<TId extends string = string> = {
   id: TId;
   title: string;
   gateFile: string;
   dependsOn?: TId[];
-  status?: StoryStatus;
 };
 
 export type Prd<TId extends string = string> = {

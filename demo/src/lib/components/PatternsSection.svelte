@@ -73,11 +73,9 @@ export const prd = definePrd({
 
 // Make it executable
 if (import.meta.main) {
-  const result = await runPrd(prd, { cwd: process.cwd() });
+  const result = await runPrd(prd);
   if (!result.success) {
-    if (result.failedStory) {
-      console.error(\`Failed at: \${result.failedStory.id}\`);
-    }
+    if (result.failedStory) console.error(\`Failed at: \${result.failedStory.id}\`);
     process.exit(1);
   }
   process.exit(0);

@@ -33,7 +33,7 @@ describe("PRD Runner", () => {
       ],
     });
 
-    await expect(runPrd(prd, { cwd: testDir })).rejects.toThrow(
+    await expect(runPrd(prd, testDir)).rejects.toThrow(
       'Story "story-1" depends on unknown story "unknown-story"'
     );
   });
@@ -56,7 +56,7 @@ describe("PRD Runner", () => {
       ],
     });
 
-    await expect(runPrd(prd, { cwd: testDir })).rejects.toThrow(
+    await expect(runPrd(prd, testDir)).rejects.toThrow(
       "PRD dependency cycle detected"
     );
   });
@@ -118,7 +118,7 @@ describe("PRD Runner", () => {
       ],
     });
 
-    const result = await runPrd(prd, { cwd: testDir });
+      const result = await runPrd(prd, testDir);
     expect(result.success).toBe(true);
     // The order is verified by dependency resolution - if it works, order is correct
   });
@@ -137,7 +137,7 @@ describe("PRD Runner", () => {
       ],
     });
 
-    const result = await runPrd(prd, { cwd: testDir });
+      const result = await runPrd(prd, testDir);
     expect(result.success).toBe(false);
     expect(result.error).toBeDefined();
     expect(result.error?.message).toContain("run");
@@ -183,7 +183,7 @@ describe("PRD Runner", () => {
       ],
     });
 
-    const result = await runPrd(prd, { cwd: testDir });
+      const result = await runPrd(prd, testDir);
     expect(result.success).toBe(false);
     expect(result.failedStory?.id).toBe("story-2");
     // If story-3 executed, it would throw and we'd get a different error
@@ -207,7 +207,7 @@ describe("PRD Runner", () => {
       ],
     });
 
-    const result = await runPrd(prd, { cwd: testDir });
+      const result = await runPrd(prd, testDir);
     expect(result.success).toBe(false);
     expect(result.error?.message).toBe("Gate error");
   });
@@ -240,7 +240,7 @@ describe("PRD Runner", () => {
       ],
     });
 
-    const result = await runPrd(prd, { cwd: testDir });
+      const result = await runPrd(prd, testDir);
     expect(result.success).toBe(true);
     expect(result.failedStory).toBeUndefined();
   });
