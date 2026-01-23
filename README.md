@@ -10,6 +10,8 @@ A gate is a test specification: observe logs, run actions, assert results. gatep
 
 You define stories (gates) in your PRD. gateproof executes gate files.
 
+**Try one gate on one critical path.** If it reduces uncertainty, keep it. If it doesn't fit, delete it.
+
 **Authority chain:**
 - **PRD (`prd.ts`)** — authority on intent, order, and dependencies (if you use the PRD runner)
 - **Gate implementations** — authority on how reality is observed
@@ -21,7 +23,7 @@ gateproof never decides *what* to build. It returns results; your CI/CD decides 
 
 A PRD (Product Requirements Document) defines stories. Stories are gates. Each story references a gate file. The gate file verifies the story against reality.
 
-Reality decides when you can proceed.
+Reality is the source of truth; gates make it enforceable in CI.
 
 ### prd.ts example
 
@@ -150,6 +152,16 @@ Gates can fail loudly. They can also pass on silence if you write weak assertion
 - **Not a planner or orchestrator**: gateproof executes gates; your PRD (or CI) decides what to run and in what context.
 - **Not a truth oracle**: if your backend drops logs, a gate can be wrong. Gateproof can’t fix missing telemetry.
 - **Enforcement is external**: gateproof returns results; CI/CD decides whether to block merge/deploy.
+
+## Common objections (and answers)
+
+- **"Isn't this just E2E tests?"** Similar goal, different anchor. Gates are evidence-first (logs/telemetry + explicit assertions), not DOM-only. The contract is: observe → act → assert → evidence.
+
+- **"What about flaky telemetry?"** Gates don't fix missing telemetry. They make the dependency explicit. If your backend drops logs, a gate can be wrong — but you'll know immediately, not in production.
+
+- **"Isn't this overhead?"** It can be. The pitch isn't "gate everything." It's "gate the few transitions that are expensive to get wrong." Start with one critical path.
+
+- **"Will this lock us in?"** Gates are just TypeScript files. If you stop using gateproof, you keep the scripts and the intent. No vendor lock-in.
 
 ## Quick Start
 

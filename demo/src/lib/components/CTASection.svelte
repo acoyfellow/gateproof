@@ -28,13 +28,13 @@
   <!-- Content -->
   <div class="relative z-10 max-w-4xl mx-auto text-center">
     <h2 class="text-4xl sm:text-5xl md:text-6xl lg:text-7xl font-bold mb-8 leading-tigher text-amber-800">
-      Make your PRD executable
+      Try one gate. See if it fits.
     </h2>
     <p class="text-xl sm:text-2xl md:text-3x mb-12 max-w-3xl mx-auto leading-tighter text-amber-800">
-      Write your stories with gates. Reality decides when you can move forward.
+      Write gates that observe reality, act, and assert. Get evidence, not promises.
     </p>
     
-    <div class="flex flex-col sm:flex-row items-center justify-center gap-6 mb-10">
+    <div class="flex flex-col sm:flex-row items-center justify-center gap-6 mb-6">
       <button
         onclick={scrollToDemo}
         class="px-8 py-4 bg-amber-500 hover:bg-amber-600 text-amber-100 text-lg font-medium rounded-lg transition-colors"
@@ -51,6 +51,10 @@
         View on GitHub
       </a>
     </div>
+    
+    <p class="text-sm text-amber-700/70 mb-10">
+      If it doesn't fit, delete it. No lock-in.
+    </p>
     
     <button
       onclick={() => onInfoClick?.()}

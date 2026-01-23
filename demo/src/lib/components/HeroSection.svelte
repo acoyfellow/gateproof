@@ -80,9 +80,9 @@ await Gate.run({
         </h1>
 
         <p class="text-lg sm:text-2xl md:text-3xl max-w-3xl text-gray-100 leading-relaxed text-balance text-shadow-lg">
-          Write your stories with gateproof. <br />
-          Make your PRD executable. <br />
-          Reality decides when you can move forward.
+          Make progress falsifiable. <br />
+          Write gates that observe reality, act, and assert. <br />
+          Get evidence, not promises.
         </p>
 
         <p class="text-sm sm:text-base max-w-2xl text-white/70 leading-relaxed text-balance">

@@ -29,8 +29,9 @@
     error = null;
     
     try {
-      // Dynamically import marked to ensure it's available
+      // Dynamically import marked and shiki
       const { marked } = await import('marked');
+      const { codeToHtml } = await import('shiki');
       
       // Fetch markdown from static folder
       const response = await fetch('/README.md');
@@ -39,8 +40,45 @@
       }
       const markdown = await response.text();
       
-      // Parse markdown to HTML
-      readmeHtml = await marked.parse(markdown);
+      // Parse markdown to HTML first
+      let html = await marked.parse(markdown);
+      
+      // Extract and highlight code blocks
+      // Match <pre><code class="language-xxx">...</code></pre> or <pre><code>...</code></pre>
+      const codeBlockRegex = /<pre><code(?:\s+class="language-([^"]+)")?>([\s\S]*?)<\/code><\/pre>/g;
+      const replacements: Array<Promise<string>> = [];
+      const matches: Array<RegExpExecArray> = [];
+      
+      // Collect all matches
+      let match;
+      while ((match = codeBlockRegex.exec(html)) !== null) {
+        matches.push(match);
+      }
+      
+      // Highlight all code blocks in parallel
+      const highlighted = await Promise.all(
+        matches.map((match) => {
+          const lang = match[1] || 'text';
+          // Decode HTML entities in code using browser's built-in decoder
+          const tempDiv = document.createElement('div');
+          tempDiv.innerHTML = match[2];
+          const code = tempDiv.textContent || tempDiv.innerText || match[2];
+          
+          return codeToHtml(code, {
+            lang: lang,
+            theme: 'github-dark'
+          }).catch(() => match[0]); // Fallback to original on error
+        })
+      );
+      
+      // Replace code blocks with highlighted versions (in reverse to preserve indices)
+      for (let i = matches.length - 1; i >= 0; i--) {
+        html = html.substring(0, matches[i].index) + 
+               highlighted[i] + 
+               html.substring(matches[i].index + matches[i][0].length);
+      }
+      
+      readmeHtml = html;
     } catch (err) {
       console.error('Error loading README:', err);
       error = err instanceof Error ? err.message : 'Unknown error';
@@ -185,6 +223,31 @@
     background: transparent;
     color: inherit;
     padding: 0;
+  }
+  
+  /* Shiki syntax highlighting styles */
+  :global(.readme-content .shiki) {
+    background: rgb(17 24 39) !important;
+    padding: 1rem !important;
+    border-radius: 0.5rem;
+    overflow-x: auto;
+    margin: 1rem 0;
+    border: 1px solid rgb(55 65 81);
+  }
+  
+  :global(.readme-content .shiki code) {
+    background: transparent !important;
+    color: inherit;
+    padding: 0;
+    font-size: 0.875em;
+    line-height: 1.6;
+  }
+  
+  :global(.readme-content pre:has(.shiki)) {
+    background: transparent;
+    padding: 0;
+    margin: 0;
+    border: none;
   }
   
   :global(.readme-content a) {

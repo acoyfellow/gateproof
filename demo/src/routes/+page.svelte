@@ -26,8 +26,8 @@
 </script>
 
 <svelte:head>
-  <title>gateproof - Write your stories with gates</title>
-  <meta name="description" content="Make your PRD executable. Reality decides when you can move forward." />
+  <title>gateproof - Make progress falsifiable</title>
+  <meta name="description" content="E2E testing harness that observes logs, runs actions, and asserts results. Returns evidence, not promises. Try one gate; if it doesn't fit, delete it." />
 </svelte:head>
 
 <main class="relative" style="background: var(--color-background);">
