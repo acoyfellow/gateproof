@@ -301,7 +301,15 @@ See `patterns/` for complete examples:
 - `patterns/cloudflare/` - Cloudflare-specific patterns
 - `patterns/ci-cd/` - CI/CD integration
 - `patterns/advanced/` - Advanced patterns
-- `patterns/prd/` - PRD-as-code examples
+- `patterns/prd/` - PRD-as-code + agent iteration loop examples
+- `examples/hello-world-agent/` - Minimal agent with 5 tools + end-to-end gates
+
+Run the hello-world agent example (requires `OPENCODE_ZEN_API_KEY` and network access to `opencode.ai`):
+
+```bash
+export OPENCODE_ZEN_API_KEY="your_key_here"
+bun run examples/hello-world-agent/prd.ts
+```
 
 ## CI/CD
 

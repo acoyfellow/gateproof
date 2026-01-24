@@ -12,6 +12,8 @@
     code: string;
   };
 
+  const helloWorldAgentUrl = "https://github.com/acoyfellow/gateproof/tree/main/examples/hello-world-agent";
+
   const patterns: readonly Pattern[] = [
     {
       id: 'e2e',
@@ -171,6 +173,23 @@ export const observe = createObserveResource(createBackend());`
       <p class="text-xl sm:text-2xl max-w-3xl mx-auto text-amber-800">
         Real-world examples for every use case. Copy, adapt, deploy.
       </p>
+    </div>
+
+    <div class="mx-auto mb-10 max-w-3xl rounded-xl border border-amber-200 bg-white/80 px-6 py-4 text-center shadow-sm">
+      <p class="text-base sm:text-lg text-amber-900">
+        Try the hello-world agent: a tiny loop with read/list/bash/edit/search + gates.
+      </p>
+      <p class="mt-1 text-xs sm:text-sm text-amber-700">
+        Requires <span class="font-mono">OPENCODE_ZEN_API_KEY</span> and network access to <span class="font-mono">opencode.ai</span>.
+      </p>
+      <a
+        class="mt-3 inline-flex items-center justify-center rounded-full border border-amber-300 bg-amber-500 px-4 py-2 text-sm font-semibold text-white shadow-md transition hover:bg-amber-600"
+        href={helloWorldAgentUrl}
+        target="_blank"
+        rel="noopener noreferrer"
+      >
+        Open the example
+      </a>
     </div>
     
     <!-- Category Tabs -->
