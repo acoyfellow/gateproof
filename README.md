@@ -1,16 +1,25 @@
 # gateproof
 
-E2E testing harness. Observe logs, run actions, assert results.
+Build software in reverse. PRD defines what should exist. Gates verify reality. Agent iterations refine until gates pass.
 
 ## What gateproof does
 
-gateproof **executes gates**. It does not define intent, plans, or workflows.
+gateproof enables **agent iterations** with minimal context overhead.
 
-A gate is a test specification: observe logs, run actions, assert results. gateproof runs it and returns evidence.
+**The workflow:**
+1. PRD defines stories (what should exist)
+2. Gates verify reality (does it work?)
+3. Agent gets PRD + gate failure (minimal context)
+4. Agent fixes, gates re-run
+5. Iterate until all gates pass
 
-You define stories (gates) in your PRD. gateproof executes gate files.
+**Why this works:**
+- PRD is single source of truth (clear intent, minimal context)
+- Gates provide concrete feedback (not vague requirements)
+- Agent gets context only when needed (efficient)
+- Iteration ensures correctness (converges to working code)
 
-**Try one gate on one critical path.** If it reduces uncertainty, keep it. If it doesn't fit, delete it.
+gateproof **executes gates**. It does not define intent, plans, or workflows. A gate is a test specification: observe logs, run actions, assert results. gateproof runs it and returns evidence.
 
 **Authority chain:**
 - **PRD (`prd.ts`)** — authority on intent, order, and dependencies (if you use the PRD runner)
@@ -18,6 +27,43 @@ You define stories (gates) in your PRD. gateproof executes gate files.
 - **gateproof runtime** — authority on enforcement only
 
 gateproof never decides *what* to build. It returns results; your CI/CD decides whether you are allowed to proceed.
+
+## Agent Iterations: The Loop
+
+The core innovation: agents work from PRD only, gates verify, iterate until correct.
+
+**The iteration loop:**
+1. Run PRD → executes gates in dependency order
+2. Gate fails → agent gets: codebase context (e.g., `AGENTS.md`) + failure output
+3. Agent fixes → makes changes to codebase
+4. Loop repeats → re-run PRD, check if gates pass
+5. All gates pass → done
+
+**Why minimal context:**
+- Agent starts with PRD only (no full codebase upfront)
+- Agent gets context only when gates fail (just-in-time)
+- PRD stays as authority (what to build)
+- Gates provide concrete feedback (what's wrong)
+
+**Example loop script:**
+```bash
+# patterns/prd/agent-iteration-loop.sh
+while true; do
+  bun run prd.ts || {
+    # Gate failed - agent gets PRD + failure output
+    agent --context prd.ts --failure "$(cat gate-output.txt)"
+    # Agent fixes, loop continues
+  }
+  break  # All gates passed
+done
+```
+
+**The guardrails:**
+- Max failures (default: 5) → auto-pause if stuck
+- Git diff check → agent must make changes
+- Pause file → manual control
+
+This solves the context management problem: agents don't need full codebase context upfront. They get minimal context (PRD), concrete feedback (gate failures), and iterate until correct.
 
 ## Stories as gates
 
@@ -44,7 +90,7 @@ export const prd = definePrd({
       gateFile: "./gates/email-verification.gate.ts",
       dependsOn: ["user-signup"],
     },
-  ],
+  ] as const, // keep story IDs as literal types
 });
 
 // Make it executable
@@ -94,12 +140,20 @@ Stories execute in dependency order. The runner stops on first failure. Progress
 
 The PRD defines stories. Stories reference gate files. Gate files use gateproof's API. Gates can be enforced in CI before merge/deploy.
 
-The sequence: PRD story → gate file → gate execution → story marked "done" only when gate passes.
+**The sequence:** PRD story → gate file → gate execution → story marked "done" only when gate passes.
+
+**For agent iterations:** PRD → gate fails → agent fixes → gate re-runs → loop until pass.
 
 Run your PRD:
 
 ```bash
 bun run prd.ts
+```
+
+Run agent iteration loop:
+
+```bash
+bash patterns/prd/agent-iteration-loop.sh
 ```
 
 ## Hardening `prd.ts` (recommended)
@@ -246,7 +300,7 @@ const prd = definePrd({
       gateFile: "./gates/story-2.gate.ts",
       dependsOn: ["story-1"],
     },
-  ],
+  ] as const, // keep story IDs as literal types
 });
 
 const result = await runPrd(prd);
