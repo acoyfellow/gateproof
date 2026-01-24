@@ -2,6 +2,15 @@
 
 Production assertion framework. Define what success looks like, then validate it against real systems.
 
+## Agent-first PRD
+
+Generate a complete `prd.ts` from story bullets:
+
+```bash
+export OPENCODE_ZEN_API_KEY="..."
+echo "User can sign up" | npx gateproof prdts --stdout
+```
+
 ## When to use
 
 - **Jest/Vitest**: Unit tests, isolated logic

@@ -28,6 +28,48 @@ gateproof **executes gates**. It does not define intent, plans, or workflows. A 
 
 gateproof never decides *what* to build. It returns results; your CI/CD decides whether you are allowed to proceed.
 
+## Agent skill: prdts-maker
+
+This repo is agent-first. Use the `prdts-maker` skill to turn story bullets into a working `prd.ts`.
+
+**How to use it:**
+- Provide story bullets + dependencies in plain language.
+- Ask the agent to run the `prdts-maker` skill and output a complete `prd.ts`.
+- Save and run: `bun run prd.ts`.
+
+**Example prompt:**
+```text
+@prdts-maker Create prd.ts for:
+- User can sign up
+- Email verification works (depends on signup)
+- User can log in (depends on verification)
+Include gate files under ./gates/.
+```
+
+## CLI: npx gateproof prdts
+
+Generate a `prd.ts` from story bullets without opening the repo.
+
+```bash
+echo "User can sign up\nEmail verification works (depends on signup)" | npx gateproof prdts --stdout
+npx gateproof prdts --in stories.txt --out prd.ts
+```
+
+This calls Opencode directly. Set `OPENCODE_ZEN_API_KEY` (or pass `--api-key`).
+
+Paste mode (interactive stdin):
+
+```bash
+npx gateproof prdts
+# paste stories, then Ctrl-D
+```
+
+To target a different Opencode base URL or model:
+
+```bash
+npx gateproof prdts --endpoint https://opencode.ai/zen/v1 --model big-pickle --in stories.txt --out prd.ts
+```
+
 ## Agent Iterations: The Loop
 
 The core innovation: agents work from PRD only, gates verify, iterate until correct.

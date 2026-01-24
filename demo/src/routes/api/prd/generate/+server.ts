@@ -1,24 +1,95 @@
 import type { RequestEvent } from "@sveltejs/kit";
-import { generateObject } from "ai";
+import { extractJsonMiddleware, generateText, Output, wrapLanguageModel } from "ai";
 import { z } from "zod";
 import { createOpenAI } from "@ai-sdk/openai";
 import { createOpenAICompatible } from "@ai-sdk/openai-compatible";
 import { env } from "$env/dynamic/private";
 
-const gateImplementationSchema = z.object({
-  code: z.string().describe("Complete gate implementation code as a function that returns a gate spec"),
-});
+const gateImplementationSchema = z.preprocess(
+  (value) => {
+    if (typeof value === "string") {
+      return { code: value };
+    }
+    return value;
+  },
+  z.object({
+    code: z.string().describe("Complete gate implementation code as a function that returns a gate spec"),
+  })
+);
+
+const dependsOnSchema = z.preprocess(
+  (value) => {
+    if (value == null) return undefined;
+    if (typeof value === "string") return [value];
+    return value;
+  },
+  z.array(z.string())
+).optional();
 
 const storySchema = z.object({
   id: z.string().describe("Kebab-case story ID (e.g., 'user-signup')"),
   title: z.string().describe("Human-readable story title"),
   gateImplementation: gateImplementationSchema.describe("Complete gate implementation code"),
-  dependsOn: z.array(z.string()).optional().describe("Array of story IDs this story depends on"),
+  dependsOn: dependsOnSchema.describe("Array of story IDs this story depends on"),
 });
 
 const prdSchema = z.object({
   stories: z.array(storySchema),
 });
+type Prd = z.infer<typeof prdSchema>;
+
+type StoryShape = {
+  id?: unknown;
+  title?: unknown;
+  gateImplementation?: unknown;
+  gateImplementationCode?: unknown;
+  dependsOn?: unknown;
+  depends_on?: unknown;
+};
+
+function normalizePrd(input: unknown): unknown {
+  const obj =
+    typeof input === "string"
+      ? (() => {
+          try {
+            return JSON.parse(input);
+          } catch {
+            return input;
+          }
+        })()
+      : input;
+
+  if (Array.isArray(obj)) {
+    return { stories: obj };
+  }
+
+  if (obj && typeof obj === "object" && "prd" in obj) {
+    const prdValue = (obj as { prd?: unknown }).prd;
+    if (prdValue && typeof prdValue === "object") {
+      return prdValue;
+    }
+  }
+
+  if (!obj || typeof obj !== "object") return obj;
+
+  const root = obj as { stories?: unknown };
+  if (!Array.isArray(root.stories)) return obj;
+
+  const normalizedStories = root.stories.map((story) => {
+    if (!story || typeof story !== "object") return story;
+    const s = story as StoryShape;
+    const gateImplementation =
+      s.gateImplementation ?? s.gateImplementationCode ?? (s as { gateImplementation_code?: unknown }).gateImplementation_code;
+    const dependsOn = s.dependsOn ?? s.depends_on;
+    return {
+      ...s,
+      gateImplementation,
+      dependsOn,
+    };
+  });
+
+  return { ...root, stories: normalizedStories };
+}
 
 export const POST = async ({ platform, request }: RequestEvent) => {
   try {
@@ -42,7 +113,15 @@ export const POST = async ({ platform, request }: RequestEvent) => {
     // Access env var: platform.env for Cloudflare Workers (both prod and dev with Alchemy)
     // Alchemy passes env vars from alchemy.run.ts to platform.env
     // Fallback to $env/dynamic/private for non-Alchemy local dev
-    const apiKey = platform?.env?.OPENCODE_ZEN_API_KEY ?? env.OPENCODE_ZEN_API_KEY ?? process.env.OPENCODE_ZEN_API_KEY;
+    const apiKey =
+      platform?.env?.OPENCODE_ZEN_API_KEY ??
+      env.OPENCODE_ZEN_API_KEY ??
+      process.env.OPENCODE_ZEN_API_KEY;
+    const openaiApiKey =
+      platform?.env?.OPENAI_API_KEY ??
+      env.OPENAI_API_KEY ??
+      process.env.OPENAI_API_KEY;
+    const modelId = platform?.env?.PRD_MODEL ?? env.PRD_MODEL ?? process.env.PRD_MODEL;
 
     if (!apiKey) {
       return new Response(
@@ -57,19 +136,24 @@ export const POST = async ({ platform, request }: RequestEvent) => {
       );
     }
 
-    // Use openai-compatible provider for models that use /chat/completions
-    // big-pickle and grok-code use this endpoint
-    // baseURL should be the base, SDK will append /chat/completions
     const openaiCompatible = createOpenAICompatible({
       name: "opencode-zen",
       apiKey,
       baseURL: "https://opencode.ai/zen/v1",
     });
+    const openai = openaiApiKey ? createOpenAI({ apiKey: openaiApiKey }) : null;
+    const model = openai ? openai(modelId ?? "gpt-4o") : openaiCompatible("big-pickle");
+    const structuredModel = wrapLanguageModel({
+      model,
+      middleware: extractJsonMiddleware(),
+    });
 
-    // Use big-pickle which is free and uses /chat/completions
-    const { object: prd } = await generateObject({
-      model: openaiCompatible("big-pickle"),
-      schema: prdSchema,
+    const { output: prdOutput } = await generateText({
+      model: structuredModel,
+      output: Output.json({
+        name: "Prd",
+        description: "A PRD object with stories, each including id, title, gateImplementation.code, and optional dependsOn",
+      }),
       maxRetries: 1,
       messages: [
         {
@@ -122,6 +206,12 @@ Return a properly structured PRD object with complete gate implementations for e
         },
       ],
     });
+    const rawPrd = await prdOutput;
+    const parsed = prdSchema.safeParse(normalizePrd(rawPrd));
+    if (!parsed.success) {
+      throw new Error(`Invalid PRD schema: ${parsed.error.message}`);
+    }
+    const prd = parsed.data as Prd;
 
     // Format as single encapsulated file with inline gates
     const gateMap = prd.stories.map((story) => {

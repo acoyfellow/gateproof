@@ -1,5 +1,5 @@
 ---
-name: gateproof
+name: prdts-maker
 description: Build software using PRD-driven, gate-verified development. Use this skill when (1) writing PRDs (prd.ts) to define what should be built, (2) creating gates to verify reality, (3) iterating on agent-driven development, or (4) the user mentions gateproof, gates, or PRD-driven workflows. Gates verify reality through observation—not just assertions. PRD defines intent; gates prove it works.
 ---
 

@@ -183,6 +183,9 @@ export const observe = createObserveResource(createBackend());`
       <p class="mt-1 text-xs sm:text-sm text-amber-700">
         Requires <span class="font-mono">OPENCODE_ZEN_API_KEY</span> and network access to <span class="font-mono">opencode.ai</span>.
       </p>
+      <p class="mt-2 text-xs sm:text-sm text-amber-800">
+        CLI: <span class="font-mono">npx gateproof prdts</span> — paste stories, get <span class="font-mono">prd.ts</span>.
+      </p>
       <div class="mt-3 flex flex-wrap items-center justify-center gap-3">
         <a
           class="inline-flex items-center justify-center rounded-full border border-amber-300 bg-amber-500 px-4 py-2 text-sm font-semibold text-white shadow-md transition hover:bg-amber-600"

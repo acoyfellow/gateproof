@@ -132,7 +132,15 @@ await Gate.run({
             <CodeBlock code={wow} language="typescript" wrap />
           </div>
 
-          <p class="mt-3 text-xs text-white/60">
+          <div class="mt-3 flex flex-wrap items-center justify-between gap-3 rounded-lg border border-white/10 bg-black/40 px-3 py-2 text-[11px] uppercase tracking-widest text-white/55">
+            <span>CLI</span>
+            <span class="font-mono text-white/90">npx gateproof prdts</span>
+          </div>
+
+          <p class="mt-2 text-xs text-white/60">
+            Paste stories → get a complete <span class="font-mono">prd.ts</span>.
+          </p>
+          <p class="mt-2 text-xs text-white/60">
             gates are tiny. evidence is real.
           </p>
         </div>

@@ -28,7 +28,7 @@
 
 <svelte:head>
   <title>gateproof - Make progress falsifiable</title>
-  <meta name="description" content="Steer your development with prd.ts. Define intent, verify reality, and ship with evidence." />
+  <meta name="description" content="Agent-first PRD workflow. Define intent in prd.ts, verify reality with gates, and ship with evidence." />
 </svelte:head>
 
 <main class="relative" style="background: var(--color-background);">
