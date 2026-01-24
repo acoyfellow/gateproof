@@ -12,6 +12,8 @@ jobs:
     
     steps:
       - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
       
       - name: Setup Bun
         uses: oven-sh/setup-bun@v1
@@ -22,5 +24,66 @@ jobs:
         run: bun install
       
       - name: Run PRD
-        run: bun run prd.ts
-        continue-on-error: true
+        id: prd
+        run: |
+          mkdir -p .gateproof
+          bun run prd.ts --report .gateproof/prd-report.json --check-scope --base-ref origin/main || true
+      
+      - name: Generate Summary
+        if: always()
+        run: |
+          if [ -f .gateproof/prd-report.json ]; then
+            bun -e '
+              const report = JSON.parse(await Bun.file(".gateproof/prd-report.json").text());
+              const summary = [];
+              summary.push("## PRD Gate Results");
+              summary.push("");
+              summary.push(`**Status:** ${report.success ? "✅ PASSED" : "❌ FAILED"}`);
+              summary.push(`**Duration:** ${report.totalDurationMs}ms`);
+              summary.push("");
+              summary.push("### Stories");
+              summary.push("");
+              for (const story of report.stories) {
+                const status = story.status === "success" ? "✅" : "❌";
+                summary.push(\`- \${status} \${story.id}: \${story.title} (\${story.durationMs}ms)\`);
+                if (story.error) {
+                  summary.push(\`  - Error: \${story.error.message}\`);
+                }
+              }
+              if (report.failedStory) {
+                summary.push("");
+                summary.push(\`**Failed at:** \${report.failedStory.id} - \${report.failedStory.title}\`);
+              }
+              const summaryText = summary.join("\\n");
+              await Bun.write(process.env.GITHUB_STEP_SUMMARY, summaryText);
+              console.log(summaryText);
+            '
+          else
+            echo "## PRD Gate Results" >> $GITHUB_STEP_SUMMARY
+            echo "" >> $GITHUB_STEP_SUMMARY
+            echo "❌ No report generated" >> $GITHUB_STEP_SUMMARY
+          fi
+      
+      - name: Upload Report Artifact
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: prd-report
+          path: .gateproof/prd-report.json
+          if-no-files-found: ignore
+      
+      - name: Fail if PRD failed
+        if: always()
+        run: |
+          if [ -f .gateproof/prd-report.json ]; then
+            bun -e '
+              const report = JSON.parse(await Bun.file(".gateproof/prd-report.json").text());
+              if (!report.success) {
+                console.error("PRD failed");
+                process.exit(1);
+              }
+            '
+          else
+            echo "No report found, failing"
+            exit 1
+          fi

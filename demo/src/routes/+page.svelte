@@ -4,6 +4,7 @@
   import TransitionSection from '$lib/components/TransitionSection.svelte';
   import HeavenSection from '$lib/components/HeavenSection.svelte';
   import PatternsSection from '$lib/components/PatternsSection.svelte';
+  import PrdBuilder from '$lib/components/PrdBuilder.svelte';
   import CTASection from '$lib/components/CTASection.svelte';
   import LogoMark from '$lib/components/LogoMark.svelte';
   import InfoDrawer from '$lib/components/InfoDrawer.svelte';
@@ -36,6 +37,7 @@
   <TransitionSection />
   <HeavenSection onInfoClick={openInfoDrawer} />
   <PatternsSection />
+  <PrdBuilder />
   <CTASection onDemoClick={scrollToDemo} onInfoClick={openInfoDrawer} />
   <InfoDrawer isOpen={infoOpen} onClose={closeInfoDrawer} />
 </main>

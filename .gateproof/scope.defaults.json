@@ -1,0 +1,15 @@
+{
+  "forbiddenPaths": [
+    ".github/workflows/**",
+    "package.json",
+    "package-lock.json",
+    "bun.lock",
+    "tsconfig.json",
+    "tsconfig.build.json",
+    ".gitignore",
+    ".npmignore",
+    "LICENSE",
+    "README.md"
+  ],
+  "note": "These paths are forbidden by default unless a story explicitly opts in via scope.allowedPaths"
+}

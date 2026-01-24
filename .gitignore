@@ -8,3 +8,5 @@ dist/
 coverage/
 .idea/
 .vscode/
+.gateproof/*.json
+!.gateproof/scope.defaults.json

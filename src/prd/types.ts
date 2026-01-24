@@ -1,8 +1,16 @@
+export interface StoryScope {
+  allowedPaths?: string[];
+  forbiddenPaths?: string[];
+  maxChangedFiles?: number;
+  maxChangedLines?: number;
+}
+
 export type Story<TId extends string = string> = {
   id: TId;
   title: string;
   gateFile: string;
   dependsOn?: TId[];
+  scope?: StoryScope;
 };
 
 export type Prd<TId extends string = string> = {

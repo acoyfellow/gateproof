@@ -28,7 +28,29 @@ export const prd = definePrd({
 });
 
 if (import.meta.main) {
-  const result = await runPrd(prd);
+  const args = process.argv.slice(2);
+  let reportPath: string | undefined;
+  let checkScope = false;
+  let baseRef: string | undefined;
+
+  for (let i = 0; i < args.length; i++) {
+    if (args[i] === "--report" && i + 1 < args.length) {
+      reportPath = args[i + 1];
+      i++;
+    } else if (args[i] === "--check-scope") {
+      checkScope = true;
+    } else if (args[i] === "--base-ref" && i + 1 < args.length) {
+      baseRef = args[i + 1];
+      i++;
+    }
+  }
+
+  const result = await runPrd(prd, process.cwd(), {
+    reportPath,
+    checkScope,
+    baseRef,
+  });
+
   if (!result.success) {
     if (result.failedStory) {
       console.error(`\n❌ PRD failed at: ${result.failedStory.id} - ${result.failedStory.title}`);
@@ -37,5 +59,8 @@ if (import.meta.main) {
     process.exit(1);
   }
   console.log("\n✅ All PRD stories passed!");
+  if (reportPath) {
+    console.log(`📊 Report written to: ${reportPath}`);
+  }
   process.exit(0);
 }

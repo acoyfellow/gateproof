@@ -14,6 +14,8 @@ import {
   MAX_LOG_BUFFER,
   LOG_BUFFER_CAPACITY
 } from "./constants";
+import type { GateResultV1, SerializableError } from "./report";
+import { serializeError, sortDeterministic, toGateResultV1 } from "./report";
 
 export class GateError extends Schema.TaggedError<GateError>()("GateError", {
   cause: Schema.Unknown
@@ -70,10 +72,10 @@ function summarize(logs: Log[]): GateResult["evidence"] {
   }
 
   return {
-    requestIds: [...requestIds],
-    stagesSeen: [...stages],
-    actionsSeen: [...actions],
-    errorTags: [...errorTags]
+    requestIds: sortDeterministic([...requestIds]),
+    stagesSeen: sortDeterministic([...stages]),
+    actionsSeen: sortDeterministic([...actions]),
+    errorTags: sortDeterministic([...errorTags])
   };
 }
 
@@ -318,7 +320,9 @@ function printResult(report: GateSpec["report"], result: GateResult): void {
       console.log(`error=${errorTag}`);
     }
   } else {
-    console.log(JSON.stringify(result, null, 2));
+    // Use serializable version for JSON output
+    const serializable = toGateResultV1(result);
+    console.log(JSON.stringify(serializable, null, 2));
   }
 }
 
@@ -330,3 +334,5 @@ export type { Provider } from "./provider";
 export { createEmptyBackend, createEmptyObserveResource, runGateWithErrorHandling } from "./utils";
 export { createTestObserveResource } from "./test-helpers";
 export { createHttpObserveResource } from "./http-backend";
+export type { GateResultV1, PrdReportV1, StoryResultV1, SerializableError } from "./report";
+export { serializeError, toGateResultV1 } from "./report";

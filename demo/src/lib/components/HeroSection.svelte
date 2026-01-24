@@ -80,13 +80,14 @@ await Gate.run({
         </h1>
 
         <p class="text-lg sm:text-2xl md:text-3xl max-w-3xl text-gray-100 leading-relaxed text-balance text-shadow-lg">
-          Make progress falsifiable. <br />
-          Write gates that observe reality, act, and assert. <br />
-          Get evidence, not promises.
+          Build software in reverse. <br />
+          PRD defines what should exist. <br />
+          Gates verify reality. <br />
+          Agent iterations refine until gates pass.
         </p>
 
         <p class="text-sm sm:text-base max-w-2xl text-white/70 leading-relaxed text-balance">
-          Agents can’t fix what they can’t observe. Give them real logs — and a contract to assert against.
+          PRD is your single source of truth. Agents get minimal context, gates provide concrete feedback, iterate until correct.
         </p>
 
         <div class="flex flex-wrap items-center gap-2">

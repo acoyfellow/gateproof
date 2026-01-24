@@ -1,10 +1,10 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-mkdir -p .ralph
+mkdir -p .agent-iteration
 
-if [[ -f .ralph/PAUSED ]]; then
-  echo "Ralph loop paused (.ralph/PAUSED)"
+if [[ -f .agent-iteration/PAUSED ]]; then
+  echo "Agent iteration loop paused (.agent-iteration/PAUSED)"
   exit 0
 fi
 
@@ -19,14 +19,14 @@ if ! command -v claude >/dev/null; then
 fi
 
 failures=0
-if [[ -f .ralph/failures ]]; then
-  failures="$(cat .ralph/failures)"
+if [[ -f .agent-iteration/failures ]]; then
+  failures="$(cat .agent-iteration/failures)"
 fi
 
-max_failures="${RALPH_MAX_FAILURES:-5}"
+max_failures="${AGENT_ITERATION_MAX_FAILURES:-5}"
 
 while true; do
-  [[ -f .ralph/PAUSED ]] && exit 0
+  [[ -f .agent-iteration/PAUSED ]] && exit 0
 
   set +e
   output="$(bun run patterns/prd/run-prd.ts 2>&1)"
@@ -34,17 +34,17 @@ while true; do
   set -e
 
   if [[ "$status" -eq 0 ]]; then
-    echo "0" > .ralph/failures
+    echo "0" > .agent-iteration/failures
     echo "$output"
     exit 0
   fi
 
   failures="$((failures + 1))"
-  echo "$failures" > .ralph/failures
+  echo "$failures" > .agent-iteration/failures
 
   if [[ "$failures" -ge "$max_failures" ]]; then
-    touch .ralph/PAUSED
-    echo "Auto-paused after $failures failures (.ralph/PAUSED)"
+    touch .agent-iteration/PAUSED
+    echo "Auto-paused after $failures failures (.agent-iteration/PAUSED)"
     exit 1
   fi
 
