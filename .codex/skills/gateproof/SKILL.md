@@ -81,6 +81,10 @@ scope: {
 
 ## Writing PRDs
 
+**Keep PRD self-sufficient.** Agents should be able to act with only PRD + gate failure output.
+
+**Low-token rule:** encode the brief in the story title and scope (files + limits), not in extra docs.
+
 ```typescript
 // prd.ts
 import { runPrd } from "gateproof";
@@ -88,18 +92,18 @@ import { runPrd } from "gateproof";
 const stories = [
   {
     id: "user-signup",
-    title: "User can create account with email/password",
+    title: "User can create account with email/password (gate: logs user_created)",
     gateFile: "gates/user-signup.gate.ts",
   },
   {
     id: "email-verification",
-    title: "User receives verification email after signup",
+    title: "User receives verification email after signup (gate: logs email_sent)",
     gateFile: "gates/email-verify.gate.ts",
     dependsOn: ["user-signup"],  // executes after user-signup passes
   },
   {
     id: "user-login",
-    title: "Verified user can log in",
+    title: "Verified user can log in (gate: logs session_created)",
     gateFile: "gates/user-login.gate.ts",
     dependsOn: ["email-verification"],
     scope: {
@@ -111,6 +115,18 @@ const stories = [
 
 runPrd({ stories });
 ```
+
+**Title template (single line):**
+`<Behavior> — evidence: <action|stage|tag> — scope: <path or limit>`
+
+Example:
+`User can log in — evidence: session_created — scope: src/auth/**`
+
+**Story brief checklist (keep in title/scope, no extra docs):**
+- What must exist (behavior)
+- What evidence will prove it (action/stage/error tag)
+- Where the code should live (scope)
+- Any hard limits (files/lines)
 
 ## The Iteration Loop
 

@@ -5,14 +5,14 @@
       style="background-image: url('https://gateproof.dev/chaos.jpg');"
     ></div>
 
-    <div class="relative z-10 grid min-h-screen lg:grid-cols-[1fr,1.2fr]">
+    <div class="relative z-10 grid min-h-screen lg:grid-cols-[1fr,1.2fr] max-w-6xl mx-auto">
       <div class="flex flex-col justify-between border-r border-white/10 p-8 md:p-12 lg:p-16">
         <div>
           <p class="font-mono text-xs uppercase tracking-[0.4em] text-red-500">Without gates</p>
         </div>
 
         <div class="my-12 lg:my-0">
-          <h2 class="-ml-1 text-[15vw] font-black uppercase leading-[0.85] tracking-tighter text-white lg:text-[10vw]">
+          <h2 class="-ml-1 text-[15vw] font-black leading-[0.85] tracking-tighter text-white lg:text-[10vw]">
             The<br /><span class="text-red-500">Chaos</span>
           </h2>
         </div>

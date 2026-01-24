@@ -28,7 +28,7 @@
 
 <svelte:head>
   <title>gateproof - Make progress falsifiable</title>
-  <meta name="description" content="E2E testing harness that observes logs, runs actions, and asserts results. Returns evidence, not promises. Try one gate; if it doesn't fit, delete it." />
+  <meta name="description" content="Steer your development with prd.ts. Define intent, verify reality, and ship with evidence." />
 </svelte:head>
 
 <main class="relative" style="background: var(--color-background);">

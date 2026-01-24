@@ -28,7 +28,7 @@
   <!-- Content -->
   <div class="relative z-10 max-w-4xl mx-auto text-center">
     <h2 class="text-4xl sm:text-5xl md:text-6xl lg:text-7xl font-bold mb-8 leading-tigher text-amber-800">
-      Try one gate. See if it fits.
+      Steer your development with prd.ts.
     </h2>
     <p class="text-xl sm:text-2xl md:text-3x mb-12 max-w-3xl mx-auto leading-tighter text-amber-800">
       Write gates that observe reality, act, and assert. Get evidence, not promises.

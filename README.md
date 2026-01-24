@@ -356,6 +356,7 @@ See `patterns/` for complete examples:
 - `patterns/ci-cd/` - CI/CD integration
 - `patterns/advanced/` - Advanced patterns
 - `patterns/prd/` - PRD-as-code + agent iteration loop examples
+- `patterns/agent-first/` - Spec interview → PRD stories (agent-first)
 - `examples/hello-world-agent/` - Minimal agent with 5 tools + end-to-end gates
 
 Run the hello-world agent example (requires `OPENCODE_ZEN_API_KEY` and network access to `opencode.ai`):

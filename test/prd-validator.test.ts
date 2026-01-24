@@ -1,8 +1,11 @@
 import { test, expect } from "bun:test";
 import { spawnSync } from "node:child_process";
 import { writeFileSync, mkdirSync, rmSync } from "node:fs";
-import { join } from "node:path";
+import { join, resolve } from "node:path";
 import { tmpdir } from "node:os";
+
+const repoRoot = resolve(import.meta.dir, "..");
+const prdValidateScript = resolve(repoRoot, "scripts/prd-validate.ts");
 
 test("prd-validate: rejects scope with contradictory paths", async () => {
   const testDir = join(tmpdir(), `gateproof-validator-test-${Date.now()}`);
@@ -16,7 +19,7 @@ test("prd-validate: rejects scope with contradictory paths", async () => {
         {
           id: "test-story",
           title: "Test Story",
-          gateFile: "./test.gate.ts",
+          gateFile: "./gates/test.gate.ts",
           scope: {
             allowedPaths: ["src/index.ts"],
             forbiddenPaths: ["src/index.ts"],
@@ -33,7 +36,7 @@ test("prd-validate: rejects scope with contradictory paths", async () => {
     `export async function run() { return { status: "success" }; }`
   );
   
-  const result = spawnSync("bun", ["run", "scripts/prd-validate.ts", prdPath], {
+  const result = spawnSync("bun", ["run", prdValidateScript, prdPath], {
     cwd: testDir,
     encoding: "utf-8",
   });
@@ -56,7 +59,7 @@ test("prd-validate: accepts valid scope", async () => {
         {
           id: "test-story",
           title: "Test Story",
-          gateFile: "./test.gate.ts",
+          gateFile: "./gates/test.gate.ts",
           scope: {
             allowedPaths: ["src/**"],
             maxChangedFiles: 10,
@@ -74,7 +77,7 @@ test("prd-validate: accepts valid scope", async () => {
     `export async function run() { return { status: "success" }; }`
   );
   
-  const result = spawnSync("bun", ["run", "scripts/prd-validate.ts", prdPath], {
+  const result = spawnSync("bun", ["run", prdValidateScript, prdPath], {
     cwd: testDir,
     encoding: "utf-8",
   });
@@ -97,7 +100,7 @@ test("prd-validate: rejects invalid scope.maxChangedFiles", async () => {
         {
           id: "test-story",
           title: "Test Story",
-          gateFile: "./test.gate.ts",
+          gateFile: "./gates/test.gate.ts",
           scope: {
             maxChangedFiles: -1,
           },
@@ -113,7 +116,7 @@ test("prd-validate: rejects invalid scope.maxChangedFiles", async () => {
     `export async function run() { return { status: "success" }; }`
   );
   
-  const result = spawnSync("bun", ["run", "scripts/prd-validate.ts", prdPath], {
+  const result = spawnSync("bun", ["run", prdValidateScript, prdPath], {
     cwd: testDir,
     encoding: "utf-8",
   });

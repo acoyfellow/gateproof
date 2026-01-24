@@ -24,6 +24,23 @@ export const prd = definePrd({
       gateFile: "./gates/prd/framework-tests.gate.ts",
       dependsOn: ["framework-build"],
     },
+    {
+      id: "agent-first-pattern",
+      title: "Agent-first spec interview pattern is documented and linked",
+      gateFile: "./gates/prd/agent-first-pattern.gate.ts",
+      dependsOn: ["framework-tests"],
+      scope: {
+        allowedPaths: [
+          "prd.ts",
+          "gates/prd/agent-first-pattern.gate.ts",
+          "patterns/agent-first/**",
+          "README.md",
+          "demo/src/lib/components/PatternsSection.svelte",
+        ],
+        maxChangedFiles: 6,
+        maxChangedLines: 300,
+      },
+    },
   ],
 });
 
