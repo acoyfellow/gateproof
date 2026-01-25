@@ -11,6 +11,7 @@ export type Story<TId extends string = string> = {
   gateFile: string;
   dependsOn?: TId[];
   scope?: StoryScope;
+  progress?: string[];
 };
 
 export type Prd<TId extends string = string> = {

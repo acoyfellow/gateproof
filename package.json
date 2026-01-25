@@ -1,6 +1,6 @@
 {
   "name": "gateproof",
-  "version": "0.2.1",
+  "version": "0.2.2",
   "type": "module",
   "description": "E2E testing harness. Observe logs, run actions, assert results.",
   "main": "./dist/index.js",
@@ -45,7 +45,7 @@
     "gate:dev": "bun run gate:framework && bun run gate:demo && bun run gate:local",
     "gate:all": "bun run gate:dev && bun run gate:production",
     "demo:gate": "bun run gate:production",
-    "prepush": "bun run typecheck && bun run prd:validate && bun test",
+    "prepush": "bun run typecheck && bun run prd:validate && bun test && bun run gate:dev",
     "prepublishOnly": "bun run build && bun test"
   },
   "keywords": [

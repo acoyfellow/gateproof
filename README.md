@@ -30,10 +30,10 @@ gateproof never decides *what* to build. It returns results; your CI/CD decides 
 
 ## Agent skill: prdts-maker
 
-This repo is agent-first. Use the `prdts-maker` skill to turn story bullets into a working `prd.ts`.
+This repo is agent-first. Use the `prdts-maker` skill to turn a prompt into a working `prd.ts`.
 
 **How to use it:**
-- Provide story bullets + dependencies in plain language.
+- Provide a prompt (big blob of text is fine).
 - Ask the agent to run the `prdts-maker` skill and output a complete `prd.ts`.
 - Save and run: `bun run prd.ts`.
 
@@ -48,10 +48,10 @@ Include gate files under ./gates/.
 
 ## CLI: npx gateproof prdts
 
-Generate a `prd.ts` from story bullets without opening the repo.
+Generate a `prd.ts` from a prompt without opening the repo.
 
 ```bash
-echo "User can sign up\nEmail verification works (depends on signup)" | npx gateproof prdts --stdout
+echo "Build a signup flow with email verification and login" | npx gateproof prdts --stdout
 npx gateproof prdts --in stories.txt --out prd.ts
 ```
 
@@ -61,7 +61,7 @@ Paste mode (interactive stdin):
 
 ```bash
 npx gateproof prdts
-# paste stories, then Ctrl-D
+# paste a prompt, then Ctrl-D
 ```
 
 To target a different Opencode base URL or model:
@@ -107,6 +107,14 @@ done
 
 This solves the context management problem: agents don't need full codebase context upfront. They get minimal context (PRD), concrete feedback (gate failures), and iterate until correct.
 
+## Anatomy of a prd.ts (1 list)
+
+1. **Instructions**: each story title encodes behavior + evidence + scope (the agent's marching orders).
+2. **Stories**: `stories[]` holds `{ id, title, gateFile, dependsOn?, progress? }` in execution order.
+3. **Gates**: `gateFile` points at a gate script that observes logs, acts, and asserts evidence.
+4. **Loop state**: `runPrd(...)` returns success or the `failedStory` plus gate evidence (actions/stages/errors).
+5. **Loop instructions**: on failure, feed the agent `prd.ts` + gate output, fix code, re-run PRD until pass.
+
 ## Stories as gates
 
 A PRD (Product Requirements Document) defines stories. Stories are gates. Each story references a gate file. The gate file verifies the story against reality.
@@ -125,12 +133,14 @@ export const prd = definePrd({
       id: "user-signup",
       title: "User can sign up",
       gateFile: "./gates/user-signup.gate.ts",
+      progress: ["signup_page_live", "user_created"],
     },
     {
       id: "email-verification",
       title: "User receives verification email",
       gateFile: "./gates/email-verification.gate.ts",
       dependsOn: ["user-signup"],
+      progress: ["email_sent", "verification_link_valid"],
     },
   ] as const, // keep story IDs as literal types
 });
@@ -174,7 +184,7 @@ export async function run() {
 }
 ```
 
-**gateproof does not own your PRD’s intent or state.** If you choose to use `gateproof/prd`, your PRD must match a small capsule shape (`stories[]` with `id/title/gateFile/dependsOn?`). Otherwise, orchestrate gates however you want — gateproof only cares about executing gate files.
+**gateproof does not own your PRD’s intent or state.** If you choose to use `gateproof/prd`, your PRD must match a small capsule shape (`stories[]` with `id/title/gateFile/dependsOn?/progress?`). The optional `progress` list is for your own tracking (or agent guidance); gateproof does not interpret or mutate it. Otherwise, orchestrate gates however you want — gateproof only cares about executing gate files.
 
 Stories execute in dependency order. The runner stops on first failure. Progress is not declared. It is proven.
 

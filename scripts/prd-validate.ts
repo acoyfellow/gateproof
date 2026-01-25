@@ -16,6 +16,7 @@ type Story = {
   gateFile: string;
   dependsOn?: string[];
   scope?: StoryScope;
+  progress?: string[];
 };
 
 function fail(message: string): never {
@@ -41,6 +42,7 @@ function validateShape(value: unknown): { stories: Story[] } {
     const gateFile = s.gateFile;
     const dependsOn = s.dependsOn;
     const scope = s.scope;
+    const progress = s.progress;
 
     if (typeof id !== "string" || id.length === 0) fail(`stories[${i}].id must be a non-empty string`);
     if (typeof title !== "string" || title.length === 0) fail(`stories[${i}].title must be a non-empty string`);
@@ -51,6 +53,15 @@ function validateShape(value: unknown): { stories: Story[] } {
       for (let j = 0; j < dependsOn.length; j++) {
         if (typeof dependsOn[j] !== "string" || dependsOn[j].length === 0) {
           fail(`stories[${i}].dependsOn[${j}] must be a non-empty string`);
+        }
+      }
+    }
+
+    if (progress !== undefined) {
+      if (!Array.isArray(progress)) fail(`stories[${i}].progress must be an array of strings`);
+      for (let j = 0; j < progress.length; j++) {
+        if (typeof progress[j] !== "string") {
+          fail(`stories[${i}].progress[${j}] must be a string`);
         }
       }
     }
@@ -100,7 +111,8 @@ function validateShape(value: unknown): { stories: Story[] } {
       title,
       gateFile,
       dependsOn: dependsOn as string[] | undefined,
-      scope: validatedScope
+      scope: validatedScope,
+      progress: progress as string[] | undefined
     });
   }
 

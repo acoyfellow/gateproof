@@ -19,14 +19,16 @@ Effect is the runtime discipline inside Gateproof. Schema is used primarily for 
 
 Gateproof ships an optional PRD runner (`gateproof/prd`). If you use it, your PRD must match a small shape:
 
-- Story: `id`, `title`, `gateFile`, `dependsOn?`
+- Story: `id`, `title`, `gateFile`, `dependsOn?`, `progress?`
 - PRD: `{ stories: Story[] }`
 
 Validation today is intentionally boring:
 - Dependency existence + cycle detection (in the runner)
 - Gate file exists + exports `run()` (in `scripts/prd-validate.ts`)
+- `progress` (if present) must be a list of strings (in `scripts/prd-validate.ts`)
 
 Gateproof does **not** own your PRD’s intent or state. It doesn’t mutate the PRD. It only uses the capsule shape if you opt into the runner/validator.
+The optional `progress` field is a list of human/agent checkpoints; gateproof treats it as opaque metadata.
 
 ### Gate Result/Evidence Contract
 
