@@ -47,6 +47,17 @@ type StoryShape = {
   depends_on?: unknown;
 };
 
+async function hashKey(value: string): Promise<string> {
+  try {
+    const digest = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(value));
+    return Array.from(new Uint8Array(digest))
+      .map((byte) => byte.toString(16).padStart(2, "0"))
+      .join("");
+  } catch {
+    return `${value.length}-${Math.abs(value.split("").reduce((acc, char) => acc + char.charCodeAt(0), 0))}`;
+  }
+}
+
 function normalizePrd(input: unknown): unknown {
   const obj =
     typeof input === "string"
@@ -122,6 +133,7 @@ export const POST = async ({ platform, request }: RequestEvent) => {
       env.OPENAI_API_KEY ??
       process.env.OPENAI_API_KEY;
     const modelId = platform?.env?.PRD_MODEL ?? env.PRD_MODEL ?? process.env.PRD_MODEL;
+    const cache = platform?.caches?.default ?? (typeof caches !== "undefined" ? caches.default : null);
 
     if (!apiKey) {
       return new Response(
@@ -142,11 +154,28 @@ export const POST = async ({ platform, request }: RequestEvent) => {
       baseURL: "https://opencode.ai/zen/v1",
     });
     const openai = openaiApiKey ? createOpenAI({ apiKey: openaiApiKey }) : null;
-    const model = openai ? openai(modelId ?? "gpt-4o") : openaiCompatible("big-pickle");
+    const resolvedModelId = openai ? modelId ?? "gpt-4o" : "big-pickle";
+    const model = openai ? openai(resolvedModelId) : openaiCompatible(resolvedModelId);
     const structuredModel = wrapLanguageModel({
       model,
       middleware: extractJsonMiddleware(),
     });
+
+    let cacheKey: Request | null = null;
+    if (cache) {
+      const hash = await hashKey(`${resolvedModelId}::${descriptions.trim()}`);
+      cacheKey = new Request(`https://cache.gateproof/prd/${hash}`, { method: "GET" });
+      const cached = await cache.match(cacheKey);
+      if (cached) {
+        const cachedResponse = new Response(await cached.text(), {
+          headers: {
+            "Content-Type": "application/json",
+            "X-Cache": "HIT",
+          },
+        });
+        return cachedResponse;
+      }
+    }
 
     const { output: prdOutput } = await generateText({
       model: structuredModel,
@@ -158,9 +187,9 @@ export const POST = async ({ platform, request }: RequestEvent) => {
       messages: [
         {
           role: "user",
-          content: `Transform the following story descriptions into a structured PRD for gateproof with inline gate implementations.
+      content: `Transform the following product prompt into a structured PRD for gateproof with inline gate implementations.
 
-Story descriptions:
+Prompt:
 ${descriptions}
 
 Requirements:
@@ -173,7 +202,7 @@ Requirements:
    - Include Assert.custom or Assert.noErrors assertions
    - Be self-contained and runnable
    - Match the story's intent (e.g., if story is about API health, gate should check API endpoint)
-5. Infer dependencies from story descriptions (e.g., if a story mentions "depends on signup", add "user-signup" to dependsOn)
+5. Infer dependencies from the prompt (e.g., if a story mentions "depends on signup", add "user-signup" to dependsOn)
 6. If dependencies are mentioned in natural language, map them to the appropriate story IDs
 
 For gate implementations, use this EXACT pattern (return the gate spec directly):
@@ -355,15 +384,25 @@ if (import.meta.main) {
 }
 `;
 
-    return new Response(
-      JSON.stringify({
-        success: true,
-        prdFile,
-      }),
-      {
-        headers: { "Content-Type": "application/json" },
-      }
-    );
+    const payload = JSON.stringify({ success: true, prdFile });
+    const response = new Response(payload, {
+      headers: {
+        "Content-Type": "application/json",
+        "X-Cache": "MISS",
+      },
+    });
+
+    if (cache && cacheKey) {
+      const cachedResponse = new Response(payload, {
+        headers: {
+          "Content-Type": "application/json",
+          "Cache-Control": "public, max-age=3600",
+        },
+      });
+      cache.put(cacheKey, cachedResponse).catch(() => {});
+    }
+
+    return response;
   } catch (error) {
     console.error("PRD generation error:", error);
     const errorMessage = error instanceof Error ? error.message : String(error);

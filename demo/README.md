@@ -10,6 +10,14 @@ It includes:
 - Cloudflare Workers with Static Assets deployment
 - Configuration using `alchemy.run.ts`
 
+## Anatomy of a prd.ts (1 list)
+
+1. **Instructions**: story titles encode the behavior, evidence, and scope.
+2. **Stories**: `stories[]` contains `{ id, title, gateFile, dependsOn? }`.
+3. **Gates**: each `gateFile` runs a Gate (observe → act → assert) to verify reality.
+4. **Loop state**: `runPrd(...)` yields success or `failedStory` plus gate evidence.
+5. **Loop instructions**: on failure, pass `prd.ts` + gate output to the agent, fix, re-run.
+
 ## Setup
 
 1. **Install Dependencies:** Navigate to the root of the Alchemy repository and run:

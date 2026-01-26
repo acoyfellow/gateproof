@@ -1,4 +1,5 @@
 import type { website } from "../alchemy.run.ts";
+import type { Sandbox } from "@cloudflare/sandbox";
 
 // Alchemy's SvelteKit exports Env type from the website object
 // Fallback to explicit type if Env is not available
@@ -9,6 +10,7 @@ type WebsiteEnv = typeof website extends { Env: infer E }
       ALCHEMY_TEST_VALUE?: string;
       AUTH_STORE?: KVNamespace;
       STORAGE?: R2Bucket;
+      Sandbox?: DurableObjectNamespace<Sandbox>;
     };
 
 export interface CloudflarePlatform {

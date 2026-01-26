@@ -126,6 +126,7 @@
         <h2 class="text-2xl font-bold text-white">Documentation</h2>
         <button
           onclick={handleClose}
+          aria-label="Close documentation drawer"
           class="p-2 text-gray-400 hover:text-white transition-colors"
         >
           <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">

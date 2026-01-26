@@ -1,29 +1,9 @@
 <script lang="ts">
   import HeroSection from '$lib/components/HeroSection.svelte';
-  import ChaosSection from '$lib/components/ChaosSection.svelte';
-  import TransitionSection from '$lib/components/TransitionSection.svelte';
-  import HeavenSection from '$lib/components/HeavenSection.svelte';
-  import PatternsSection from '$lib/components/PatternsSection.svelte';
-  import PrdBuilder from '$lib/components/PrdBuilder.svelte';
-  import CTASection from '$lib/components/CTASection.svelte';
-  import LogoMark from '$lib/components/LogoMark.svelte';
   import InfoDrawer from '$lib/components/InfoDrawer.svelte';
+  import PrdBuilder from '$lib/components/PrdBuilder.svelte';
   
-  let infoOpen = $state(false);
-  let demoRef: HTMLElement;
-  
-  function openInfoDrawer() {
-    infoOpen = true;
-  }
-  
-  function closeInfoDrawer() {
-    infoOpen = false;
-  }
-  
-  function scrollToDemo() {
-    const demoSection = document.querySelector('section:nth-of-type(4)');
-    demoSection?.scrollIntoView({ behavior: 'smooth' });
-  }
+  let docsOpen = $state(false);
 </script>
 
 <svelte:head>
@@ -32,12 +12,7 @@
 </svelte:head>
 
 <main class="relative" style="background: var(--color-background);">
-  <HeroSection onInfoClick={openInfoDrawer} />
-  <ChaosSection />
-  <TransitionSection />
-  <HeavenSection onInfoClick={openInfoDrawer} />
-  <PatternsSection />
-  <PrdBuilder />
-  <CTASection onDemoClick={scrollToDemo} onInfoClick={openInfoDrawer} />
-  <InfoDrawer isOpen={infoOpen} onClose={closeInfoDrawer} />
+  <HeroSection onOpenDocs={() => (docsOpen = true)} />
+  <PrdBuilder compact sectionId="prd-demo" />
+  <InfoDrawer isOpen={docsOpen} onClose={() => (docsOpen = false)} />
 </main>

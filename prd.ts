@@ -41,6 +41,42 @@ export const prd = definePrd({
         maxChangedLines: 300,
       },
     },
+    {
+      id: "demo-sandbox-run",
+      title: "Demo sandbox run endpoint works in local dev",
+      gateFile: "./gates/local/sandbox-dev.gate.ts",
+      dependsOn: ["framework-tests"],
+    },
+    {
+      id: "framework-integrity",
+      title: "Framework integrity gate (build/typecheck/test) passes",
+      gateFile: "./gates/framework/integrity.gate.ts",
+      dependsOn: ["framework-tests"],
+    },
+    {
+      id: "demo-dev-homepage",
+      title: "Demo homepage loads in local dev",
+      gateFile: "./gates/demo/development.gate.ts",
+      dependsOn: ["framework-tests"],
+    },
+    {
+      id: "demo-prd-generate",
+      title: "Demo PRD generation endpoint works in local dev",
+      gateFile: "./gates/demo/prd-generate.gate.ts",
+      dependsOn: ["demo-dev-homepage"],
+    },
+    {
+      id: "local-demo-worker",
+      title: "Local demo worker endpoints respond",
+      gateFile: "./gates/local/demo.gate.ts",
+      dependsOn: ["framework-tests"],
+    },
+    {
+      id: "production-smoke",
+      title: "Production smoke check passes",
+      gateFile: "./gates/production/smoke.gate.ts",
+      dependsOn: ["framework-tests"],
+    },
   ],
 });
 

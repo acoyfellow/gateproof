@@ -4,11 +4,11 @@ Production assertion framework. Define what success looks like, then validate it
 
 ## Agent-first PRD
 
-Generate a complete `prd.ts` from story bullets:
+Generate a complete `prd.ts` from a prompt:
 
 ```bash
 export OPENCODE_ZEN_API_KEY="..."
-echo "User can sign up" | npx gateproof prdts --stdout
+echo "Build a signup flow with verification and login" | npx gateproof prdts --stdout
 ```
 
 ## When to use

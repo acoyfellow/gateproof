@@ -1,5 +1,10 @@
 import alchemy from "alchemy";
-import { SvelteKit } from "alchemy/cloudflare";
+import {
+  Container,
+  DurableObjectNamespace,
+  SvelteKit,
+  Worker,
+} from "alchemy/cloudflare";
 import { readFileSync } from "fs";
 import { join } from "path";
 
@@ -24,18 +29,54 @@ try {
   console.warn("Could not load .env file:", error);
 }
 
-const app = await alchemy("gateproof-demo");
+const app = await alchemy("gateproof-demo", {
+  password: process.env.ALCHEMY_PASSWORD ?? "",
+});
+
+const sandboxContainer = await Container("sandbox", {
+  className: "Sandbox",
+  build: {
+    context: ".",
+    dockerfile: "Dockerfile",
+  },
+  instanceType: "lite",
+  maxInstances: 2,
+});
+
+const sandboxWorkerName = `${app.name}-${app.stage}-sandbox`;
+
+const sandboxWorker = await Worker("sandbox-worker", {
+  name: sandboxWorkerName,
+  adopt: true,
+  entrypoint: "src/sandbox-worker.ts",
+  compatibilityDate: "2025-01-01",
+  compatibilityFlags: ["nodejs_compat"],
+  dev: { port: 1337 },
+  bindings: {
+    Sandbox: sandboxContainer,
+  },
+});
+
+const sandboxNamespace = DurableObjectNamespace("sandbox-namespace", {
+  className: "Sandbox",
+  scriptName: sandboxWorker.name,
+});
 
 export const website = await SvelteKit("website", {
-  name: `${app.name}-${app.stage}-website`,
+  name: app.name,
   adopt: true,
+  entrypoint: "worker.js",
+  compatibilityDate: "2025-01-01",
   domains: [{ domainName: "gateproof.dev", adopt: true }],
   url: true,
   build: {
     command: "bun run build",
   },
+  bindings: {
+    Sandbox: sandboxNamespace,
+  },
   env: {
-    OPENCODE_ZEN_API_KEY: process.env.OPENCODE_ZEN_API_KEY,
+    OPENCODE_ZEN_API_KEY: process.env.OPENCODE_ZEN_API_KEY ?? "",
   },
 });
 

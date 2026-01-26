@@ -184,7 +184,7 @@ export const observe = createObserveResource(createBackend());`
         Requires <span class="font-mono">OPENCODE_ZEN_API_KEY</span> and network access to <span class="font-mono">opencode.ai</span>.
       </p>
       <p class="mt-2 text-xs sm:text-sm text-amber-800">
-        CLI: <span class="font-mono">npx gateproof prdts</span> — paste stories, get <span class="font-mono">prd.ts</span>.
+        CLI: <span class="font-mono">npx gateproof prdts</span> — paste a prompt, get <span class="font-mono">prd.ts</span>.
       </p>
       <div class="mt-3 flex flex-wrap items-center justify-center gap-3">
         <a

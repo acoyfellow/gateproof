@@ -255,11 +255,11 @@ function coercePrd(input: unknown): Prd {
   return { stories };
 }
 
-function buildPrompt(descriptions: string): string {
-  return `Transform the following story descriptions into a structured PRD object with inline gate implementations.
+function buildPrompt(promptText: string): string {
+  return `Transform the following product prompt into a structured PRD object with inline gate implementations.
 
-Story descriptions:
-${descriptions}
+Prompt:
+${promptText}
 
 Requirements:
 1. Generate kebab-case IDs for each story (e.g., "user-signup", "email-verification")
@@ -271,7 +271,7 @@ Requirements:
    - Include Assert.custom or Assert.noErrors assertions
    - Be self-contained and runnable
    - Match the story's intent (e.g., if story is about API health, gate should check API endpoint)
-5. Infer dependencies from story descriptions (e.g., if a story mentions "depends on signup", add "user-signup" to dependsOn)
+5. Infer dependencies from the prompt (e.g., if a story mentions "depends on signup", add "user-signup" to dependsOn)
 6. If dependencies are mentioned in natural language, map them to the appropriate story IDs
 
 For gate implementations, use this EXACT pattern (return the gate spec directly):

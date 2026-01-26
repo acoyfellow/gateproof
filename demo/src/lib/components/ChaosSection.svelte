@@ -12,8 +12,8 @@
         </div>
 
         <div class="my-12 lg:my-0">
-          <h2 class="-ml-1 text-[15vw] font-black leading-[0.85] tracking-tighter text-white lg:text-[10vw]">
-            The<br /><span class="text-red-500">Chaos</span>
+          <h2 class="-ml-1 text-[15vw] font-black leading-[0.82] tracking-tighter text-white lg:text-[5vw]">
+            You Get <br /><span class="text-red-500">Chaos</span>
           </h2>
         </div>
 
@@ -37,7 +37,7 @@
         <div class="border-b border-white/10 p-8 md:p-12 lg:p-16">
           <p class="max-w-lg text-xl font-light leading-relaxed text-white/80 md:text-2xl">
             Progress is <span class="font-medium text-white">declared</span>, not proven. Stories marked "done" without
-            verification. Work proceeds on assumptions. <span class="text-red-400">Reality diverges from intention.</span>
+            verification. Work proceeds on assumptions. <span class="text-red-400">Reality diverges from intention.</span> Slop grows.
           </p>
         </div>
 
