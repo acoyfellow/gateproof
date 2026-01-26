@@ -208,6 +208,17 @@ Run agent iteration loop:
 bash patterns/prd/agent-iteration-loop.sh
 ```
 
+## Standalone loop (OpenCode Zen)
+
+If you want a self-contained loop (agent fixes until all gates pass), run:
+
+```bash
+bun run prd:loop --prompt "Describe what to build"
+```
+
+This generates `prd.ts` if missing, runs it, and iterates until all stories pass.
+Set `OPENCODE_ZEN_API_KEY` (and optionally `--model` / `--endpoint`).
+
 ## Hardening `prd.ts` (recommended)
 
 Treat `prd.ts` like code: typecheck + validate before push + enforce in CI.

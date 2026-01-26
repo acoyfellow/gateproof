@@ -32,6 +32,7 @@
     "build:tsc": "tsc -p tsconfig.build.json",
     "typecheck": "tsc --noEmit",
     "prd:validate": "bun run scripts/prd-validate.ts",
+    "prd:loop": "bun run scripts/prd-loop.ts",
     "test": "bun test",
     "test:demo": "bun test test/demo.test.ts",
     "test:production": "bun test test/demo.production.test.ts",
@@ -65,9 +66,12 @@
     "url": "https://github.com/acoyfellow/gateproof/issues"
   },
   "dependencies": {
+    "@ai-sdk/openai-compatible": "^2.0.18",
     "@effect/schema": "^0.75.5",
+    "ai": "^6.0.49",
     "alchemy": "^0.83.1",
-    "effect": "^3.19.14"
+    "effect": "^3.19.14",
+    "zod": "^4.3.6"
   },
   "peerDependencies": {
     "playwright": ""
