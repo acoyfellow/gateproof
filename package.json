@@ -17,6 +17,10 @@
     "./prd": {
       "types": "./dist/prd/index.d.ts",
       "import": "./dist/prd/index.js"
+    },
+    "./shorthands": {
+      "types": "./dist/shorthands.d.ts",
+      "import": "./dist/shorthands.js"
     }
   },
   "bin": {

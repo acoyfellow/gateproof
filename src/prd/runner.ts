@@ -170,6 +170,50 @@ export async function runPrd<TId extends string>(
 
       const durationMs = Date.now() - storyStartTime;
 
+      // Check for positive signal if required
+      if (result.status === "success" && story.requirePositiveSignal) {
+        const evidence = result.evidence as { actionsSeen?: string[]; stagesSeen?: string[] } | undefined;
+        const hasPositiveSignal =
+          (evidence?.actionsSeen && evidence.actionsSeen.length > 0) ||
+          (evidence?.stagesSeen && evidence.stagesSeen.length > 0);
+
+        if (!hasPositiveSignal) {
+          storyError = {
+            name: "NoPositiveSignal",
+            message: `Story "${story.id}" requires positive signal but no actions or stages were observed`,
+          };
+          storyResults.push({
+            id: story.id,
+            title: story.title,
+            gateFile: story.gateFile,
+            status: "failed",
+            durationMs,
+            error: storyError,
+          });
+          const report: PrdReportV1 = {
+            version: "1",
+            success: false,
+            stories: storyResults,
+            failedStory: {
+              id: story.id,
+              title: story.title,
+              gateFile: story.gateFile,
+            },
+            totalDurationMs: Date.now() - startTime,
+          };
+          if (options.reportPath) {
+            const { writeFileSync } = await import("node:fs");
+            writeFileSync(options.reportPath, JSON.stringify(report, null, 2));
+          }
+          return {
+            success: false,
+            failedStory: story,
+            error: new Error(`No positive signal observed for story "${story.id}"`),
+            report,
+          };
+        }
+      }
+
       if (result.status !== "success") {
         storyError = result.error ? serializeError(result.error) : {
           name: "GateFailed",

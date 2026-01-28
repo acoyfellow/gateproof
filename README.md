@@ -507,6 +507,140 @@ Run your PRD in CI:
   run: bun run prd.ts
 ```
 
+## Experimental / Optional Enhancements
+
+These features are **additive and optional**. All existing APIs, CLI commands, and patterns work unchanged.
+
+### Native PRD Loop (`runPrdLoop`)
+
+Run the retry loop natively from TypeScript without bash orchestration:
+
+```typescript
+import { runPrdLoop, createOpenCodeAgent } from "gateproof/prd";
+
+const result = await runPrdLoop("./prd.ts", {
+  maxIterations: 7,
+  agent: async (ctx) => {
+    // ctx.prdSlice - relevant story details
+    // ctx.failureSummary - what failed and why
+    // ctx.recentDiff - recent git changes
+    console.log(`Fixing: ${ctx.failedStory?.id}`);
+    // Make fixes...
+    return { changes: ["Fixed validation bug"], commitMsg: "fix: validation" };
+  },
+  onIteration: (status) => {
+    console.log(`Attempt ${status.attempt}: ${status.passed ? "PASS" : "FAIL"}`);
+  },
+  autoCommit: true,  // auto-commit after agent changes
+  writeEvidenceLog: true,  // append to .gateproof/evidence.log
+});
+
+// Or use the built-in OpenCode agent:
+const agent = createOpenCodeAgent({ apiKey: process.env.OPENCODE_ZEN_API_KEY });
+await runPrdLoop("./prd.ts", { agent });
+```
+
+### Shorthands Module
+
+Flatter, more ergonomic helpers for defining gates:
+
+```typescript
+import {
+  gate,
+  cloudflare,
+  browserAct,
+  execAct,
+  noErrors,
+  hasAction,
+  hasAnyEvidence,
+  commandGate,
+} from "gateproof/shorthands";
+
+// Simple command gate
+const buildResult = await commandGate("build", "npm run build");
+
+// Full gate with shorthands
+const result = await gate("user-signup", {
+  observe: cloudflare.logs({ dataset: "worker_logs" }),  // auto-uses env vars
+  act: browserAct.goto("https://app.example.com/signup"),
+  assert: [noErrors(), hasAction("user_created")],
+});
+
+// Assertion helpers
+hasAnyEvidence()           // At least one action or stage logged
+hasMinLogs(5)              // At least 5 log entries
+hasLogWith("userId", "123") // Specific field value
+anyOf(hasAction("a"), hasAction("b"))  // OR logic
+not(hasAction("error"))    // Negation
+```
+
+### Smoke Mode CLI
+
+Validate gates once without agent iteration (great for debugging setup):
+
+```bash
+npx gateproof smoke ./prd.ts
+npx gateproof smoke ./prd.ts --check-scope --json
+```
+
+### Positive Signal Requirement
+
+Auto-fail gates that collect no evidence:
+
+```typescript
+{
+  id: "critical-flow",
+  title: "Payment processes successfully",
+  gateFile: "./gates/payment.gate.ts",
+  requirePositiveSignal: true,  // Fail if no actions/stages observed
+}
+```
+
+### Scope Defaults & Guards
+
+Smart scope inference based on project structure:
+
+```typescript
+import { inferScopeDefaults, getScopeDefaults, DEFAULT_FORBIDDEN_PATHS } from "gateproof/prd";
+
+// Auto-detect source directories and forbidden paths
+const defaults = inferScopeDefaults(process.cwd());
+console.log(defaults.allowedPaths);   // ["src/", "app/", "components/"]
+console.log(defaults.forbiddenPaths); // ["node_modules/", ".git/", "dist/", ...]
+
+// Or load from .gateproof/scope.defaults.json
+const customDefaults = getScopeDefaults();
+```
+
+Default forbidden paths: `node_modules/`, `.git/`, `dist/`, `build/`, `.next/`, `.env`, lock files.
+
+### LLM-Friendly Failure Output
+
+Structured failure summaries optimized for AI agents:
+
+```typescript
+import { createLLMFailureSummary, formatLLMFailureSummary } from "gateproof";
+
+const summary = createLLMFailureSummary(report, {
+  diffSnippet: gitDiff,
+  logs: gateResult.logs,
+});
+
+// JSON structure with: summary, failedAssertions, evidence, suggestions
+console.log(JSON.stringify(summary, null, 2));
+
+// Or as formatted string block
+console.log(formatLLMFailureSummary(summary));
+```
+
+### Agent Guidelines (`AGENTS.md`)
+
+The repo includes `AGENTS.md` with prompt tips for AI agents:
+- Read `prd.ts` first
+- Respect scope constraints
+- Fix one failing story at a time
+- Make minimal diffs
+
 ## Requirements
 
 - Node.js 18+ or Bun

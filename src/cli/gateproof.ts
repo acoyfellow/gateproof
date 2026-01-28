@@ -23,6 +23,12 @@ type Args = {
   apiKey?: string;
   stdout: boolean;
   overwrite: boolean;
+  // Smoke mode options
+  prdPath?: string;
+  reportPath?: string;
+  checkScope: boolean;
+  baseRef?: string;
+  json: boolean;
 };
 
 function printHelp(): void {
@@ -31,10 +37,12 @@ function printHelp(): void {
     "",
     "Subcommands:",
     "  prdts   Generate a prd.ts from story descriptions",
+    "  smoke   Run gates once without agent loop (validate setup)",
     "",
     "Usage:",
     "  npx gateproof prdts --in stories.txt --out prd.ts",
     "  echo \"User can sign up\" | npx gateproof prdts --stdout",
+    "  npx gateproof smoke ./prd.ts",
     "",
     "Options (prdts):",
     "  -i, --in <path>        Input file with one story per line",
@@ -44,6 +52,13 @@ function printHelp(): void {
     "  --model <id>           Model id (default: big-pickle)",
     "  --api-key <key>        API key (or set OPENCODE_ZEN_API_KEY)",
     "  --overwrite            Overwrite output file if it exists",
+    "",
+    "Options (smoke):",
+    "  --report <path>        Write JSON report to path",
+    "  --check-scope          Validate scope constraints against git diff",
+    "  --base-ref <ref>       Git ref for scope checking (default: HEAD)",
+    "  --json                 Output results as JSON",
+    "",
     "  -h, --help             Show help",
   ].join("\n");
 
@@ -56,11 +71,16 @@ function parseArgs(argv: string[]): Args {
     model: "big-pickle",
     stdout: false,
     overwrite: false,
+    checkScope: false,
+    json: false,
   };
 
   if (argv.length > 0 && !argv[0].startsWith("-")) {
     args.subcommand = argv.shift();
   }
+
+  // For smoke command, first non-flag arg is prd path
+  let foundPrdPath = false;
 
   for (let i = 0; i < argv.length; i++) {
     const arg = argv[i];
@@ -88,6 +108,18 @@ function parseArgs(argv: string[]): Args {
       case "--overwrite":
         args.overwrite = true;
         break;
+      case "--report":
+        args.reportPath = argv[++i];
+        break;
+      case "--check-scope":
+        args.checkScope = true;
+        break;
+      case "--base-ref":
+        args.baseRef = argv[++i];
+        break;
+      case "--json":
+        args.json = true;
+        break;
       case "--help":
       case "-h":
         printHelp();
@@ -95,6 +127,11 @@ function parseArgs(argv: string[]): Args {
       default:
         if (arg && arg.startsWith("-")) {
           throw new Error(`Unknown flag: ${arg}`);
+        }
+        // Positional argument - treat as prd path for smoke command
+        if (!foundPrdPath && args.subcommand === "smoke") {
+          args.prdPath = arg;
+          foundPrdPath = true;
         }
     }
   }
@@ -516,6 +553,53 @@ async function runPrdts(args: Args): Promise<void> {
   stdout.write(`✅ Wrote ${outputPath}\n`);
 }
 
+async function runSmoke(args: Args): Promise<void> {
+  const prdPath = args.prdPath ?? "prd.ts";
+
+  if (!existsSync(prdPath)) {
+    throw new Error(`PRD file not found: ${prdPath}`);
+  }
+
+  // Dynamic import the prd module
+  const { runPrd } = await import("../prd/runner");
+  const { resolve } = await import("node:path");
+
+  // Load the PRD file
+  const absolutePath = resolve(process.cwd(), prdPath);
+  const mod = await import(`file://${absolutePath}`);
+
+  let prd: { stories: readonly { id: string; title: string; gateFile: string }[] };
+  if (mod.default && typeof mod.default === "object" && "stories" in mod.default) {
+    prd = mod.default;
+  } else if (mod.prd && typeof mod.prd === "object" && "stories" in mod.prd) {
+    prd = mod.prd;
+  } else {
+    throw new Error(`PRD file must export 'prd' or a default object with 'stories': ${prdPath}`);
+  }
+
+  stdout.write(`\n🔥 Smoke test: ${prdPath}\n`);
+  stdout.write(`   Stories: ${prd.stories.length}\n`);
+  stdout.write(`   Scope check: ${args.checkScope ? "enabled" : "disabled"}\n\n`);
+
+  const result = await runPrd(prd, process.cwd(), {
+    reportPath: args.reportPath,
+    checkScope: args.checkScope,
+    baseRef: args.baseRef,
+  });
+
+  if (args.json) {
+    stdout.write(JSON.stringify(result.report ?? { success: result.success }, null, 2) + "\n");
+  } else if (result.success) {
+    stdout.write(`\n✅ Smoke test passed! All ${prd.stories.length} gates green.\n`);
+  } else {
+    stdout.write(`\n❌ Smoke test failed at: ${result.failedStory?.id ?? "unknown"}\n`);
+    if (result.error) {
+      stdout.write(`   Error: ${result.error.message}\n`);
+    }
+    process.exit(1);
+  }
+}
+
 async function main(): Promise<void> {
   try {
     const args = parseArgs(process.argv.slice(2));
@@ -527,6 +611,9 @@ async function main(): Promise<void> {
     switch (args.subcommand) {
       case "prdts":
         await runPrdts(args);
+        break;
+      case "smoke":
+        await runSmoke(args);
         break;
       default:
         throw new Error(`Unknown subcommand: ${args.subcommand}`);
