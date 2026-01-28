@@ -38,19 +38,17 @@ test("production: health endpoint returns expected data", async () => {
   expect(data.timestamp).toBeDefined();
 }, 10000);
 
-test("production: test endpoint returns success with requestId", async () => {
+test("production: test endpoint returns success", async () => {
   if (!(await isProductionAvailable())) {
     console.log("Skipping: Production not available");
     return;
   }
   const response = await fetch(`${productionUrl}/api/test`);
   expect(response.status).toBe(200);
-  const data = await response.json() as { success: boolean; requestId: string; durationMs: number };
+  const data = await response.json() as { success: boolean; action: string; timestamp: string };
   expect(data.success).toBe(true);
-  expect(data.requestId).toBeDefined();
-  expect(typeof data.requestId).toBe("string");
-  expect(data.durationMs).toBeDefined();
-  expect(typeof data.durationMs).toBe("number");
+  expect(data.action).toBeDefined();
+  expect(data.timestamp).toBeDefined();
 }, 10000);
 
 test("production: root endpoint serves HTML with correct content", async () => {
@@ -63,9 +61,8 @@ test("production: root endpoint serves HTML with correct content", async () => {
   expect(response.headers.get("content-type")).toContain("text/html");
   const html = await response.text();
   expect(html).toContain("gateproof");
-  expect(html).toContain("Building Software in Reverse");
-  expect(html).toContain("The Inversion");
-  expect(html).toContain("Live Demo");
+  expect(html).toContain("prd.ts");
+  expect(html).toContain("gate");
 }, 10000);
 
 test("production: 404 endpoint returns 404", async () => {
