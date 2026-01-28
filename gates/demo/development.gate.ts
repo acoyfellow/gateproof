@@ -17,6 +17,12 @@ import { runGateWithErrorHandling } from "../../src/utils";
 const devUrl = process.env.DEV_URL || "http://localhost:5173";
 
 export async function run() {
+  // Skip in CI — this gate requires a local dev server
+  if (process.env.CI || process.env.GITHUB_ACTIONS) {
+    console.log("⏭️  Skipping development gate (CI environment)");
+    return { status: "success" as const };
+  }
+
   console.log(`🚪 Running Development Gate: ${devUrl}`);
   console.log("");
 
