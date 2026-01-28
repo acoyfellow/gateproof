@@ -115,6 +115,73 @@ This solves the context management problem: agents don't need full codebase cont
 4. **Loop state**: `runPrd(...)` returns success or the `failedStory` plus gate evidence (actions/stages/errors).
 5. **Loop instructions**: on failure, feed the agent `prd.ts` + gate output, fix code, re-run PRD until pass.
 
+## Agent-First PRD Structure
+
+This is an **agent-first library**. PRD.ts isn't just documentation—it's the executable contract agents work from.
+
+### Why agents love `prd.ts`:
+
+| Traditional PRD | Agent-First PRD |
+|----------------|-----------------|
+| Prose descriptions | Structured TypeScript |
+| Human workflows | Parallel execution |
+| Vague goals | Deterministic outcomes |
+| Manual verification | Automated gates |
+| Happy path only | Edge cases built-in |
+| Text files only | Executable with `bun run prd.ts` |
+
+### Agent benefits (what you want):
+
+**✅ Deterministic outcomes with clear success criteria**
+- Every story title encodes: what to do + evidence of completion
+- No ambiguity about "done"
+- Gates verify, not opinions
+
+**⚡ Parallelizable operations**
+- Stories can run independently (except `dependsOn`)
+- Agents don't wait for humans
+- Context only when gates fail
+
+**🧪 Testable by default**
+- Gate files are test specifications
+- Observe logs, act, assert results
+- Evidence provided automatically
+
+**🔄 Automatic error recovery**
+- Gate failures → concrete feedback
+- `runPrd()` returns `failedStory` + evidence
+- Loop until pass
+
+**🛡️ Safety guarantees**
+- `scope.allowedPaths` / `maxChangedLines` prevent scope creep
+- TypeScript literal types prevent typos
+- Agent execution confined to agreed bounds
+
+**📍 Progress checkpoints**
+- `progress[]` array provides milestones
+- Agents know what's accomplished
+- No "is this done?" debates
+
+### What's in a story:
+
+```typescript
+{
+  id: "user-signup",           // Unique, type-safe literal
+  title: "User can sign up",    // What + evidence + scope
+  gateFile: "./gates/signup.gate.ts",  // Verifier
+  dependsOn: [],               // Dependencies (execution order)
+  scope: {                    // Guardrails (optional)
+    allowedPaths: ["src/routes/", "src/lib/"],
+    maxChangedFiles: 5,
+    maxChangedLines: 200,
+  },
+  progress: [                 // Checkpoints (optional)
+    "signup_page_live",
+    "user_created"
+  ]
+}
+```
+
 ## Stories as gates
 
 A PRD (Product Requirements Document) defines stories. Stories are gates. Each story references a gate file. The gate file verifies the story against reality.

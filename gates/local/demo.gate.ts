@@ -15,7 +15,7 @@ import { Gate, Act, Assert, createHttpObserveResource } from "../../src/index";
 
 const localUrl = process.env.LOCAL_URL || "http://localhost:8787";
 
-async function main() {
+export async function run() {
   console.log(`🚪 Running Local Demo Gate: ${localUrl}`);
   console.log("");
 
@@ -64,14 +64,20 @@ async function main() {
 
   if (allPassed) {
     console.log("✅ All gates passed! Local demo is working.");
-    process.exit(0);
   } else {
     console.log("❌ Some gates failed.");
-    process.exit(1);
   }
+
+  return { status: allPassed ? "success" : "failed" };
 }
 
-main().catch((error) => {
-  console.error("❌ Fatal error:", error);
-  process.exit(1);
-});
+if (import.meta.main) {
+  run()
+    .then((result) => {
+      process.exit(result.status === "success" ? 0 : 1);
+    })
+    .catch((error) => {
+      console.error("❌ Fatal error:", error);
+      process.exit(1);
+    });
+}

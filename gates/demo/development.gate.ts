@@ -16,7 +16,7 @@ import { runGateWithErrorHandling } from "../../src/utils";
 
 const devUrl = process.env.DEV_URL || "http://localhost:5173";
 
-async function main() {
+export async function run() {
   console.log(`🚪 Running Development Gate: ${devUrl}`);
   console.log("");
 
@@ -60,15 +60,21 @@ async function main() {
 
   if (homepageResult.status === "success") {
     console.log("✅ Development gate passed! Homepage is working.");
-    process.exit(0);
   } else {
     console.log("❌ Development gate failed.");
     console.log(`💡 Make sure the dev server is running: cd demo && bun run dev`);
-    process.exit(1);
   }
+
+  return { status: homepageResult.status };
 }
 
-main().catch((error) => {
-  console.error("❌ Fatal error:", error);
-  process.exit(1);
-});
+if (import.meta.main) {
+  run()
+    .then((result) => {
+      process.exit(result.status === "success" ? 0 : 1);
+    })
+    .catch((error) => {
+      console.error("❌ Fatal error:", error);
+      process.exit(1);
+    });
+}

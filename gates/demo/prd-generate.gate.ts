@@ -17,7 +17,7 @@ import { runGateWithErrorHandling } from "../../src/utils";
 const devUrl = process.env.DEV_URL || "http://localhost:5173";
 const prdEndpoint = `${devUrl}/api/prd/generate`;
 
-async function main() {
+export async function run() {
   console.log(`🚪 Running PRD Generation Gate: ${prdEndpoint}`);
   console.log("");
 
@@ -143,16 +143,24 @@ async function main() {
 
   if (prdResult.status === "success" && errorResult.status === "success") {
     console.log("✅ PRD generation gate passed!");
-    process.exit(0);
   } else {
     console.log("❌ PRD generation gate failed.");
     console.log(`💡 Make sure the dev server is running: cd demo && bun run dev`);
     console.log(`💡 Make sure OPENCODE_ZEN_API_KEY is set in .env`);
-    process.exit(1);
   }
+
+  return {
+    status: prdResult.status === "success" && errorResult.status === "success" ? "success" : "failed",
+  };
 }
 
-main().catch((error) => {
-  console.error("❌ Fatal error:", error);
-  process.exit(1);
-});
+if (import.meta.main) {
+  run()
+    .then((result) => {
+      process.exit(result.status === "success" ? 0 : 1);
+    })
+    .catch((error) => {
+      console.error("❌ Fatal error:", error);
+      process.exit(1);
+    });
+}

@@ -494,23 +494,20 @@ User can log out`
         <div class="border-t border-white/10 bg-black/40 px-4 py-3">
           <div class="flex flex-wrap items-center justify-between gap-3">
             <div class="flex flex-wrap items-center gap-2">
-              <button
-                onclick={runInSandbox}
-                disabled={running}
-                class="px-4 py-2 text-xs font-semibold uppercase tracking-widest bg-white/10 hover:bg-white/20 text-white rounded transition-colors disabled:bg-gray-700 disabled:cursor-not-allowed"
-              >
-                {#if running}
-                  Running in sandbox...
-                {:else}
-                  Run in sandbox
-                {/if}
-              </button>
               {#if running}
                 <button
                   onclick={cancelRun}
                   class="px-3 py-2 text-xs uppercase tracking-widest text-white/70 border border-white/20 rounded hover:border-white/40"
                 >
                   Cancel
+                </button>
+              {:else}
+                <button
+                  onclick={runInSandbox}
+                  disabled={!generatedCode}
+                  class="px-4 py-2 text-xs font-semibold uppercase tracking-widest bg-amber-500 hover:bg-amber-600 disabled:bg-gray-600 disabled:cursor-not-allowed text-white rounded transition-colors"
+                >
+                  Run in sandbox
                 </button>
               {/if}
             </div>

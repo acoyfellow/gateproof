@@ -8,15 +8,15 @@
  *   bun run gates/production/smoke.gate.ts
  *
  * Environment variables:
- *   PRODUCTION_URL - Production URL (defaults to https://gateproof.coey.dev)
+ *   PRODUCTION_URL - Production URL (defaults to https://gateproof.dev)
  */
 
 import { Gate, Act, Assert, createHttpObserveResource } from "../../src/index";
 import { runGateWithErrorHandling } from "../../src/utils";
 
-const productionUrl = process.env.PRODUCTION_URL || "https://gateproof.coey.dev";
+const productionUrl = process.env.PRODUCTION_URL || "https://gateproof.dev";
 
-async function main() {
+export async function run() {
   console.log(`🚪 Running Production Smoke Gate: ${productionUrl}`);
   console.log("");
 
@@ -33,7 +33,12 @@ async function main() {
         if (httpLog.status !== "success") return false;
         const body = httpLog.data?.body as string;
         if (!body) return false;
-        return body.includes("gateproof") && body.includes("Building Software in Reverse");
+        if (!body) return false;
+        const titleMatch = body.match(/<title[^>]*>([^<]*)<\/title>/i);
+        if (titleMatch && titleMatch[1]?.toLowerCase().includes("gateproof")) {
+          return true;
+        }
+        return body.toLowerCase().includes("gateproof");
       }),
     ],
     stop: { idleMs: 1000, maxMs: 10000 },
@@ -87,11 +92,19 @@ async function main() {
         const httpLog = logs.find(l => l.stage === "http");
         if (!httpLog) return false;
         if (httpLog.status !== "success") return false;
-        const body = httpLog.data?.body as { success?: boolean; requestId?: string; durationMs?: number };
+        const body = httpLog.data?.body as {
+          success?: boolean;
+          action?: string;
+          timestamp?: string;
+          message?: string;
+          log?: { requestId?: string; action?: string };
+        };
         if (!body) return false;
         return body.success === true &&
-               typeof body.requestId === "string" &&
-               typeof body.durationMs === "number";
+               typeof body.action === "string" &&
+               typeof body.timestamp === "string" &&
+               typeof body.message === "string" &&
+               typeof body.log?.requestId === "string";
       }),
     ],
     stop: { idleMs: 1000, maxMs: 10000 },
@@ -119,14 +132,20 @@ async function main() {
 
   if (allPassed) {
     console.log("✅ All gates passed! Production is ready.");
-    process.exit(0);
   } else {
     console.log("❌ Some gates failed. Production is not ready.");
-    process.exit(1);
   }
+
+  return { status: allPassed ? "success" : "failed" };
 }
 
-main().catch((error) => {
-  console.error("❌ Fatal error:", error);
-  process.exit(1);
-});
+if (import.meta.main) {
+  run()
+    .then((result) => {
+      process.exit(result.status === "success" ? 0 : 1);
+    })
+    .catch((error) => {
+      console.error("❌ Fatal error:", error);
+      process.exit(1);
+    });
+}

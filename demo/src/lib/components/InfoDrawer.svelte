@@ -34,7 +34,7 @@
       const { codeToHtml } = await import('shiki');
       
       // Fetch markdown from static folder
-      const response = await fetch('/README.md');
+      const response = await fetch('../../../../README.md');
       if (!response.ok) {
         throw new Error(`Failed to load README: ${response.status} ${response.statusText}`);
       }

@@ -22,7 +22,7 @@ await $`bun alchemy deploy`.cwd("./demo");
 
 console.log("✅ Demo worker deployed!");
 console.log(`📍 Worker URL: https://gateproof-demo.${accountId}.workers.dev`);
-console.log(`🌐 Custom Domain: https://gateproof.coey.dev`);
+console.log(`🌐 Custom Domain: https://gateproof.dev`);
 console.log("\n🚪 Running production gates...");
 
 // Wait a moment for deployment to propagate

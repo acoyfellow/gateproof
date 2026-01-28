@@ -1,61 +1,54 @@
 #!/usr/bin/env bun
 /**
- * Local Sandbox Gate
+ * Production Sandbox Diagnose Gate
  *
- * Validates that the demo sandbox execution works in local dev.
+ * Validates the sandbox backend independently of PRD execution.
  *
  * Usage:
- *   bun run gates/local/sandbox-dev.gate.ts
+ *   bun run gates/production/sandbox-diagnose.gate.ts
  *
  * Environment variables:
- *   LOCAL_URL - Local dev URL (defaults to http://localhost:5173)
+ *   PRODUCTION_URL - Production URL (defaults to https://gateproof.dev)
  */
 
 import { Gate, Act, Assert, createHttpObserveResource } from "../../src/index";
 
-const localUrl = process.env.LOCAL_URL || "http://localhost:5173";
-
-const prdFile = `console.log("sandbox ok");\nprocess.exit(0);\n`;
+const productionUrl = process.env.PRODUCTION_URL || "https://gateproof.dev";
 
 export async function run() {
-  console.log(`🚪 Running Local Sandbox Gate: ${localUrl}`);
+  console.log(`🚪 Running Production Sandbox Diagnose Gate: ${productionUrl}`);
   console.log("");
 
-  const sandboxGate = {
-    name: "local-sandbox-run",
+  const diagnoseGate = {
+    name: "production-sandbox-diagnose",
     observe: createHttpObserveResource({
-      url: `${localUrl}/api/prd/run`,
+      url: `${productionUrl}/api/prd/run/diagnose`,
       method: "POST",
       headers: { "content-type": "application/json" },
-      body: JSON.stringify({
-        prdFile,
-        apiUrl: "https://example.test",
-        testUrl: "http://localhost:3000",
-      }),
+      body: JSON.stringify({}),
       pollInterval: 2000,
       timeoutMs: 20000,
     }),
     act: [Act.wait(200)],
     assert: [
-      Assert.custom("sandbox_run_completes", async (logs) => {
+      Assert.custom("sandbox_diagnose_ok", async (logs) => {
         const httpLog = logs.find((log) => log.stage === "http");
         if (!httpLog || httpLog.status !== "success") return false;
-        const body = httpLog.data?.body;
-        if (typeof body !== "string") return false;
-        return body.includes("event: complete") && body.includes("\"exitCode\":0");
+        const body = httpLog.data?.body as { ok?: boolean; step?: string } | undefined;
+        return body?.ok === true && body?.step === "complete";
       }),
     ],
     stop: { idleMs: 1000, maxMs: 25000 },
   };
 
-  const result = await Gate.run(sandboxGate);
+  const result = await Gate.run(diagnoseGate);
   console.log(`   ${result.status === "success" ? "✅ PASSED" : "❌ FAILED"}`);
   console.log("");
 
   if (result.status === "success") {
-    console.log("✅ Sandbox execution gate passed.");
+    console.log("✅ Production sandbox diagnose gate passed.");
   } else {
-    console.log("❌ Sandbox execution gate failed.");
+    console.log("❌ Production sandbox diagnose gate failed.");
   }
 
   return { status: result.status };

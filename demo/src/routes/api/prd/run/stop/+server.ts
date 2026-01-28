@@ -1,4 +1,5 @@
 import type { RequestEvent } from "@sveltejs/kit";
+import { getSandboxSafely, withSandboxRetry } from "$lib/sandbox";
 
 type Env = {
   Sandbox: DurableObjectNamespace<unknown>;
@@ -29,7 +30,7 @@ export const POST = async ({ request, platform }: RequestEvent) => {
   }
 
   const sandbox = getSandbox(env.Sandbox, body.sandboxId);
-  await sandbox.killProcess(body.processId);
+  await withSandboxRetry(() => sandbox.killProcess(body.processId));
 
   return new Response(JSON.stringify({ ok: true }), {
     headers: { "Content-Type": "application/json" },

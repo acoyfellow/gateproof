@@ -1,30 +1,31 @@
 #!/usr/bin/env bun
 /**
- * Local Sandbox Gate
+ * Production Sandbox Run Gate
  *
- * Validates that the demo sandbox execution works in local dev.
+ * Validates that the production sandbox run endpoint accepts a prd.ts
+ * and returns a complete SSE stream.
  *
  * Usage:
- *   bun run gates/local/sandbox-dev.gate.ts
+ *   bun run gates/production/sandbox-run.gate.ts
  *
  * Environment variables:
- *   LOCAL_URL - Local dev URL (defaults to http://localhost:5173)
+ *   PRODUCTION_URL - Production URL (defaults to https://gateproof.dev)
  */
 
 import { Gate, Act, Assert, createHttpObserveResource } from "../../src/index";
 
-const localUrl = process.env.LOCAL_URL || "http://localhost:5173";
+const productionUrl = process.env.PRODUCTION_URL || "https://gateproof.dev";
 
 const prdFile = `console.log("sandbox ok");\nprocess.exit(0);\n`;
 
 export async function run() {
-  console.log(`🚪 Running Local Sandbox Gate: ${localUrl}`);
+  console.log(`🚪 Running Production Sandbox Gate: ${productionUrl}`);
   console.log("");
 
   const sandboxGate = {
-    name: "local-sandbox-run",
+    name: "production-sandbox-run",
     observe: createHttpObserveResource({
-      url: `${localUrl}/api/prd/run`,
+      url: `${productionUrl}/api/prd/run`,
       method: "POST",
       headers: { "content-type": "application/json" },
       body: JSON.stringify({
@@ -37,7 +38,7 @@ export async function run() {
     }),
     act: [Act.wait(200)],
     assert: [
-      Assert.custom("sandbox_run_completes", async (logs) => {
+      Assert.custom("sandbox_run_sse_completes", async (logs) => {
         const httpLog = logs.find((log) => log.stage === "http");
         if (!httpLog || httpLog.status !== "success") return false;
         const body = httpLog.data?.body;
@@ -53,9 +54,9 @@ export async function run() {
   console.log("");
 
   if (result.status === "success") {
-    console.log("✅ Sandbox execution gate passed.");
+    console.log("✅ Production sandbox run gate passed.");
   } else {
-    console.log("❌ Sandbox execution gate failed.");
+    console.log("❌ Production sandbox run gate failed.");
   }
 
   return { status: result.status };

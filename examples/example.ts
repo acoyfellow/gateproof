@@ -1,5 +1,5 @@
-import { Gate, Act, Assert } from "./src/index";
-import { CloudflareProvider } from "./src/cloudflare/index";
+import { Gate, Act, Assert } from "../src/index";
+import { CloudflareProvider } from "../src/cloudflare/index";
 
 const accountId = process.env.CLOUDFLARE_ACCOUNT_ID || "";
 const apiToken = process.env.CLOUDFLARE_API_TOKEN || "";

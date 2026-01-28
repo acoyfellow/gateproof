@@ -39,27 +39,11 @@ const sandboxContainer = await Container("sandbox", {
     context: ".",
     dockerfile: "Dockerfile",
   },
-  instanceType: "lite",
+  instanceType: "standard-3",
   maxInstances: 2,
-});
-
-const sandboxWorkerName = `${app.name}-${app.stage}-sandbox`;
-
-const sandboxWorker = await Worker("sandbox-worker", {
-  name: sandboxWorkerName,
-  adopt: true,
-  entrypoint: "src/sandbox-worker.ts",
-  compatibilityDate: "2025-01-01",
-  compatibilityFlags: ["nodejs_compat"],
-  dev: { port: 1337 },
-  bindings: {
-    Sandbox: sandboxContainer,
-  },
-});
-
-const sandboxNamespace = DurableObjectNamespace("sandbox-namespace", {
-  className: "Sandbox",
-  scriptName: sandboxWorker.name,
+  dev: {
+    remote: true // Forces push to Cloudflare registry even in dev mode
+  }
 });
 
 export const website = await SvelteKit("website", {
@@ -73,11 +57,16 @@ export const website = await SvelteKit("website", {
     command: "bun run build",
   },
   bindings: {
-    Sandbox: sandboxNamespace,
+    Sandbox: sandboxContainer,
   },
   env: {
     OPENCODE_ZEN_API_KEY: process.env.OPENCODE_ZEN_API_KEY ?? "",
   },
+});
+
+const sandboxNamespace = DurableObjectNamespace("sandbox-namespace", {
+  className: "Sandbox",
+  scriptName: website.name,
 });
 
 console.log(website.url);

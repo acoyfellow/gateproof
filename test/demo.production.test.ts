@@ -1,7 +1,7 @@
 import { test, expect } from "bun:test";
 import { Gate, Act, Assert } from "../src/index";
 
-const productionUrl = "https://gateproof.coey.dev";
+const productionUrl = "https://gateproof.dev";
 const workerUrl = process.env.DEMO_WORKER_URL || productionUrl;
 
 // Helper to check if production is available

@@ -12,7 +12,7 @@
 import { Gate, Act, Assert } from "../../src/index";
 import { createEmptyObserveResource, runGateWithErrorHandling } from "../../src/utils";
 
-async function main() {
+export async function run() {
   console.log("🚪 Running Framework Integrity Gate");
   console.log("   (gateproof testing itself - dog fooding)");
   console.log("");
@@ -100,14 +100,20 @@ async function main() {
   if (allPassed) {
     console.log("✅ All gates passed! Framework integrity verified.");
     console.log("   gateproof successfully tested itself.");
-    process.exit(0);
   } else {
     console.log("❌ Some gates failed. Framework integrity compromised.");
-    process.exit(1);
   }
+
+  return { status: allPassed ? "success" : "failed" };
 }
 
-main().catch((error) => {
-  console.error("❌ Fatal error:", error);
-  process.exit(1);
-});
+if (import.meta.main) {
+  run()
+    .then((result) => {
+      process.exit(result.status === "success" ? 0 : 1);
+    })
+    .catch((error) => {
+      console.error("❌ Fatal error:", error);
+      process.exit(1);
+    });
+}
