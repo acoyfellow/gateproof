@@ -2,8 +2,8 @@
   import HeroSection from '$lib/components/HeroSection.svelte';
   import PatternsSection from '$lib/components/PatternsSection.svelte';
   import InfoDrawer from '$lib/components/InfoDrawer.svelte';
-  import PrdBuilder from '$lib/components/PrdBuilder.svelte';
-  
+  import LiveDemo from '$lib/components/LiveDemo.svelte';
+
   let docsOpen = $state(false);
 </script>
 
@@ -15,6 +15,6 @@
 <main class="relative" style="background: var(--color-background);">
   <HeroSection onOpenDocs={() => (docsOpen = true)} />
   <PatternsSection />
-  <PrdBuilder compact sectionId="prd-demo" />
+  <LiveDemo />
   <InfoDrawer isOpen={docsOpen} onClose={() => (docsOpen = false)} />
 </main>
