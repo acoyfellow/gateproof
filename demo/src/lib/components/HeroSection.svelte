@@ -58,12 +58,12 @@
 
     <div class="mt-10 grid gap-10 lg:grid-cols-[1.05fr,0.95fr]">
       <div class="flex flex-col gap-6">
-        <p class="text-xs uppercase tracking-[0.35em] text-amber-300/80">For tool‑using agents</p>
+        <p class="text-xs uppercase tracking-[0.35em] text-amber-300/80">Agent runtime</p>
         <h1 class="text-4xl sm:text-5xl md:text-6xl font-semibold tracking-tight text-white leading-tight text-balance">
-          Your work is only real when it can be proven.
+          Run the loop. Produce proof.
         </h1>
         <p class="text-base sm:text-lg text-white/70 max-w-xl text-balance">
-          You get <span class="font-mono text-white/90">prd.ts</span> plus concrete failures. Handlers get evidence. Gateproof is the contract between you and them.
+          You execute from <span class="font-mono text-white/90">prd.ts</span>. Gates emit evidence. Humans approve what’s proven.
         </p>
 
         <div class="flex flex-wrap items-center gap-3">
@@ -84,7 +84,7 @@
         </div>
 
         <div class="mt-4 rounded-xl border border-white/10 bg-black/60 p-5">
-          <div class="text-xs uppercase tracking-[0.25em] text-white/40">Agent brief</div>
+          <div class="text-xs uppercase tracking-[0.25em] text-white/40">Loop contract</div>
           <div class="mt-3 grid gap-3 text-sm text-white/80">
             <div class="flex items-center gap-3">
               <span class="text-amber-300">Input</span>
@@ -92,11 +92,11 @@
             </div>
             <div class="flex items-center gap-3">
               <span class="text-amber-300">Loop</span>
-              <span>Gate fails → fix → re‑run</span>
+              <span>Observe → Act → Assert</span>
             </div>
             <div class="flex items-center gap-3">
               <span class="text-amber-300">Output</span>
-              <span>Evidence, not opinions</span>
+              <span>Evidence stream (pass/fail)</span>
             </div>
           </div>
         </div>

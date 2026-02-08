@@ -210,11 +210,11 @@ process.exit(passed === total ? 0 : 1);
   <div class="max-w-4xl mx-auto">
     <div class="text-center mb-8">
       <h2 class="text-3xl sm:text-4xl font-semibold text-white mb-3">
-        Proof, live in your browser
+        Runtime proof stream
       </h2>
       <p class="text-white/70 text-sm max-w-xl mx-auto">
-        This runs 3 gates against a live API (httpbin.org) in an isolated sandbox.
-        Watch evidence appear in real time.
+        Three gates run against a live API (httpbin.org) in an isolated sandbox.
+        Evidence is emitted in real time.
       </p>
     </div>
 
