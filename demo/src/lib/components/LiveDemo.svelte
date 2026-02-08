@@ -206,15 +206,15 @@ process.exit(passed === total ? 0 : 1);
   }
 </script>
 
-<section class="relative py-12 px-4 sm:px-8">
+<section id="demo" class="relative py-16 px-4 sm:px-8">
   <div class="max-w-4xl mx-auto">
     <div class="text-center mb-8">
-      <h2 class="text-2xl sm:text-3xl font-bold text-white mb-3">
-        See it work
+      <h2 class="text-3xl sm:text-4xl font-semibold text-white mb-3">
+        Proof, live in your browser
       </h2>
       <p class="text-white/70 text-sm max-w-xl mx-auto">
         This runs 3 gates against a live API (httpbin.org) in an isolated sandbox.
-        Watch it validate HTTP responses in real-time.
+        Watch evidence appear in real time.
       </p>
     </div>
 
@@ -261,7 +261,7 @@ process.exit(passed === total ? 0 : 1);
       </div>
 
       <!-- Footer -->
-      <div class="border-t border-white/10 bg-black/40 px-4 py-3 flex items-center justify-between">
+      <div class="border-t border-white/10 bg-black/50 px-4 py-3 flex items-center justify-between">
         <button
           onclick={runDemo}
           disabled={running}
@@ -278,28 +278,23 @@ process.exit(passed === total ? 0 : 1);
           {/if}
         </button>
 
-        <span class="text-xs text-white/50">
-          Runs in isolated Cloudflare container
-        </span>
+        <span class="text-xs text-white/50">Runs in an isolated Cloudflare container</span>
       </div>
     </div>
 
     <!-- What's happening -->
     <div class="mt-6 grid grid-cols-3 gap-4 text-center">
       <div class="bg-black/30 rounded-lg p-4 border border-white/5">
-        <div class="text-2xl mb-2">🔍</div>
-        <div class="text-xs font-medium text-white/80">Observe</div>
-        <div class="text-[10px] text-white/50 mt-1">HTTP requests monitored</div>
+        <div class="text-[11px] uppercase tracking-[0.2em] text-white/50">Observe</div>
+        <div class="mt-2 text-xs text-white/70">HTTP signals collected</div>
       </div>
       <div class="bg-black/30 rounded-lg p-4 border border-white/5">
-        <div class="text-2xl mb-2">⚡</div>
-        <div class="text-xs font-medium text-white/80">Assert</div>
-        <div class="text-[10px] text-white/50 mt-1">Responses validated</div>
+        <div class="text-[11px] uppercase tracking-[0.2em] text-white/50">Assert</div>
+        <div class="mt-2 text-xs text-white/70">Evidence required to pass</div>
       </div>
       <div class="bg-black/30 rounded-lg p-4 border border-white/5">
-        <div class="text-2xl mb-2">✅</div>
-        <div class="text-xs font-medium text-white/80">Evidence</div>
-        <div class="text-[10px] text-white/50 mt-1">Pass/fail recorded</div>
+        <div class="text-[11px] uppercase tracking-[0.2em] text-white/50">Record</div>
+        <div class="mt-2 text-xs text-white/70">Pass/fail stored for CI</div>
       </div>
     </div>
   </div>
