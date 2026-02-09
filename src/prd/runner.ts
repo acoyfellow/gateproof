@@ -138,21 +138,26 @@ export async function runPrd<TId extends string>(
             durationMs: Date.now() - storyStartTime,
             error: storyError,
           });
+          const report: PrdReportV1 = {
+            version: "1",
+            success: false,
+            stories: storyResults,
+            failedStory: {
+              id: story.id,
+              title: story.title,
+              gateFile: story.gateFile,
+            },
+            totalDurationMs: Date.now() - startTime,
+          };
+          if (options.reportPath) {
+            const { writeFileSync } = await import("node:fs");
+            writeFileSync(options.reportPath, JSON.stringify(report, null, 2));
+          }
           return {
             success: false,
             failedStory: story,
             error: new Error(violation.message),
-            report: {
-              version: "1",
-              success: false,
-              stories: storyResults,
-              failedStory: {
-                id: story.id,
-                title: story.title,
-                gateFile: story.gateFile,
-              },
-              totalDurationMs: Date.now() - startTime,
-            },
+            report,
           };
         }
       }
