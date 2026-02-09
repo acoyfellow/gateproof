@@ -1,3 +1,4 @@
+@import url("https://fonts.googleapis.com/css2?family=Instrument+Serif:opsz@8..144&family=IBM+Plex+Mono:wght@300;400;500&display=swap");
 @import "tailwindcss";
 
 @import "tw-animate-css";
@@ -135,12 +136,19 @@
   --color-heaven-card: oklch(0.96 0.02 85);
   --color-heaven-text: oklch(0.15 0.02 60);
   --color-heaven-muted: oklch(0.4 0.03 70);
+  --font-display: "Instrument Serif", serif;
+  --font-body: "IBM Plex Mono", monospace;
 }
 
 body {
-  font-family: 'Google Sans Code', monospace;
+  font-family: var(--font-body);
   background: var(--color-background);
   color: var(--color-foreground);
+}
+
+h1, h2, h3 {
+  font-family: var(--font-display);
+  letter-spacing: -0.01em;
 }
 
 /* Custom animations */

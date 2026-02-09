@@ -1,78 +1,89 @@
 # gateproof
 
-Build software in reverse. PRD defines what should exist. Gates verify reality. Agent iterations refine until gates pass.
+Build software in reverse. PRD defines intent. Gates verify reality. Agents iterate until gates pass.
 
-## What gateproof does
+Gateproof is a small runtime for executing **gates**: scripts that observe, act, and assert against real evidence (logs/telemetry). It does not decide intent or sequencing; your PRD (or CI) does.
 
-gateproof enables **agent iterations** with minimal context overhead.
+## 90‑Second Proof
 
-**The workflow:**
-1. PRD defines stories (what should exist)
-2. Gates verify reality (does it work?)
-3. Agent gets PRD + gate failure (minimal context)
-4. Agent fixes, gates re-run
-5. Iterate until all gates pass
+1. Run a local worker (e.g. `wrangler dev`)
+2. Paste the gate below into `gates/hello.gate.ts`
+3. Run: `bun gates/hello.gate.ts`
 
-**Why this works:**
-- PRD is single source of truth (clear intent, minimal context)
-- Gates provide concrete feedback (not vague requirements)
-- Agent gets context only when needed (efficient)
-- Iteration ensures correctness (converges to working code)
+If your logs emit `request_received`, the gate passes.
 
-gateproof **executes gates**. It does not define intent, plans, or workflows. A gate is a test specification: observe logs, run actions, assert results. gateproof runs it and returns evidence.
+```ts
+#!/usr/bin/env bun
+import { Gate, Act, Assert } from "gateproof";
+import { CloudflareProvider } from "gateproof/cloudflare";
 
-**Authority chain:**
-- **PRD (`prd.ts`)** — authority on intent, order, and dependencies (if you use the PRD runner)
-- **Gate implementations** — authority on how reality is observed
-- **gateproof runtime** — authority on enforcement only
+const accountId = process.env.CLOUDFLARE_ACCOUNT_ID || "";
+const workerName = process.env.WORKER_NAME || "my-worker";
 
-gateproof never decides *what* to build. It returns results; your CI/CD decides whether you are allowed to proceed.
+const provider = CloudflareProvider({ accountId, apiToken: "" });
 
-## Agent skill: prdts-maker
+const gate = {
+  name: "hello-gate",
+  observe: provider.observe({ backend: "cli-stream", workerName }),
+  act: [Act.browser({ url: "http://localhost:8787", headless: true }), Act.wait(2000)],
+  assert: [Assert.noErrors(), Assert.hasAction("request_received")],
+  stop: { idleMs: 3000, maxMs: 15000 },
+};
 
-This repo is agent-first. Use the `prdts-maker` skill to turn a prompt into a working `prd.ts`.
-
-**How to use it:**
-- Provide a prompt (big blob of text is fine).
-- Ask the agent to run the `prdts-maker` skill and output a complete `prd.ts`.
-- Save and run: `bun run prd.ts`.
-
-**Example prompt:**
-```text
-@prdts-maker Create prd.ts for:
-- User can sign up
-- Email verification works (depends on signup)
-- User can log in (depends on verification)
-Include gate files under ./gates/.
+Gate.run(gate).then((result) => {
+  if (result.status !== "success") process.exit(1);
+  process.exit(0);
+});
 ```
 
-## CLI: npx gateproof prdts
+## Start Here
 
-Generate a `prd.ts` from a prompt without opening the repo.
+- **Quick start (5 minutes):** `docs/tutorials/first-gate.md`
+- **How-to guides:** `docs/how-to/`
+- **API reference:** `docs/reference/`
+- **Explanations (why/architecture):** `docs/explanations/`
+
+If you’re new, start with the tutorial. If you’re trying to do a task, use the how‑to guides.
+
+## CLI: generate a PRD
 
 ```bash
 echo "Build a signup flow with email verification and login" | npx gateproof prdts --stdout
 npx gateproof prdts --in stories.txt --out prd.ts
 ```
 
-This calls Opencode directly. Set `OPENCODE_ZEN_API_KEY` (or pass `--api-key`).
+## Why gateproof
 
-Paste mode (interactive stdin):
+- **PRD is authority on intent**. Gateproof enforces reality, not plans.
+- **Gates verify evidence**. Logs and telemetry are the contract.
+- **Agent iterations are minimal‑context**. PRD + failure evidence is enough.
 
-```bash
-npx gateproof prdts
-# paste a prompt, then Ctrl-D
-```
-
-To target a different Opencode base URL or model:
+## Install
 
 ```bash
-npx gateproof prdts --endpoint https://opencode.ai/zen/v1 --model big-pickle --in stories.txt --out prd.ts
+bun add gateproof
+# or
+npm i gateproof
 ```
 
-## Agent Iterations: The Loop
+## Docs Map (Diátaxis)
 
-The core innovation: agents work from PRD only, gates verify, iterate until correct.
+**Tutorials** (learn by doing)
+- `docs/tutorials/first-gate.md`
+
+**How‑to Guides** (solve a task)
+- `docs/how-to/add-a-gate.md`
+- `docs/how-to/write-a-prd-story.md`
+- `docs/how-to/run-in-ci.md`
+- `docs/how-to/add-observability-logging.md`
+
+**Reference** (facts and API)
+- `docs/reference/api.md`
+- `docs/reference/prd-runner.md`
+
+**Explanation** (concepts and architecture)
+- `docs/explanations/overview.md`
+- `docs/effect-and-schema.md`
 
 **The iteration loop:**
 1. Run PRD → executes gates in dependency order

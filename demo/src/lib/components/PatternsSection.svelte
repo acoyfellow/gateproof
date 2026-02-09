@@ -164,31 +164,31 @@ export const observe = createObserveResource(createBackend());`
   let current = $derived.by(() => patterns.find((p) => p.id === selected)!);
 </script>
 
-<section class="relative min-h-screen flex items-center justify-center overflow-hidden bg-linear-to-b from-amber-50 to-white py-20 text-balance">
+<section class="relative min-h-screen flex items-center justify-center overflow-hidden bg-[#0b0a07] py-20 text-balance">
   <div class="relative z-10 max-w-7xl mx-auto px-4 sm:px-8">
     <!-- Header -->
     <div class="text-center mb-12">
-      <h2 class="text-4xl sm:text-5xl md:text-6xl font-bold mb-4 text-amber-900">
-        Patterns & Examples
+      <h2 class="text-4xl sm:text-5xl md:text-6xl font-semibold mb-4 text-white">
+        Patterns you can steal
       </h2>
-      <p class="text-xl sm:text-2xl max-w-3xl mx-auto text-amber-800">
-        Real-world examples for every use case. Copy, adapt, deploy.
+      <p class="text-lg sm:text-xl max-w-3xl mx-auto text-white/70">
+        Drop‑in examples. Minimal ceremony. Real evidence.
       </p>
     </div>
 
-    <div class="mx-auto mb-10 max-w-3xl rounded-xl border border-amber-200 bg-white/80 px-6 py-4 text-center shadow-sm">
-      <p class="text-base sm:text-lg text-amber-900">
-        Try the hello-world agent: a tiny loop with read/list/bash/edit/search + gates.
+    <div class="mx-auto mb-10 max-w-3xl rounded-xl border border-white/10 bg-black/60 px-6 py-4 text-center shadow-sm">
+      <p class="text-base sm:text-lg text-white/85">
+        Try the hello‑world agent: a tiny loop with read/list/bash/edit/search + gates.
       </p>
-      <p class="mt-1 text-xs sm:text-sm text-amber-700">
+      <p class="mt-1 text-xs sm:text-sm text-white/55">
         Requires <span class="font-mono">OPENCODE_ZEN_API_KEY</span> and network access to <span class="font-mono">opencode.ai</span>.
       </p>
-      <p class="mt-2 text-xs sm:text-sm text-amber-800">
+      <p class="mt-2 text-xs sm:text-sm text-white/65">
         CLI: <span class="font-mono">npx gateproof prdts</span> — paste a prompt, get <span class="font-mono">prd.ts</span>.
       </p>
       <div class="mt-3 flex flex-wrap items-center justify-center gap-3">
         <a
-          class="inline-flex items-center justify-center rounded-full border border-amber-300 bg-amber-500 px-4 py-2 text-sm font-semibold text-white shadow-md transition hover:bg-amber-600"
+          class="inline-flex items-center justify-center rounded-full border border-amber-300 bg-amber-400 px-4 py-2 text-sm font-semibold text-black shadow-md transition hover:bg-amber-300"
           href={helloWorldAgentUrl}
           target="_blank"
           rel="noopener noreferrer"
@@ -196,7 +196,7 @@ export const observe = createObserveResource(createBackend());`
           Open the example
         </a>
         <a
-          class="inline-flex items-center justify-center rounded-full border border-amber-300 bg-white px-4 py-2 text-sm font-semibold text-amber-800 shadow-sm transition hover:bg-amber-50"
+          class="inline-flex items-center justify-center rounded-full border border-white/20 bg-transparent px-4 py-2 text-sm font-semibold text-white/80 shadow-sm transition hover:border-white/50"
           href={agentFirstUrl}
           target="_blank"
           rel="noopener noreferrer"
@@ -212,8 +212,8 @@ export const observe = createObserveResource(createBackend());`
         <button
           onclick={() => selected = pattern.id}
           class="px-6 py-3 rounded-lg font-medium transition-all {selected === pattern.id
-            ? 'bg-amber-500 text-white shadow-lg' 
-            : 'bg-amber-100 text-amber-800 hover:bg-amber-200'}"
+            ? 'bg-amber-400 text-black shadow-lg' 
+            : 'bg-white/10 text-white/80 hover:bg-white/20'}"
         >
           {pattern.tab}
         </button>
@@ -222,10 +222,10 @@ export const observe = createObserveResource(createBackend());`
 
     <!-- Pattern -->
     <div class="max-w-2xl mx-auto">
-      <div class="bg-white rounded-lg shadow-lg border border-amber-200 overflow-hidden">
-        <div class="p-6 border-b border-amber-200 bg-amber-50">
-          <h3 class="text-2xl font-bold text-amber-900 mb-2">{current.title}</h3>
-          <p class="text-amber-700">{current.description}</p>
+      <div class="bg-black/60 rounded-lg shadow-lg border border-white/10 overflow-hidden">
+        <div class="p-6 border-b border-white/10 bg-black/70">
+          <h3 class="text-2xl font-semibold text-white mb-2">{current.title}</h3>
+          <p class="text-white/65">{current.description}</p>
         </div>
         <div class="bg-gray-900 p-4 overflow-hidden min-w-0">
           {#key selected}
@@ -241,7 +241,7 @@ export const observe = createObserveResource(createBackend());`
         href="https://github.com/acoyfellow/gateproof/tree/main/patterns"
         target="_blank"
         rel="noopener noreferrer"
-        class="inline-flex items-center gap-2 px-6 py-3 bg-amber-500 hover:bg-amber-600 text-white font-medium rounded-lg transition-colors"
+        class="inline-flex items-center gap-2 px-6 py-3 bg-amber-400 hover:bg-amber-300 text-black font-medium rounded-lg transition-colors"
       >
         <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
           <path d="M15 22v-4a4.8 4.8 0 0 0-1-3.5c3 0 6-2 6-5.5.08-1.25-.27-2.48-1-3.5.28-1.15.28-2.35 0-3.5 0 0-1 0-3 1.5-2.64-.5-5.36-.5-8 0C6 2 5 2 5 2c-.3 1.15-.3 2.35 0 3.5A5.403 5.403 0 0 0 4 9c0 3.5 3 5.5 6 5.5-.39.49-.68 1.05-.85 1.65-.17.6-.22 1.23-.15 1.85v4"/>

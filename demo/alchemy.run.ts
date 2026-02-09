@@ -1,10 +1,5 @@
 import alchemy from "alchemy";
-import {
-  Container,
-  DurableObjectNamespace,
-  SvelteKit,
-  Worker,
-} from "alchemy/cloudflare";
+import { Container, SvelteKit } from "alchemy/cloudflare";
 import { readFileSync } from "fs";
 import { join } from "path";
 
@@ -39,8 +34,8 @@ const sandboxContainer = await Container("sandbox", {
     context: ".",
     dockerfile: "Dockerfile",
   },
-  instanceType: "standard-3",
-  maxInstances: 2,
+  instanceType: "lite",  // Changed from standard-3 to match official example
+  maxInstances: 1,       // Changed from 2 to match official example
   dev: {
     remote: true // Forces push to Cloudflare registry even in dev mode
   }
@@ -64,10 +59,8 @@ export const website = await SvelteKit("website", {
   },
 });
 
-const sandboxNamespace = DurableObjectNamespace("sandbox-namespace", {
-  className: "Sandbox",
-  scriptName: website.name,
-});
+// NOTE: Removed separate DurableObjectNamespace declaration.
+// The Container binding already sets up the DO - extra namespace may cause conflicts.
 
 console.log(website.url);
 

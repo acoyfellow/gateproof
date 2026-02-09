@@ -292,8 +292,6 @@ const TEST_URL = process.env.TEST_URL || "http://localhost:3000";
 // GATE IMPLEMENTATIONS
 // ============================================================================
 
-import { Gate, Act, Assert, createHttpObserveResource, createEmptyObserveResource } from "gateproof";
-
 ${gateFunctions}
 
 // ============================================================================
