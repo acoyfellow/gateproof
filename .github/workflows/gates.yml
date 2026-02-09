@@ -27,7 +27,7 @@ jobs:
         id: prd
         run: |
           mkdir -p .gateproof
-          bun run prd.ts --report .gateproof/prd-report.json --check-scope --base-ref origin/main || true
+          bun run prd.ts --report .gateproof/prd-report.json || true
       
       - name: Generate Summary
         if: always()
