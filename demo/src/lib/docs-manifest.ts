@@ -18,6 +18,8 @@ export const docsNav: DocCategory[] = [
 		entries: [
 			{ title: 'Add a Gate', slug: 'how-to/add-a-gate' },
 			{ title: 'Add Observability Logging', slug: 'how-to/add-observability-logging' },
+			{ title: 'Use Shorthands', slug: 'how-to/use-shorthands' },
+			{ title: 'Accessibility', slug: 'how-to/accessibility' },
 			{ title: 'Run in CI', slug: 'how-to/run-in-ci' },
 			{ title: 'Run in a Loop', slug: 'how-to/run-in-a-loop' },
 			{ title: 'Write a PRD Story', slug: 'how-to/write-a-prd-story' }
