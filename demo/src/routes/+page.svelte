@@ -1,6 +1,5 @@
 <script lang="ts">
   import HeroSection from '$lib/components/HeroSection.svelte';
-  import LiveDemo from '$lib/components/LiveDemo.svelte';
 </script>
 
 <svelte:head>
@@ -10,5 +9,4 @@
 
 <main>
   <HeroSection />
-  <LiveDemo />
 </main>
