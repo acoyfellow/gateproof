@@ -9,6 +9,7 @@ const app = await alchemy("gateproof-demo", {
         new CloudflareStateStore(scope, {
           apiToken: alchemy.secret(process.env.CLOUDFLARE_API_TOKEN),
           stateToken: alchemy.secret(process.env.ALCHEMY_STATE_TOKEN),
+          forceUpdate: true,
         })
     : undefined,
 });
