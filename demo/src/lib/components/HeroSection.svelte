@@ -27,7 +27,7 @@ if (result.status !== "success") process.exit(1);`;
       alt=""
       class="w-full h-full object-cover opacity-40"
     />
-    <div class="absolute inset-0 bg-gradient-to-b from-background/60 via-background/40 to-background"></div>
+    <div class="absolute inset-0 bg-linear-to-b from-background/60 via-background/40 to-background"></div>
   </div>
 
   <div class="relative z-10 w-full max-w-xl mx-auto text-center">
@@ -72,19 +72,19 @@ if (result.status !== "success") process.exit(1);`;
       Make agent work falsifiable.
     </p>
 
-    <p class="mt-4 text-sm text-muted-foreground max-w-md mx-auto leading-relaxed">
+    <p class="mt-4 text-lg text-muted-foreground max-w-md mx-auto leading-relaxed text-balance">
       prd.ts defines intent. Gates verify reality. CI ships only with evidence.
     </p>
 
-    <div class="mt-10 inline-flex items-center gap-3 rounded-lg border border-border bg-card px-5 py-3">
+    <div class="mt-10 inline-flex items-center gap-3 rounded-lg border border-border bg-card p-6 w-full backdrop-blur-2xl bg-opacity-50">
       <span class="text-muted-foreground text-sm select-none">$</span>
       <code class="text-sm text-accent">bun add gateproof</code>
     </div>
 
-    <div class="mt-8 flex items-center justify-center gap-4">
+    <div class="mt-8 flex items-center justify-center gap-4 w-full">
       <a
         href="/docs"
-        class="rounded-lg bg-foreground px-5 py-2.5 text-sm font-medium text-background hover:opacity-90 transition-opacity"
+        class="rounded-lg bg-foreground px-5 py-2.5 text-sm font-medium text-background hover:opacity-90 transition-opacity w-full"
       >
         Read the docs
       </a>
@@ -92,7 +92,7 @@ if (result.status !== "success") process.exit(1);`;
         href={githubUrl}
         target="_blank"
         rel="noopener noreferrer"
-        class="rounded-lg border border-border px-5 py-2.5 text-sm font-medium text-muted-foreground hover:text-foreground hover:border-foreground/20 transition-colors"
+        class="rounded-lg border border-border px-5 py-2.5 text-sm font-medium text-foreground hover:text-foreground hover:border-foreground/20 transition-colors backdrop-blur-2xl w-full"
       >
         View on GitHub
       </a>
