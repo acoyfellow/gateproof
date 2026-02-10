@@ -1,5 +1,5 @@
 import { resolve } from "path";
-import { readFileSync } from "node:fs";
+import { readFileSync, writeFileSync } from "node:fs";
 import type { Prd, Story, GateResult } from "./types";
 import type { PrdReportV1, StoryResultV1, SerializableError } from "../report";
 import { serializeError } from "../report";
@@ -237,7 +237,6 @@ async function runStory<TId extends string>(
 
 function writeReport(reportPath: string | undefined, report: PrdReportV1): void {
   if (reportPath) {
-    const { writeFileSync } = require("node:fs") as typeof import("node:fs");
     writeFileSync(reportPath, JSON.stringify(report, null, 2));
   }
 }

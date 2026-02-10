@@ -44,7 +44,9 @@ export function createHttpObserveResource(config: HttpObserveConfig): ObserveRes
 
   const maxRetries = config.maxRetries ?? 2;
   const circuitBreakerThreshold = config.circuitBreakerThreshold ?? 5;
+  const baseInterval = config.pollInterval ?? HTTP_DEFAULT_POLL_INTERVAL_MS;
   let consecutiveFailures = 0;
+  let circuitOpen = false;
 
   const fetchOnce = async (timeoutMs: number): Promise<Response> => {
     return fetch(config.url, {
@@ -83,7 +85,12 @@ export function createHttpObserveResource(config: HttpObserveConfig): ObserveRes
     try {
       const response = await fetchWithRetry(timeoutMs);
 
-      // Reset circuit breaker on success
+      // Reset circuit breaker on success; restore normal interval if recovering
+      if (circuitOpen && pollTimer) {
+        clearInterval(pollTimer);
+        pollTimer = setInterval(() => poll(), baseInterval);
+        circuitOpen = false;
+      }
       consecutiveFailures = 0;
 
       const durationMs = Date.now() - startTime;
@@ -180,11 +187,10 @@ export function createHttpObserveResource(config: HttpObserveConfig): ObserveRes
       );
 
       // Circuit breaker: reschedule at a slower rate
-      if (isCircuitOpen && pollTimer) {
+      if (isCircuitOpen && !circuitOpen && pollTimer) {
         clearInterval(pollTimer);
-        const baseInterval = config.pollInterval ?? HTTP_DEFAULT_POLL_INTERVAL_MS;
-        const slowInterval = baseInterval * 5;
-        pollTimer = setInterval(() => poll(), slowInterval);
+        pollTimer = setInterval(() => poll(), baseInterval * 5);
+        circuitOpen = true;
       }
     }
   };

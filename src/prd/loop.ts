@@ -31,6 +31,8 @@ export interface AgentContext {
   lastReport?: PrdReportV1;
   /** Current iteration number */
   iteration: number;
+  /** Abort signal — agents should pass this to long-running calls so they can be cancelled on timeout */
+  signal?: AbortSignal;
 }
 
 /**
@@ -258,14 +260,23 @@ async function defaultNoopAgent(ctx: AgentContext): Promise<AgentResult> {
 }
 
 /**
- * Wraps a promise with a timeout. Rejects with a descriptive error if the timeout is exceeded.
+ * Wraps a promise with a timeout and an AbortController for real cancellation.
+ * The caller should pass the AbortSignal into the underlying work so it actually stops.
  */
-function withTimeout<T>(promise: Promise<T>, ms: number, label: string): Promise<T> {
+function withTimeout<T>(
+  fn: (signal: AbortSignal) => Promise<T>,
+  ms: number,
+  label: string
+): Promise<T> {
+  const controller = new AbortController();
   let timer: ReturnType<typeof setTimeout>;
   const timeout = new Promise<never>((_, reject) => {
-    timer = setTimeout(() => reject(new Error(`${label} timed out after ${ms}ms`)), ms);
+    timer = setTimeout(() => {
+      controller.abort();
+      reject(new Error(`${label} timed out after ${ms}ms`));
+    }, ms);
   });
-  return Promise.race([promise, timeout]).finally(() => clearTimeout(timer));
+  return Promise.race([fn(controller.signal), timeout]).finally(() => clearTimeout(timer));
 }
 
 /**
@@ -437,10 +448,13 @@ export async function runPrdLoop(
 
     log("\n🤖 Calling agent to fix...");
     try {
-      const agentPromise = agent(ctx);
       const agentResult = iterationTimeoutMs
-        ? await withTimeout(agentPromise, iterationTimeoutMs, "Agent call")
-        : await agentPromise;
+        ? await withTimeout(
+            (signal) => agent({ ...ctx, signal }),
+            iterationTimeoutMs,
+            "Agent call"
+          )
+        : await agent(ctx);
 
       if (agentResult.changes.length > 0) {
         log(`   Made ${agentResult.changes.length} change(s):`);
@@ -621,14 +635,17 @@ ${ctx.recentDiff}
     let lastError: unknown;
     for (let attempt = 0; attempt <= maxRetries; attempt++) {
       try {
-        const callPromise = generateText({
-          model: opencode(model),
-          tools,
-          maxSteps: maxSteps as number,
-          prompt,
-        } as Parameters<typeof generateText>[0]);
-
-        await withTimeout(callPromise, timeoutMs, "LLM generateText");
+        await withTimeout(
+          (signal) => generateText({
+            model: opencode(model),
+            tools,
+            maxSteps: maxSteps as number,
+            prompt,
+            abortSignal: ctx.signal ?? signal,
+          } as Parameters<typeof generateText>[0]),
+          timeoutMs,
+          "LLM generateText"
+        );
         // If we get here, the call succeeded
         return {
           changes,
