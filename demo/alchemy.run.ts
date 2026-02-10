@@ -1,5 +1,6 @@
 import alchemy from "alchemy";
 import { Container, SvelteKit } from "alchemy/cloudflare";
+import { CloudflareStateStore } from "alchemy/state";
 import { readFileSync } from "fs";
 import { join } from "path";
 
@@ -26,6 +27,10 @@ try {
 
 const app = await alchemy("gateproof-demo", {
   password: process.env.ALCHEMY_PASSWORD ?? "",
+  stateStore: (scope) =>
+    new CloudflareStateStore(scope, {
+      stateToken: alchemy.secret(process.env.ALCHEMY_STATE_TOKEN!),
+    }),
 });
 
 const sandboxContainer = await Container("sandbox", {
