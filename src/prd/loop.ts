@@ -31,6 +31,8 @@ export interface AgentContext {
   lastReport?: PrdReportV1;
   /** Current iteration number */
   iteration: number;
+  /** Abort signal — agents should pass this to long-running calls so they can be cancelled on timeout */
+  signal?: AbortSignal;
 }
 
 /**
@@ -65,6 +67,12 @@ export interface IterationStatus {
 export interface PrdLoopOptions {
   /** Maximum iterations before giving up (default: 7) */
   maxIterations?: number;
+
+  /** Maximum wall-clock time for the entire loop in ms. Aborts after this budget is exhausted. */
+  maxTotalMs?: number;
+
+  /** Maximum time for a single agent call in ms. The agent is aborted if it exceeds this. */
+  iterationTimeoutMs?: number;
 
   /** Custom agent function to make changes. If not provided, uses default OpenCode Zen agent. */
   agent?: (ctx: AgentContext) => Promise<AgentResult>;
@@ -252,6 +260,35 @@ async function defaultNoopAgent(ctx: AgentContext): Promise<AgentResult> {
 }
 
 /**
+ * Wraps a promise with a timeout and an AbortController for real cancellation.
+ * The caller should pass the AbortSignal into the underlying work so it actually stops.
+ */
+function withTimeout<T>(
+  fn: (signal: AbortSignal) => Promise<T>,
+  ms: number,
+  label: string
+): Promise<T> {
+  const controller = new AbortController();
+  let timer: ReturnType<typeof setTimeout>;
+  const timeout = new Promise<never>((_, reject) => {
+    timer = setTimeout(() => {
+      controller.abort();
+      reject(new Error(`${label} timed out after ${ms}ms`));
+    }, ms);
+  });
+  return Promise.race([fn(controller.signal), timeout]).finally(() => clearTimeout(timer));
+}
+
+/**
+ * Generates a short run ID for namespacing report files in concurrent CI.
+ */
+function generateRunId(): string {
+  const ts = Date.now().toString(36);
+  const rand = Math.random().toString(36).slice(2, 6);
+  return `${ts}-${rand}`;
+}
+
+/**
  * Runs the PRD loop, iterating until all gates pass or maxIterations is reached.
  *
  * This is the native, programmatic way to run the gateproof retry loop.
@@ -263,6 +300,8 @@ async function defaultNoopAgent(ctx: AgentContext): Promise<AgentResult> {
  *
  * const result = await runPrdLoop("./prd.ts", {
  *   maxIterations: 5,
+ *   maxTotalMs: 300_000, // 5 minute wall-clock budget
+ *   iterationTimeoutMs: 60_000, // 1 minute per agent call
  *   agent: async (ctx) => {
  *     // Make changes based on ctx.failureSummary
  *     return { changes: ["fixed the bug"] };
@@ -284,6 +323,8 @@ export async function runPrdLoop(
 ): Promise<PrdLoopResult> {
   const {
     maxIterations = 7,
+    maxTotalMs,
+    iterationTimeoutMs,
     agent = defaultNoopAgent,
     onIteration,
     autoCommit = false,
@@ -297,7 +338,8 @@ export async function runPrdLoop(
 
   const startTime = Date.now();
   const gateproofDir = ensureGateproofDir(cwd);
-  const effectiveReportPath = reportPath ?? resolve(gateproofDir, "prd-report.json");
+  const runId = generateRunId();
+  const effectiveReportPath = reportPath ?? resolve(gateproofDir, `prd-report-${runId}.json`);
 
   // Determine the PRD path
   let prdPath: string;
@@ -315,6 +357,12 @@ export async function runPrdLoop(
   const log = quiet ? () => {} : console.log;
 
   for (let iteration = 1; iteration <= maxIterations; iteration++) {
+    // Check wall-clock budget
+    if (maxTotalMs && (Date.now() - startTime) >= maxTotalMs) {
+      log(`\n⏱️ Wall-clock budget exhausted (${maxTotalMs}ms)`);
+      break;
+    }
+
     const iterStart = Date.now();
     log(`\n=== PRD Loop Iteration ${iteration}/${maxIterations} ===`);
 
@@ -384,6 +432,12 @@ export async function runPrdLoop(
       break;
     }
 
+    // Check wall-clock budget before calling agent
+    if (maxTotalMs && (Date.now() - startTime) >= maxTotalMs) {
+      log(`\n⏱️ Wall-clock budget exhausted (${maxTotalMs}ms), skipping agent`);
+      break;
+    }
+
     // Build context and call agent
     const ctx = buildAgentContext(
       prdPath,
@@ -394,7 +448,13 @@ export async function runPrdLoop(
 
     log("\n🤖 Calling agent to fix...");
     try {
-      const agentResult = await agent(ctx);
+      const agentResult = iterationTimeoutMs
+        ? await withTimeout(
+            (signal) => agent({ ...ctx, signal }),
+            iterationTimeoutMs,
+            "Agent call"
+          )
+        : await agent(ctx);
 
       if (agentResult.changes.length > 0) {
         log(`   Made ${agentResult.changes.length} change(s):`);
@@ -456,6 +516,7 @@ export async function runPrdLoop(
  * const agent = createOpenCodeAgent({
  *   apiKey: process.env.OPENCODE_ZEN_API_KEY,
  *   model: "big-pickle",
+ *   timeoutMs: 60_000,
  * });
  *
  * await runPrdLoop("./prd.ts", { agent });
@@ -466,12 +527,18 @@ export function createOpenCodeAgent(config: {
   endpoint?: string;
   model?: string;
   maxSteps?: number;
+  /** Timeout for the LLM generateText call in ms (default: 120_000) */
+  timeoutMs?: number;
+  /** Max retries on 429/5xx errors (default: 1) */
+  maxRetries?: number;
 }): (ctx: AgentContext) => Promise<AgentResult> {
   const {
     apiKey = process.env.OPENCODE_ZEN_API_KEY,
     endpoint = "https://opencode.ai/zen/v1",
     model = "big-pickle",
     maxSteps = 10,
+    timeoutMs = 120_000,
+    maxRetries = 1,
   } = config;
 
   if (!apiKey) {
@@ -564,18 +631,46 @@ Recent Diff:
 ${ctx.recentDiff}
 `;
 
-    const result = await generateText({
-      model: opencode(model),
-      tools,
-      maxSteps: maxSteps as number,
-      prompt,
-    } as Parameters<typeof generateText>[0]);
+    // Retry wrapper for transient LLM errors (429, 5xx)
+    let lastError: unknown;
+    for (let attempt = 0; attempt <= maxRetries; attempt++) {
+      try {
+        await withTimeout(
+          (signal) => generateText({
+            model: opencode(model),
+            tools,
+            maxSteps: maxSteps as number,
+            prompt,
+            abortSignal: ctx.signal ?? signal,
+          } as Parameters<typeof generateText>[0]),
+          timeoutMs,
+          "LLM generateText"
+        );
+        // If we get here, the call succeeded
+        return {
+          changes,
+          commitMsg: changes.length > 0
+            ? `fix(prd): ${ctx.failedStory?.id || "gate"} - iteration ${ctx.iteration}`
+            : undefined,
+        };
+      } catch (err) {
+        lastError = err;
+        const isRetryable = err instanceof Error && (
+          err.message.includes("429") ||
+          err.message.includes("500") ||
+          err.message.includes("502") ||
+          err.message.includes("503") ||
+          err.message.includes("rate")
+        );
+        if (isRetryable && attempt < maxRetries) {
+          const backoffMs = 1000 * Math.pow(2, attempt); // 1s, 2s, 4s...
+          await new Promise((r) => setTimeout(r, backoffMs));
+          continue;
+        }
+        throw err;
+      }
+    }
 
-    return {
-      changes,
-      commitMsg: changes.length > 0
-        ? `fix(prd): ${ctx.failedStory?.id || "gate"} - iteration ${ctx.iteration}`
-        : undefined,
-    };
+    throw lastError;
   };
 }

@@ -94,6 +94,7 @@
 
 body {
   font-family: var(--font-body);
+  padding-bottom: 4rem;
 }
 
 h1, h2, h3 {
