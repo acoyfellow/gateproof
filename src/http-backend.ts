@@ -22,6 +22,15 @@ export interface HttpObserveConfig {
    * If Content-Length exceeds this, the body is not read and an error log is emitted instead.
    */
   maxResponseSizeBytes?: number;
+  /**
+   * Max retries per poll on transient network errors (default: 2).
+   * Uses exponential backoff: 500ms, 1s, 2s.
+   */
+  maxRetries?: number;
+  /**
+   * Consecutive failures before the circuit breaker opens and slows polling (default: 5).
+   */
+  circuitBreakerThreshold?: number;
 }
 
 /**
@@ -33,6 +42,35 @@ export function createHttpObserveResource(config: HttpObserveConfig): ObserveRes
   let stopped = false;
   let pollTimer: ReturnType<typeof setInterval> | null = null;
 
+  const maxRetries = config.maxRetries ?? 2;
+  const circuitBreakerThreshold = config.circuitBreakerThreshold ?? 5;
+  let consecutiveFailures = 0;
+
+  const fetchOnce = async (timeoutMs: number): Promise<Response> => {
+    return fetch(config.url, {
+      method: config.method || "GET",
+      headers: config.headers,
+      body: config.body,
+      signal: AbortSignal.timeout(timeoutMs),
+    });
+  };
+
+  const fetchWithRetry = async (timeoutMs: number): Promise<Response> => {
+    let lastError: unknown;
+    for (let attempt = 0; attempt <= maxRetries; attempt++) {
+      try {
+        return await fetchOnce(timeoutMs);
+      } catch (err) {
+        lastError = err;
+        if (attempt < maxRetries) {
+          const backoffMs = 500 * Math.pow(2, attempt); // 500ms, 1s, 2s
+          await new Promise((r) => setTimeout(r, backoffMs));
+        }
+      }
+    }
+    throw lastError;
+  };
+
   const poll = async () => {
     if (stopped || !queue) return;
 
@@ -43,12 +81,10 @@ export function createHttpObserveResource(config: HttpObserveConfig): ObserveRes
     const maxResponseSizeBytes = config.maxResponseSizeBytes ?? HTTP_MAX_RESPONSE_SIZE_BYTES;
 
     try {
-      const response = await fetch(config.url, {
-        method: config.method || "GET",
-        headers: config.headers,
-        body: config.body,
-        signal: AbortSignal.timeout(timeoutMs),
-      });
+      const response = await fetchWithRetry(timeoutMs);
+
+      // Reset circuit breaker on success
+      consecutiveFailures = 0;
 
       const durationMs = Date.now() - startTime;
       const contentType = response.headers.get("content-type") || "";
@@ -113,8 +149,11 @@ export function createHttpObserveResource(config: HttpObserveConfig): ObserveRes
         )
       );
     } catch (unknownError) {
+      consecutiveFailures++;
       const error = unknownError instanceof Error ? unknownError : new Error(String(unknownError));
       const durationMs = Date.now() - startTime;
+
+      const isCircuitOpen = consecutiveFailures >= circuitBreakerThreshold;
       const log: Log = {
         requestId,
         timestamp: new Date().toISOString(),
@@ -123,8 +162,10 @@ export function createHttpObserveResource(config: HttpObserveConfig): ObserveRes
         status: "error",
         durationMs,
         error: {
-          tag: error.name || "HttpError",
-          message: error.message || String(error),
+          tag: isCircuitOpen ? "HttpCircuitOpen" : (error.name || "HttpError"),
+          message: isCircuitOpen
+            ? `${consecutiveFailures} consecutive failures, backing off: ${error.message}`
+            : (error.message || String(error)),
           stack: error.stack,
         },
       };
@@ -137,6 +178,14 @@ export function createHttpObserveResource(config: HttpObserveConfig): ObserveRes
           Effect.catchAll(() => Effect.void)
         )
       );
+
+      // Circuit breaker: reschedule at a slower rate
+      if (isCircuitOpen && pollTimer) {
+        clearInterval(pollTimer);
+        const baseInterval = config.pollInterval ?? HTTP_DEFAULT_POLL_INTERVAL_MS;
+        const slowInterval = baseInterval * 5;
+        pollTimer = setInterval(() => poll(), slowInterval);
+      }
     }
   };
 
@@ -144,6 +193,7 @@ export function createHttpObserveResource(config: HttpObserveConfig): ObserveRes
     start() {
       return Effect.gen(function* () {
         stopped = false;
+        consecutiveFailures = 0;
         queue = yield* Queue.bounded<Log>(1000);
 
         // Initial poll
