@@ -35,6 +35,7 @@ export const prd = definePrd({
           "gates/prd/agent-first-pattern.gate.ts",
           "patterns/agent-first/**",
           "README.md",
+          "AGENTS.md",
           "demo/src/lib/components/PatternsSection.svelte",
         ],
         maxChangedFiles: 6,

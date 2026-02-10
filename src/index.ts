@@ -334,5 +334,5 @@ export type { Provider } from "./provider";
 export { createEmptyBackend, createEmptyObserveResource, runGateWithErrorHandling } from "./utils";
 export { createTestObserveResource } from "./test-helpers";
 export { createHttpObserveResource } from "./http-backend";
-export type { GateResultV1, PrdReportV1, StoryResultV1, SerializableError } from "./report";
-export { serializeError, toGateResultV1 } from "./report";
+export type { GateResultV1, PrdReportV1, StoryResultV1, SerializableError, LLMFailureSummary } from "./report";
+export { serializeError, toGateResultV1, createLLMFailureSummary, formatLLMFailureSummary } from "./report";
