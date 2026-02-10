@@ -1,125 +1,109 @@
 <script lang="ts">
+  import CodeBlock from './CodeBlock.svelte';
+
   const githubUrl = "https://github.com/acoyfellow/gateproof";
   const npmUrl = "https://www.npmjs.com/package/gateproof";
 
-  interface Props {
-    onOpenDocs?: () => void;
-  }
+  const exampleCode = `import { Gate, Act, Assert, createHttpObserveResource } from "gateproof";
 
-  let { onOpenDocs }: Props = $props();
+const result = await Gate.run({
+  name: "post-deploy",
+  observe: createHttpObserveResource({
+    url: "https://api.example.com/health",
+  }),
+  act: [Act.wait(500)],
+  assert: [Assert.noErrors()],
+  stop: { maxMs: 10_000 },
+});
+
+if (result.status !== "success") process.exit(1);`;
 </script>
 
-<section class="relative min-h-[92vh] overflow-hidden">
+<section class="relative min-h-[92vh] flex flex-col items-center justify-center px-4 sm:px-8 py-20 overflow-hidden">
+  <!-- Background image -->
   <div class="absolute inset-0">
-    <div
-      class="absolute inset-0"
-      style="background: radial-gradient(1200px 600px at 10% 10%, rgba(255,196,77,0.12), transparent 60%), radial-gradient(900px 500px at 90% 10%, rgba(255,140,0,0.12), transparent 60%), linear-gradient(180deg, #0a0704 0%, #0b0a07 50%, #090808 100%);"
-    ></div>
-    <div
-      class="absolute inset-0 opacity-40"
-      style="background-image: linear-gradient(90deg, rgba(255,255,255,0.03) 1px, transparent 1px), linear-gradient(180deg, rgba(255,255,255,0.03) 1px, transparent 1px); background-size: 48px 48px;"
-    ></div>
+    <img
+      src="/hero.jpg"
+      alt=""
+      class="w-full h-full object-cover opacity-40"
+    />
+    <div class="absolute inset-0 bg-gradient-to-b from-background/60 via-background/40 to-background"></div>
   </div>
 
-  <div class="relative z-10 w-full max-w-6xl px-4 sm:px-8 pt-24 pb-16 mx-auto">
-    <div class="flex flex-wrap items-center gap-2 text-xs text-white/70">
+  <div class="relative z-10 w-full max-w-xl mx-auto text-center">
+    <nav class="flex items-center justify-center gap-5 mb-20">
       <a
         href={githubUrl}
         target="_blank"
         rel="noopener noreferrer"
-        class="rounded-full border border-white/15 bg-black/30 px-3 py-1.5 hover:border-white/40"
+        class="text-xs tracking-wide text-muted-foreground hover:text-accent transition-colors"
       >
         GitHub
       </a>
+      <span class="text-border select-none">/</span>
       <a
         href={npmUrl}
         target="_blank"
         rel="noopener noreferrer"
-        class="rounded-full border border-white/15 bg-black/30 px-3 py-1.5 hover:border-white/40"
+        class="text-xs tracking-wide text-muted-foreground hover:text-accent transition-colors"
       >
         npm
       </a>
+      <span class="text-border select-none">/</span>
       <a
-        href="/types"
-        class="rounded-full border border-white/15 bg-black/30 px-3 py-1.5 hover:border-white/40"
+        href="/docs"
+        class="text-xs tracking-wide text-muted-foreground hover:text-accent transition-colors"
       >
-        Types
+        Docs
       </a>
-      {#if onOpenDocs}
-        <button
-          type="button"
-          onclick={onOpenDocs}
-          class="rounded-full border border-amber-300/30 bg-amber-300/10 px-3 py-1.5 text-amber-200/90 hover:border-amber-300/60"
-        >
-          Docs
-        </button>
-      {/if}
+    </nav>
+
+    <h1
+      class="text-5xl sm:text-7xl tracking-tight font-normal"
+      style="font-family: var(--font-display)"
+    >
+      <span class="text-accent">gate</span><span class="text-foreground">proof</span>
+    </h1>
+
+    <p
+      class="mt-8 text-xl sm:text-2xl text-secondary-foreground"
+      style="font-family: var(--font-display)"
+    >
+      Make agent work falsifiable.
+    </p>
+
+    <p class="mt-4 text-sm text-muted-foreground max-w-md mx-auto leading-relaxed">
+      prd.ts defines intent. Gates verify reality. CI ships only with evidence.
+    </p>
+
+    <div class="mt-10 inline-flex items-center gap-3 rounded-lg border border-border bg-card px-5 py-3">
+      <span class="text-muted-foreground text-sm select-none">$</span>
+      <code class="text-sm text-accent">bun add gateproof</code>
     </div>
 
-    <div class="mt-10 grid gap-10 lg:grid-cols-[1.05fr,0.95fr]">
-      <div class="flex flex-col gap-6">
-        <p class="text-xs uppercase tracking-[0.35em] text-amber-300/80">Agent runtime</p>
-        <h1 class="text-4xl sm:text-5xl md:text-6xl font-semibold tracking-tight text-white leading-tight text-balance">
-          Run the loop. Produce proof.
-        </h1>
-        <p class="text-base sm:text-lg text-white/70 max-w-xl text-balance">
-          You execute from <span class="font-mono text-white/90">prd.ts</span>. Gates emit evidence. Humans approve what’s proven.
-        </p>
+    <div class="mt-8 flex items-center justify-center gap-4">
+      <a
+        href="/docs"
+        class="rounded-lg bg-foreground px-5 py-2.5 text-sm font-medium text-background hover:opacity-90 transition-opacity"
+      >
+        Read the docs
+      </a>
+      <a
+        href={githubUrl}
+        target="_blank"
+        rel="noopener noreferrer"
+        class="rounded-lg border border-border px-5 py-2.5 text-sm font-medium text-muted-foreground hover:text-foreground hover:border-foreground/20 transition-colors"
+      >
+        View on GitHub
+      </a>
+    </div>
 
-        <div class="flex flex-wrap items-center gap-3">
-          <a
-            href="#demo"
-            class="rounded-full bg-amber-400 px-5 py-2.5 text-sm font-semibold text-black shadow-[0_8px_30px_rgba(255,193,77,0.25)] hover:bg-amber-300"
-          >
-            Run the live demo
-          </a>
-          <a
-            href={githubUrl}
-            target="_blank"
-            rel="noopener noreferrer"
-            class="rounded-full border border-white/20 px-5 py-2.5 text-sm font-semibold text-white/90 hover:border-white/50"
-          >
-            View on GitHub
-          </a>
-        </div>
-
-        <div class="mt-4 rounded-xl border border-white/10 bg-black/60 p-5">
-          <div class="text-xs uppercase tracking-[0.25em] text-white/40">Loop contract</div>
-          <div class="mt-3 grid gap-3 text-sm text-white/80">
-            <div class="flex items-center gap-3">
-              <span class="text-amber-300">Input</span>
-              <span><span class="font-mono text-white/90">prd.ts</span> (intent + scope)</span>
-            </div>
-            <div class="flex items-center gap-3">
-              <span class="text-amber-300">Loop</span>
-              <span>Observe → Act → Assert</span>
-            </div>
-            <div class="flex items-center gap-3">
-              <span class="text-amber-300">Output</span>
-              <span>Evidence stream (pass/fail)</span>
-            </div>
-          </div>
-        </div>
+    <div class="mt-16 text-left rounded-lg border border-border overflow-hidden">
+      <div class="flex items-center gap-2 bg-card px-4 py-2.5 border-b border-border">
+        <span class="text-xs text-muted-foreground font-mono">gate.ts</span>
       </div>
-
-      <div class="rounded-2xl border border-white/10 bg-black/70 p-6 shadow-[0_0_0_1px_rgba(255,255,255,0.05)]">
-        <div class="text-xs uppercase tracking-[0.25em] text-white/40">Minimal contract</div>
-        <pre class="mt-4 text-xs leading-relaxed text-white/85 font-mono whitespace-pre-wrap">
-import { Gate, Act, Assert } from "gateproof";
-
-const result = await Gate.run({
-  name: "user-signup",
-  observe: provider.observe({ backend: "analytics" }),
-  act: [Act.browser({ url: "/signup" })],
-  assert: [Assert.hasAction("user_created")],
-});
-        </pre>
-        <div class="mt-4 flex flex-wrap gap-3 text-xs text-white/60">
-          <span class="rounded-full border border-white/10 px-3 py-1">Observe</span>
-          <span class="rounded-full border border-white/10 px-3 py-1">Act</span>
-          <span class="rounded-full border border-white/10 px-3 py-1">Assert</span>
-          <span class="rounded-full border border-white/10 px-3 py-1">Evidence‑first</span>
-        </div>
+      <div class="bg-card/50 p-4">
+        <CodeBlock code={exampleCode} language="typescript" />
       </div>
     </div>
   </div>

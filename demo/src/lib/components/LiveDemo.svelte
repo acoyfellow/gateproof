@@ -1,7 +1,6 @@
 <script lang="ts">
   import { onMount } from 'svelte';
 
-  // Pre-baked demo that shows clear value
   const demoCode = `// Live API Validation Demo
 import { Gate, Act, Assert, createHttpObserveResource } from "gateproof";
 
@@ -163,7 +162,6 @@ process.exit(passed === total ? 0 : 1);
           try {
             const data = JSON.parse(dataPayload);
             if (eventType === 'stdout' && data.data) {
-              // Filter out noisy output, keep the good stuff
               const text = data.data;
               const isNoise =
                 text.includes('Process completed with exit code') ||
@@ -206,32 +204,31 @@ process.exit(passed === total ? 0 : 1);
   }
 </script>
 
-<section id="demo" class="relative py-16 px-4 sm:px-8">
-  <div class="max-w-4xl mx-auto">
-    <div class="text-center mb-8">
-      <h2 class="text-3xl sm:text-4xl font-semibold text-white mb-3">
-        Runtime proof stream
+<section id="demo" class="py-20 px-4 sm:px-8">
+  <div class="max-w-2xl mx-auto">
+    <div class="text-center mb-10">
+      <h2 class="text-3xl sm:text-4xl text-foreground">
+        See it run
       </h2>
-      <p class="text-white/70 text-sm max-w-xl mx-auto">
-        Three gates run against a live API (httpbin.org) in an isolated sandbox.
-        Evidence is emitted in real time.
+      <p class="mt-3 text-sm text-muted-foreground max-w-md mx-auto">
+        Three gates validate a live API in an isolated sandbox. Evidence streams in real time.
       </p>
     </div>
 
-    <div class="bg-black/60 backdrop-blur-sm border border-white/10 rounded-lg overflow-hidden">
+    <div class="rounded-lg border border-border overflow-hidden">
       <!-- Header -->
-      <div class="bg-gray-900/80 px-4 py-3 flex items-center justify-between border-b border-white/10">
+      <div class="bg-card px-4 py-3 flex items-center justify-between border-b border-border">
         <div class="flex items-center gap-3">
           <div class="flex gap-1.5">
-            <div class="w-3 h-3 rounded-full bg-red-500/80"></div>
-            <div class="w-3 h-3 rounded-full bg-yellow-500/80"></div>
-            <div class="w-3 h-3 rounded-full bg-green-500/80"></div>
+            <div class="w-2.5 h-2.5 rounded-full bg-red-500/60"></div>
+            <div class="w-2.5 h-2.5 rounded-full bg-yellow-500/60"></div>
+            <div class="w-2.5 h-2.5 rounded-full bg-green-500/60"></div>
           </div>
-          <span class="text-xs text-white/50 font-mono">live-demo.ts</span>
+          <span class="text-xs text-muted-foreground font-mono">live-demo.ts</span>
         </div>
         <div class="flex items-center gap-3">
           {#if running}
-            <span class="text-xs text-amber-300 font-mono animate-pulse">
+            <span class="text-xs text-accent font-mono animate-pulse">
               Running... {formatTime(elapsedMs)}
             </span>
           {:else if hasRun && !error}
@@ -243,14 +240,14 @@ process.exit(passed === total ? 0 : 1);
       </div>
 
       <!-- Output -->
-      <div class="p-4 min-h-[300px] max-h-[400px] overflow-auto font-mono text-sm">
+      <div class="p-4 min-h-[280px] max-h-[380px] overflow-auto font-mono text-sm">
         {#if !hasRun}
-          <div class="text-white/40 text-center py-8">
-            <p class="mb-4">Click "Run Demo" to see gateproof validate a live API</p>
-            <p class="text-xs">Gates will test: health check, JSON response, header echo</p>
+          <div class="text-muted-foreground text-center py-12">
+            <p class="mb-3">Click below to see gateproof validate a live API</p>
+            <p class="text-xs opacity-70">health check / JSON response / header echo</p>
           </div>
         {:else}
-          <pre class="whitespace-pre-wrap text-white/90">{output.join('')}</pre>
+          <pre class="whitespace-pre-wrap text-secondary-foreground">{output.join('')}</pre>
         {/if}
 
         {#if error}
@@ -261,11 +258,11 @@ process.exit(passed === total ? 0 : 1);
       </div>
 
       <!-- Footer -->
-      <div class="border-t border-white/10 bg-black/50 px-4 py-3 flex items-center justify-between">
+      <div class="border-t border-border bg-card px-4 py-3 flex items-center justify-between">
         <button
           onclick={runDemo}
           disabled={running}
-          class="px-6 py-2 text-sm font-medium bg-amber-500 hover:bg-amber-600 disabled:bg-amber-500/50 disabled:cursor-not-allowed text-white rounded-lg transition-colors flex items-center gap-2"
+          class="px-5 py-2 text-sm font-medium bg-accent hover:opacity-90 disabled:opacity-50 disabled:cursor-not-allowed text-accent-foreground rounded-lg transition-opacity flex items-center gap-2"
         >
           {#if running}
             <svg class="animate-spin h-4 w-4" viewBox="0 0 24 24">
@@ -278,23 +275,7 @@ process.exit(passed === total ? 0 : 1);
           {/if}
         </button>
 
-        <span class="text-xs text-white/50">Runs in an isolated Cloudflare container</span>
-      </div>
-    </div>
-
-    <!-- What's happening -->
-    <div class="mt-6 grid grid-cols-3 gap-4 text-center">
-      <div class="bg-black/30 rounded-lg p-4 border border-white/5">
-        <div class="text-[11px] uppercase tracking-[0.2em] text-white/50">Observe</div>
-        <div class="mt-2 text-xs text-white/70">HTTP signals collected</div>
-      </div>
-      <div class="bg-black/30 rounded-lg p-4 border border-white/5">
-        <div class="text-[11px] uppercase tracking-[0.2em] text-white/50">Assert</div>
-        <div class="mt-2 text-xs text-white/70">Evidence required to pass</div>
-      </div>
-      <div class="bg-black/30 rounded-lg p-4 border border-white/5">
-        <div class="text-[11px] uppercase tracking-[0.2em] text-white/50">Record</div>
-        <div class="mt-2 text-xs text-white/70">Pass/fail stored for CI</div>
+        <span class="text-xs text-muted-foreground">Isolated Cloudflare container</span>
       </div>
     </div>
   </div>

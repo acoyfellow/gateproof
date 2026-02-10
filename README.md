@@ -1,89 +1,90 @@
 # gateproof
 
-Build software in reverse. PRD defines intent. Gates verify reality. Agents iterate until gates pass.
+Software is built in reverse. You know what you want before you know how to get there. TDD proved the idea: write the test first, then make it pass. Gateproof takes the next step.
 
-Gateproof is a small runtime for executing **gates**: scripts that observe, act, and assert against real evidence (logs/telemetry). It does not decide intent or sequencing; your PRD (or CI) does.
+Write stories. Attach gates. Let agents iterate until reality matches intent.
 
-## 90‑Second Proof
+A **gate** observes real evidence (logs, telemetry), acts (browser, shell, deploy), and asserts outcomes. A **story** is a gate with a name and a place in a plan. A **prd.ts** is a list of stories in dependency order. The agent's only job is to make the next failing gate pass.
 
-1. Run a local worker (e.g. `wrangler dev`)
-2. Paste the gate below into `gates/hello.gate.ts`
-3. Run: `bun gates/hello.gate.ts`
+## The thesis
 
-If your logs emit `request_received`, the gate passes.
+Plans are solid. Implementation is liquid.
 
-```ts
-#!/usr/bin/env bun
-import { Gate, Act, Assert } from "gateproof";
-import { CloudflareProvider } from "gateproof/cloudflare";
+Any codebase can be scoped down to stories and a `prd.ts`. Multiple agents can work the same plan, falling through the same checkpoints. Once a gate passes, previous work can't break -- the gate proves it. The skill shifts from writing code to defining the right guardrails.
 
-const accountId = process.env.CLOUDFLARE_ACCOUNT_ID || "";
-const workerName = process.env.WORKER_NAME || "my-worker";
-
-const provider = CloudflareProvider({ accountId, apiToken: "" });
-
-const gate = {
-  name: "hello-gate",
-  observe: provider.observe({ backend: "cli-stream", workerName }),
-  act: [Act.browser({ url: "http://localhost:8787", headless: true }), Act.wait(2000)],
-  assert: [Assert.noErrors(), Assert.hasAction("request_received")],
-  stop: { idleMs: 3000, maxMs: 15000 },
-};
-
-Gate.run(gate).then((result) => {
-  if (result.status !== "success") process.exit(1);
-  process.exit(0);
-});
-```
-
-## Start Here
-
-- **Quick start (5 minutes):** `docs/tutorials/first-gate.md`
-- **How-to guides:** `docs/how-to/`
-- **API reference:** `docs/reference/`
-- **Explanations (why/architecture):** `docs/explanations/`
-
-If you’re new, start with the tutorial. If you’re trying to do a task, use the how‑to guides.
-
-## CLI: generate a PRD
-
-```bash
-echo "Build a signup flow with email verification and login" | npx gateproof prdts --stdout
-npx gateproof prdts --in stories.txt --out prd.ts
-```
-
-## Why gateproof
-
-- **PRD is authority on intent**. Gateproof enforces reality, not plans.
-- **Gates verify evidence**. Logs and telemetry are the contract.
-- **Agent iterations are minimal‑context**. PRD + failure evidence is enough.
+Gates are checkpoints that keep agents safe. They don't decide intent. They verify reality.
 
 ## Install
 
 ```bash
 bun add gateproof
-# or
-npm i gateproof
 ```
 
-## Docs Map (Diátaxis)
+## Minimal gate
 
-**Tutorials** (learn by doing)
-- `docs/tutorials/first-gate.md`
+```ts
+import { Gate, Act, Assert } from "gateproof";
 
-**How‑to Guides** (solve a task)
-- `docs/how-to/add-a-gate.md`
-- `docs/how-to/write-a-prd-story.md`
-- `docs/how-to/run-in-ci.md`
-- `docs/how-to/add-observability-logging.md`
+const result = await Gate.run({
+  name: "post-deploy",
+  observe: createHttpObserveResource({
+    url: "https://api.example.com/health",
+  }),
+  act: [Act.wait(500)],
+  assert: [Assert.noErrors()],
+  stop: { maxMs: 10_000 },
+});
 
-**Reference** (facts and API)
-- `docs/reference/api.md`
-- `docs/reference/prd-runner.md`
+if (result.status !== "success") process.exit(1);
+```
 
-**Explanation** (concepts and architecture)
-- `docs/explanations/overview.md`
-- `docs/effect-and-schema.md`
+## Stories + PRD
+
+```ts
+import { definePrd, runPrd } from "gateproof/prd";
+
+const prd = definePrd({
+  stories: [
+    {
+      id: "user-signup",
+      title: "User can sign up with email",
+      gateFile: "./gates/signup.gate.ts",
+    },
+    {
+      id: "email-verification",
+      title: "User receives verification email",
+      gateFile: "./gates/verify.gate.ts",
+      dependsOn: ["user-signup"],
+    },
+  ] as const,
+});
+
+const result = await runPrd(prd);
+if (!result.success) process.exit(1);
+```
+
+## The loop
+
+Gate fails. Agent reads the failure evidence. Agent fixes code. Gate re-runs. Loop until pass.
+
+```ts
+import { runPrdLoop, createOpenCodeAgent } from "gateproof/prd";
+
+await runPrdLoop("./prd.ts", {
+  agent: createOpenCodeAgent({ apiKey: process.env.OPENCODE_ZEN_API_KEY }),
+  maxIterations: 7,
+});
+```
+
+## Generate a PRD from plain language
+
+```bash
+echo "Build a signup flow with email verification" | npx gateproof prdts --stdout
+```
+
+## Docs
+
+Full documentation, tutorials, and API reference: [gateproof.dev/docs](https://gateproof.dev/docs)
 
 **The iteration loop:**
 1. Run PRD → executes gates in dependency order
