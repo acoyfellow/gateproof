@@ -76,10 +76,35 @@ await runPrdLoop("./prd.ts", {
 });
 ```
 
+## Shorthands (less boilerplate)
+
+> Contributed by @grok
+
+```ts
+import { gate, noErrors, hasAction, browserAct, cloudflare } from "gateproof/shorthands";
+
+const result = await gate("user-signup", {
+  observe: cloudflare.logs({ dataset: "worker_logs" }),
+  act: browserAct.goto("https://app.example.com/signup"),
+  assert: [noErrors(), hasAction("user_created")],
+});
+```
+
 ## Generate a PRD from plain language
 
 ```bash
 echo "Build a signup flow with email verification" | npx gateproof prdts --stdout
+```
+
+## End-to-end CLI pipeline
+
+> Contributed by @grok
+
+```bash
+# Natural language → prd.ts → agent loop
+echo "Build a signup flow with email verification" | npx gateproof prdts --out prd.ts
+npx gateproof smoke ./prd.ts
+bun run prd.ts
 ```
 
 ## Docs
