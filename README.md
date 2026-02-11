@@ -23,7 +23,7 @@ bun add gateproof
 ## Minimal gate
 
 ```ts
-import { Gate, Act, Assert } from "gateproof";
+import { Gate, Act, Assert, createHttpObserveResource } from "gateproof";
 
 const result = await Gate.run({
   name: "post-deploy",
@@ -63,9 +63,53 @@ const result = await runPrd(prd);
 if (!result.success) process.exit(1);
 ```
 
+## Assertions
+
+Core: `noErrors()`, `hasAction(name)`, `hasStage(name)`, `custom(name, fn)`
+
+Shorthands: `hasAnyEvidence()`, `hasMinLogs(n)`, `hasLogWith(field, value)`, `allLogsMatch(name, fn)`, `someLogsMatch(name, fn)`, `anyOf(...assertions)`, `not(assertion)`
+
+```ts
+import { gate, noErrors, hasAction, hasMinLogs, custom, anyOf } from "gateproof/shorthands";
+
+await gate("checkout-flow", {
+  observe: cloudflare.logs({ dataset: "worker_logs" }),
+  act: browserAct.goto("https://app.example.com/checkout"),
+  assert: [
+    noErrors(),
+    hasAction("checkout_started"),
+    hasMinLogs(3),
+    custom("has-total", (logs) => logs.some(l => l.data?.total > 0)),
+  ],
+});
+```
+
 ## The loop
 
 Gate fails. Agent reads the failure evidence. Agent fixes code. Gate re-runs. Loop until pass.
+
+**Bring your own agent** — the loop takes any async function:
+
+```ts
+import { runPrdLoop } from "gateproof/prd";
+
+await runPrdLoop("./prd.ts", {
+  agent: async (ctx) => {
+    // ctx.failureSummary — what failed and why
+    // ctx.recentDiff    — recent git changes
+    // ctx.prdContent    — full PRD for context
+    // ctx.failedStory   — the Story object that failed
+    // ctx.signal        — AbortSignal for cancellation
+
+    // Use any agent: Claude Code, Cursor, Codex, custom LLM wrapper
+    const result = await yourAgent.fix(ctx.failureSummary);
+    return { changes: result.files, commitMsg: "fix: resolve failing gate" };
+  },
+  maxIterations: 5,
+});
+```
+
+Or use a pre-built agent:
 
 ```ts
 import { runPrdLoop, createOpenCodeAgent } from "gateproof/prd";
