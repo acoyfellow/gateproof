@@ -14,6 +14,22 @@ Any codebase can be scoped down to stories and a `prd.ts`. Multiple agents can w
 
 Gates are checkpoints that keep agents safe. They don't decide intent. They verify reality.
 
+## Why this works
+
+Formal verification research established that the relationship between a specification and its implementation — called **refinement** — is itself a testable property. You don't need a theorem prover to get value from this idea. You can test refinement cheaply by running the system and checking that its behavior satisfies the spec.
+
+Gateproof distills this into three primitives:
+
+1. **Observe** — collect real evidence (logs, telemetry) from a running system
+2. **Act** — trigger real behavior (browser navigation, shell commands, deploys)
+3. **Assert** — check that the evidence satisfies the specification
+
+Each gate is a refinement check: does the running system's behavior refine what the story claims? The PRD orders these checks by dependency, so failures localize to the first broken obligation.
+
+This is a deliberate simplification. We trade random input generation and exhaustive coverage for something an engineer can write in minutes and an agent can iterate against in a loop. The gate is the contract. The loop is the proof search.
+
+> Lineage: the *observe → act → assert* pattern draws on property-based testing ideas from [Chen, Rizkallah et al. — "Property-Based Testing: Climbing the Stairway to Verification" (SLE 2022)](https://doi.org/10.1145/3567512.3567520), which demonstrated that refinement properties can serve as a practical, incremental path toward verified systems.
+
 ## Install
 
 ```bash
@@ -83,6 +99,16 @@ await gate("checkout-flow", {
   ],
 });
 ```
+
+## Writing good gates
+
+The hardest part of gateproof is not the library — it's writing gates that actually prove what you think they prove.
+
+**A weak gate passes on silence.** If your system emits no logs and your only assertion is `noErrors()`, the gate passes vacuously. Nothing was tested. Use `requirePositiveSignal: true` on stories, or assert specific evidence (`hasAction`, `hasStage`, `hasMinLogs`).
+
+**A good gate is falsifiable.** Ask: "what broken implementation would still pass this gate?" If the answer is "many," the gate is too weak. Tighten it until a broken system fails.
+
+**Start narrow, then widen.** One specific assertion that catches a real failure is worth more than ten vague ones. You can always add assertions later — you can't take back a false pass.
 
 ## The loop
 
