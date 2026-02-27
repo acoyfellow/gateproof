@@ -373,6 +373,20 @@ export type {
 
 export { setFilepathRuntime } from "./action-executors";
 
+// ─── Cloudflare Sandbox Runtime (Phase 2) ───
+
+export {
+  CloudflareSandboxRuntime,
+  BroadcastIterable,
+  pipeReadableStreamToLines,
+} from "./filepath-runtime";
+
+export type {
+  CloudflareSandboxRuntimeOptions,
+  SandboxInstance,
+  SandboxProcess,
+} from "./filepath-runtime";
+
 // ─── Authority / Governance (Phase 2) ───
 export {
   validateAuthority,
