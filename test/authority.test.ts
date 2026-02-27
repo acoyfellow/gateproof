@@ -1,9 +1,11 @@
 import { test, expect, describe } from "bun:test";
+import { Effect } from "effect";
 import {
   validateAuthority,
   mergeAuthority,
   flattenStoryTree,
 } from "../src/authority";
+import { Assert } from "../src/assert";
 import type { Log } from "../src/types";
 import type { StoryAuthority } from "../src/prd/types";
 
@@ -288,5 +290,58 @@ describe("flattenStoryTree", () => {
     ];
     const flat = flattenStoryTree(stories);
     expect(flat[1].parentId).toBe("other-parent");
+  });
+});
+
+// ─── Assert.authority() ───
+
+describe("Assert.authority()", () => {
+  test("passes when logs comply with policy", async () => {
+    const logs: Log[] = [
+      { action: "tool:read_file", status: "success", stage: "agent" },
+      { action: "tool:write_file", status: "success", stage: "agent" },
+      { action: "commit", status: "success", stage: "agent" },
+      { action: "done", status: "success", stage: "agent" },
+    ];
+    const assertion = Assert.authority({
+      canCommit: true,
+      canSpawn: false,
+    });
+    const result = await Effect.runPromise(
+      Assert.run([assertion], logs).pipe(Effect.either)
+    );
+    expect(result._tag).toBe("Right");
+  });
+
+  test("fails when agent violates policy", async () => {
+    const logs: Log[] = [
+      { action: "spawn", status: "start", data: { name: "w1", agent: "codex", model: "gpt-4o" } },
+      { action: "done", status: "success", stage: "agent" },
+    ];
+    const assertion = Assert.authority({
+      canSpawn: false,
+    });
+    const result = await Effect.runPromise(
+      Assert.run([assertion], logs).pipe(Effect.either)
+    );
+    expect(result._tag).toBe("Left");
+  });
+
+  test("works alongside other assertions", async () => {
+    const logs: Log[] = [
+      { action: "tool:read_file", status: "success", stage: "agent" },
+      { action: "done", status: "success", stage: "agent" },
+    ];
+    const result = await Effect.runPromise(
+      Assert.run(
+        [
+          Assert.authority({ canSpawn: false, canCommit: true }),
+          Assert.hasAction("done"),
+          Assert.noErrors(),
+        ],
+        logs
+      ).pipe(Effect.either)
+    );
+    expect(result._tag).toBe("Right");
   });
 });

@@ -4,6 +4,7 @@ import type { Prd, Story, GateResult } from "./types";
 import type { PrdReportV1, StoryResultV1, SerializableError } from "../report";
 import { serializeError } from "../report";
 import { validateScope, getDiffStats, type ScopeViolation } from "./scope-check";
+import { flattenStoryTree, mergeAuthority } from "../authority";
 
 export interface RunPrdResult {
   success: boolean;
@@ -255,7 +256,13 @@ export async function runPrd<TId extends string>(
     baseRef?: string;
   } = {}
 ): Promise<RunPrdResult> {
-  const levels = buildLevels(prd.stories);
+  // Flatten hierarchical stories (children[] → flat list with parentId)
+  // and merge authority policies from PRD defaults
+  const flatStories = flattenStoryTree(prd.stories).map((story) => ({
+    ...story,
+    authority: mergeAuthority(story.authority, prd.defaultAuthority),
+  }));
+  const levels = buildLevels(flatStories);
   const storyResults: StoryResultV1[] = [];
   const startTime = Date.now();
   const defaultForbidden = loadDefaultForbidden(cwd);

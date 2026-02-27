@@ -1,5 +1,7 @@
 import { Effect, Schema } from "effect";
 import type { Log } from "./types";
+import type { StoryAuthority } from "./prd/types";
+import { validateAuthority } from "./authority";
 
 export class AssertionFailed extends Schema.TaggedError<AssertionFailed>()(
   "AssertionFailed",
@@ -40,6 +42,37 @@ export namespace Assert {
     fn: (logs: Log[]) => boolean | Promise<boolean>
   ): Assertion {
     return { _tag: "Custom", fn, name };
+  }
+
+  /**
+   * Assert that agent behavior complied with an authority policy.
+   *
+   * Checks collected logs against governance rules: tool restrictions,
+   * spawn limits, commit permissions, agent/model constraints.
+   *
+   * @example
+   * ```ts
+   * assert: [
+   *   Assert.authority({
+   *     canSpawn: false,
+   *     canCommit: true,
+   *     forbiddenTools: ["delete_file"],
+   *   }),
+   *   Assert.hasAction("done"),
+   * ]
+   * ```
+   */
+  export function authority(policy: StoryAuthority): Assertion {
+    return custom("Authority", (logs) => {
+      const violations = validateAuthority(logs, policy);
+      if (violations.length > 0) {
+        for (const v of violations) {
+          console.warn(`[Authority] ${v.rule}: ${v.message}`);
+        }
+        return false;
+      }
+      return true;
+    });
   }
 
   export function run(
