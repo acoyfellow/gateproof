@@ -327,6 +327,7 @@ function printResult(report: GateSpec["report"], result: GateResult): void {
 }
 
 export { Act } from "./act";
+export type { AgentActConfig } from "./act";
 export { Assert } from "./assert";
 export type { Log, GateResult, LogFilter } from "./types";
 export type { ObserveResource } from "./observe";
@@ -336,3 +337,46 @@ export { createTestObserveResource } from "./test-helpers";
 export { createHttpObserveResource } from "./http-backend";
 export type { GateResultV1, PrdReportV1, StoryResultV1, SerializableError, LLMFailureSummary } from "./report";
 export { serializeError, toGateResultV1, createLLMFailureSummary, formatLLMFailureSummary } from "./report";
+
+// ─── Filepath Agent Protocol (Phase 2) ───
+export {
+  AgentEvent,
+  TextEvent,
+  ToolEvent,
+  CommandEvent,
+  CommitEvent,
+  SpawnEvent,
+  WorkersEvent,
+  StatusEvent,
+  HandoffEvent,
+  DoneEvent,
+  UserMessage,
+  SignalMessage,
+  AgentInput,
+  AgentStatus,
+  parseAgentEvent,
+  serializeInput,
+  agentEventToLog,
+  ndjsonLineToLog,
+} from "./filepath-protocol";
+
+export {
+  createFilepathBackend,
+  createFilepathObserveResource,
+  createMockFilepathContainer,
+} from "./filepath-backend";
+
+export type {
+  FilepathContainer,
+  FilepathRuntime,
+} from "./filepath-backend";
+
+export { setFilepathRuntime } from "./action-executors";
+
+// ─── Authority / Governance (Phase 2) ───
+export {
+  validateAuthority,
+  mergeAuthority,
+  flattenStoryTree,
+} from "./authority";
+export type { AuthorityViolation } from "./authority";
