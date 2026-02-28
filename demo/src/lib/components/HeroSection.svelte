@@ -5,22 +5,33 @@
   const npmUrl = "https://www.npmjs.com/package/gateproof";
 
   const exampleCode = `import { Gate, Act, Assert } from "gateproof";
-import { CloudflareProvider } from "gateproof/cloudflare";
+import { setFilepathRuntime, CloudflareSandboxRuntime, createFilepathObserveResource } from "gateproof";
+import { getSandbox } from "@cloudflare/sandbox";
 
-const provider = CloudflareProvider({
-  accountId: process.env.CLOUDFLARE_ACCOUNT_ID!,
-  apiToken: process.env.CLOUDFLARE_API_TOKEN!,
-});
+setFilepathRuntime(new CloudflareSandboxRuntime({
+  getSandbox: (cfg) => getSandbox(env.Sandbox, \`agent-\${cfg.name}\`),
+}));
 
 const result = await Gate.run({
-  name: "user-signup",
-  observe: provider.observe({ backend: "analytics", dataset: "worker_logs" }),
-  act: [Act.browser({ url: "https://app.example.com/signup" })],
+  name: "waitlist-signup",
+  observe: createFilepathObserveResource(container, "waitlist-feature"),
+  act: [Act.agent({
+    name: "waitlist-feature",
+    agent: "claude-code",
+    model: "claude-sonnet-4-20250514",
+    task: "Add the waitlist: landing form that POSTs to /api/waitlist, persist email in KV, show thank-you and current count.",
+    timeoutMs: 300_000,
+  })],
   assert: [
-    Assert.hasAction("user_created"),
-    Assert.noErrors(),
+    Assert.hasAction("commit"),
+    Assert.hasAction("done"),
+    Assert.authority({
+      canCommit: true,
+      canSpawn: false,
+      forbiddenTools: ["delete_file"],
+    }),
   ],
-  stop: { maxMs: 15_000 },
+  stop: { maxMs: 300_000 },
 });
 
 if (result.status !== "success") process.exit(1);`;
