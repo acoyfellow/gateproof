@@ -87,7 +87,7 @@ export function createAnalyticsBackend(
       });
       
       return rows;
-    });
+    }).pipe(Effect.withSpan("AnalyticsBackend.fetchRows"));
   };
 
   const parseRow = (row: Row): Log | null => {

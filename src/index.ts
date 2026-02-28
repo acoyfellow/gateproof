@@ -92,7 +92,7 @@ function makeLogTimeoutError(
 
 function runAction(action: Action): Effect.Effect<void, GateError> {
   const executor = getActionExecutor(action);
-  return executor.execute(action);
+  return executor.execute(action).pipe(Effect.withSpan("runAction"));
 }
 
 /**
@@ -180,7 +180,7 @@ function collectLogs(
 
     // No logs collected after waiting – return empty array.
     return [];
-  });
+  }).pipe(Effect.withSpan("collectLogs"));
 }
 
 function handleGateError(
@@ -206,7 +206,7 @@ export namespace Gate {
   export function runEffect(
     spec: GateSpec
   ): Effect.Effect<GateResult, GateErrorType, Scope.Scope> {
-    return Effect.acquireUseRelease(
+    return Effect.withSpan(Effect.acquireUseRelease(
       spec.observe.start().pipe(
         Effect.catchAll((error) =>
           Effect.fail(new GateError({ cause: error }))
@@ -301,7 +301,7 @@ export namespace Gate {
             ),
             Effect.catchAll(() => Effect.void)
           )
-    );
+    ), "Gate.runEffect");
   }
 }
 

@@ -1,5 +1,5 @@
 import { spawn } from "node:child_process";
-import { Effect, Queue, Either } from "effect";
+import { Effect, Queue, Either, Runtime } from "effect";
 import type { Log, LogStream } from "../types";
 import { ObservabilityError, createLogStreamFromQueue, createObservabilityError, type Backend } from "../observe";
 
@@ -33,7 +33,7 @@ function parseLogLine(line: string): Effect.Effect<Log, ObservabilityError> {
     }
     
     return parsed as Log;
-  });
+  }).pipe(Effect.withSpan("CliStream.parseLogLine"));
 }
 
 export function createCliStreamBackend(
@@ -84,10 +84,11 @@ export function createCliStreamBackend(
           yield* Effect.fail(createObservabilityError(new Error("Failed to spawn wrangler")));
         }
 
+        const runtime = Runtime.defaultRuntime;
         proc.stdout!.on("data", (buf: Buffer) => {
           const lines = buf.toString("utf8").split("\n").filter(Boolean);
           for (const line of lines) {
-            void Effect.runPromise(
+            Runtime.runPromise(runtime)(
               parseLogLine(line).pipe(
                 Effect.flatMap((log) => Queue.offer(queue, log)),
                 Effect.tapError((error) =>
@@ -95,7 +96,7 @@ export function createCliStreamBackend(
                 ),
                 Effect.catchAll(() => Effect.void)
               )
-            ).catch(() => {});
+            );
           }
         });
 

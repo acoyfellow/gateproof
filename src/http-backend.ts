@@ -1,4 +1,4 @@
-import { Effect, Queue } from "effect";
+import { Effect, Queue, Ref, Fiber, Schedule } from "effect";
 import type { Log } from "./types";
 import { createLogStreamFromQueue, type ObserveResource } from "./observe";
 import {
@@ -38,64 +38,88 @@ export interface HttpObserveConfig {
  * This gives agents visibility into what the endpoint is returning.
  */
 export function createHttpObserveResource(config: HttpObserveConfig): ObserveResource {
-  let queue: Queue.Queue<Log> | null = null;
-  let stopped = false;
-  let pollTimer: ReturnType<typeof setInterval> | null = null;
-
   const maxRetries = config.maxRetries ?? 2;
   const circuitBreakerThreshold = config.circuitBreakerThreshold ?? 5;
   const baseInterval = config.pollInterval ?? HTTP_DEFAULT_POLL_INTERVAL_MS;
-  let consecutiveFailures = 0;
-  let circuitOpen = false;
+  const timeoutMs = config.timeoutMs ?? HTTP_DEFAULT_TIMEOUT_MS;
+  const maxResponseSizeBytes = config.maxResponseSizeBytes ?? HTTP_MAX_RESPONSE_SIZE_BYTES;
 
-  const fetchOnce = async (timeoutMs: number): Promise<Response> => {
-    return fetch(config.url, {
+  const stoppedRef = Ref.unsafeMake(false);
+  const consecutiveFailuresRef = Ref.unsafeMake(0);
+  const circuitOpenRef = Ref.unsafeMake(false);
+  const fiberRef = Ref.unsafeMake<Fiber.RuntimeFiber<void, never> | null>(null);
+
+  const fetchOnce = Effect.tryPromise({
+    try: () => fetch(config.url, {
       method: config.method || "GET",
       headers: config.headers,
       body: config.body,
       signal: AbortSignal.timeout(timeoutMs),
-    });
-  };
+    }),
+    catch: (e) => e as Error
+  });
 
-  const fetchWithRetry = async (timeoutMs: number): Promise<Response> => {
-    let lastError: unknown;
-    for (let attempt = 0; attempt <= maxRetries; attempt++) {
-      try {
-        return await fetchOnce(timeoutMs);
-      } catch (err) {
-        lastError = err;
-        if (attempt < maxRetries) {
-          const backoffMs = 500 * Math.pow(2, attempt); // 500ms, 1s, 2s
-          await new Promise((r) => setTimeout(r, backoffMs));
+  const fetchWithRetry = fetchOnce.pipe(
+    Effect.retry(
+      Schedule.exponential("500 millis").pipe(
+        Schedule.compose(Schedule.recurs(maxRetries))
+      )
+    )
+  );
+
+  const pollOnce = (queue: Queue.Queue<Log>): Effect.Effect<void> =>
+    Effect.gen(function* () {
+      const isStopped = yield* Ref.get(stoppedRef);
+      if (isStopped) return;
+
+      const startTime = Date.now();
+      const requestId = crypto.randomUUID();
+      const action = `${config.method || "GET"} ${config.url}`;
+
+      const result = yield* fetchWithRetry.pipe(Effect.either);
+
+      if (result._tag === "Left") {
+        const failures = yield* Ref.updateAndGet(consecutiveFailuresRef, (n) => n + 1);
+        const error = result.left instanceof Error ? result.left : new Error(String(result.left));
+        const durationMs = Date.now() - startTime;
+        const isCircuitOpen = failures >= circuitBreakerThreshold;
+
+        if (isCircuitOpen) {
+          yield* Ref.set(circuitOpenRef, true);
         }
+
+        const log: Log = {
+          requestId,
+          timestamp: new Date().toISOString(),
+          stage: "http",
+          action,
+          status: "error",
+          durationMs,
+          error: {
+            tag: isCircuitOpen ? "HttpCircuitOpen" : (error.name || "HttpError"),
+            message: isCircuitOpen
+              ? `${failures} consecutive failures, backing off: ${error.message}`
+              : (error.message || String(error)),
+            stack: error.stack,
+          },
+        };
+
+        yield* Queue.offer(queue, log).pipe(
+          Effect.tapError((enqueueError) =>
+            Effect.logError("Failed to enqueue HTTP error log", enqueueError)
+          ),
+          Effect.catchAll(() => Effect.void)
+        );
+        return;
       }
-    }
-    throw lastError;
-  };
 
-  const poll = async () => {
-    if (stopped || !queue) return;
+      // Success — reset circuit breaker
+      yield* Ref.set(consecutiveFailuresRef, 0);
+      yield* Ref.set(circuitOpenRef, false);
 
-    const startTime = Date.now();
-    const requestId = crypto.randomUUID();
-
-    const timeoutMs = config.timeoutMs ?? HTTP_DEFAULT_TIMEOUT_MS;
-    const maxResponseSizeBytes = config.maxResponseSizeBytes ?? HTTP_MAX_RESPONSE_SIZE_BYTES;
-
-    try {
-      const response = await fetchWithRetry(timeoutMs);
-
-      // Reset circuit breaker on success; restore normal interval if recovering
-      if (circuitOpen && pollTimer) {
-        clearInterval(pollTimer);
-        pollTimer = setInterval(() => poll(), baseInterval);
-        circuitOpen = false;
-      }
-      consecutiveFailures = 0;
-
+      const response = result.right;
       const durationMs = Date.now() - startTime;
       const contentType = response.headers.get("content-type") || "";
-      let body: unknown = null;
 
       const contentLengthHeader = response.headers.get("content-length");
       const contentLength = contentLengthHeader ? Number(contentLengthHeader) : undefined;
@@ -105,7 +129,7 @@ export function createHttpObserveResource(config: HttpObserveConfig): ObserveRes
           requestId,
           timestamp: new Date().toISOString(),
           stage: "http",
-          action: `${config.method || "GET"} ${config.url}`,
+          action,
           status: "error",
           durationMs,
           error: {
@@ -114,28 +138,33 @@ export function createHttpObserveResource(config: HttpObserveConfig): ObserveRes
           },
         };
 
-        await Effect.runPromise(
-          Queue.offer(queue, log).pipe(
-            Effect.tapError((error) =>
-              Effect.logError("Failed to enqueue HTTP size-limit log", error)
-            ),
-            Effect.catchAll(() => Effect.void)
-          )
+        yield* Queue.offer(queue, log).pipe(
+          Effect.tapError((error) =>
+            Effect.logError("Failed to enqueue HTTP size-limit log", error)
+          ),
+          Effect.catchAll(() => Effect.void)
         );
         return;
       }
 
+      let body: unknown = null;
       if (contentType.includes("application/json")) {
-        body = await response.json().catch(() => null);
+        body = yield* Effect.tryPromise({
+          try: () => response.json(),
+          catch: () => null
+        }).pipe(Effect.catchAll(() => Effect.succeed(null)));
       } else {
-        body = await response.text().catch(() => null);
+        body = yield* Effect.tryPromise({
+          try: () => response.text(),
+          catch: () => null
+        }).pipe(Effect.catchAll(() => Effect.succeed(null)));
       }
 
       const log: Log = {
         requestId,
         timestamp: new Date().toISOString(),
         stage: "http",
-        action: `${config.method || "GET"} ${config.url}`,
+        action,
         status: response.ok ? "success" : "error",
         durationMs,
         data: {
@@ -147,83 +176,66 @@ export function createHttpObserveResource(config: HttpObserveConfig): ObserveRes
         },
       };
 
-      await Effect.runPromise(
-        Queue.offer(queue, log).pipe(
-          Effect.tapError((error) =>
-            Effect.logError("Failed to enqueue HTTP log", error)
-          ),
-          Effect.catchAll(() => Effect.void)
-        )
+      yield* Queue.offer(queue, log).pipe(
+        Effect.tapError((error) =>
+          Effect.logError("Failed to enqueue HTTP log", error)
+        ),
+        Effect.catchAll(() => Effect.void)
       );
-    } catch (unknownError) {
-      consecutiveFailures++;
-      const error = unknownError instanceof Error ? unknownError : new Error(String(unknownError));
-      const durationMs = Date.now() - startTime;
+    }).pipe(Effect.withSpan("HttpBackend.pollOnce"));
 
-      const isCircuitOpen = consecutiveFailures >= circuitBreakerThreshold;
-      const log: Log = {
-        requestId,
-        timestamp: new Date().toISOString(),
-        stage: "http",
-        action: `${config.method || "GET"} ${config.url}`,
-        status: "error",
-        durationMs,
-        error: {
-          tag: isCircuitOpen ? "HttpCircuitOpen" : (error.name || "HttpError"),
-          message: isCircuitOpen
-            ? `${consecutiveFailures} consecutive failures, backing off: ${error.message}`
-            : (error.message || String(error)),
-          stack: error.stack,
-        },
-      };
+  const pollLoop = (queue: Queue.Queue<Log>): Effect.Effect<void> =>
+    Effect.gen(function* () {
+      while (true) {
+        const isStopped = yield* Ref.get(stoppedRef);
+        if (isStopped) break;
 
-      await Effect.runPromise(
-        Queue.offer(queue, log).pipe(
-          Effect.tapError((enqueueError) =>
-            Effect.logError("Failed to enqueue HTTP error log", enqueueError)
-          ),
-          Effect.catchAll(() => Effect.void)
-        )
-      );
+        yield* pollOnce(queue);
 
-      // Circuit breaker: reschedule at a slower rate
-      if (isCircuitOpen && !circuitOpen && pollTimer) {
-        clearInterval(pollTimer);
-        pollTimer = setInterval(() => poll(), baseInterval * 5);
-        circuitOpen = true;
+        // Circuit breaker: use slower interval when open
+        const isCircuitOpen = yield* Ref.get(circuitOpenRef);
+        const interval = isCircuitOpen ? baseInterval * 5 : baseInterval;
+        yield* Effect.sleep(`${interval} millis`);
       }
-    }
-  };
+    });
 
   return {
     start() {
       return Effect.gen(function* () {
-        stopped = false;
-        consecutiveFailures = 0;
-        queue = yield* Queue.bounded<Log>(1000);
+        yield* Ref.set(stoppedRef, false);
+        yield* Ref.set(consecutiveFailuresRef, 0);
+        yield* Ref.set(circuitOpenRef, false);
+        const queue = yield* Queue.bounded<Log>(1000);
 
         // Initial poll
-        yield* Effect.promise(() => poll());
+        yield* pollOnce(queue);
 
         // Start polling loop
-        const interval = config.pollInterval ?? HTTP_DEFAULT_POLL_INTERVAL_MS;
-        pollTimer = setInterval(() => poll(), interval);
+        const fiber = yield* Effect.forkDaemon(
+          pollLoop(queue).pipe(
+            Effect.tapError((error) =>
+              Effect.logError("HTTP polling failed", error)
+            )
+          )
+        );
+        yield* Ref.set(fiberRef, fiber);
 
         return createLogStreamFromQueue(queue);
-      });
+      }).pipe(Effect.withSpan("HttpBackend.start"));
     },
     stop() {
       return Effect.gen(function* () {
-        stopped = true;
-        if (pollTimer) {
-          clearInterval(pollTimer);
-          pollTimer = null;
+        yield* Ref.set(stoppedRef, true);
+        const fiber = yield* Ref.get(fiberRef);
+        if (fiber) {
+          yield* Fiber.interrupt(fiber);
+          yield* Ref.set(fiberRef, null);
         }
-      });
+      }).pipe(Effect.withSpan("HttpBackend.stop"));
     },
     /**
      * Query historical logs.
-     * 
+     *
      * Note: HTTP backend is forward-only and does not maintain historical logs.
      * This method always returns an empty array because HTTP polling only captures
      * logs as they arrive in real-time. For querying historical logs, use a backend

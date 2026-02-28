@@ -51,7 +51,7 @@ export function createWorkersLogsBackend(
         }
         return false;
       });
-    });
+    }).pipe(Effect.withSpan("WorkersLogsBackend.fetchLogs"));
   };
 
   const backend: PollingBackend<Log> = {

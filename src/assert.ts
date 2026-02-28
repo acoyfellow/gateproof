@@ -139,6 +139,6 @@ export namespace Assert {
           yield* Effect.fail(new AssertionAggregateFailed({ failures }));
         }
       }
-    });
+    }).pipe(Effect.withSpan("Assert.run"));
   }
 }

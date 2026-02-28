@@ -17,7 +17,7 @@ export const WaitExecutor: ActionExecutor = {
     if (action.ms < 0 || action.ms > 3600000) {
       return Effect.fail(new GateError({ cause: new Error("Wait time must be between 0 and 3600000ms") }));
     }
-    return Effect.sleep(`${action.ms} millis`);
+    return Effect.sleep(`${action.ms} millis`).pipe(Effect.withSpan("WaitExecutor.execute"));
   }
 };
 
@@ -50,7 +50,7 @@ export const DeployExecutor: ActionExecutor = {
         Effect.retry(Schedule.exponential("1 second").pipe(Schedule.compose(Schedule.recurs(2)))),
         Effect.catchTag("TimeoutException", (e) => Effect.fail(new GateError({ cause: e })))
       );
-    });
+    }).pipe(Effect.withSpan("DeployExecutor.execute"));
   }
 };
 
@@ -93,7 +93,7 @@ export const ExecExecutor: ActionExecutor = {
         Effect.retry(Schedule.exponential("100 millis").pipe(Schedule.compose(Schedule.recurs(3)))),
         Effect.catchTag("TimeoutException", (e) => Effect.fail(new GateError({ cause: e })))
       );
-    });
+    }).pipe(Effect.withSpan("ExecExecutor.execute"));
   }
 };
 
@@ -107,15 +107,11 @@ export const BrowserExecutor: ActionExecutor = {
       yield* Effect.acquireUseRelease(
         Effect.tryPromise({
           try: async () => {
-            try {
-              const pw = await import("playwright");
-              const browser: Browser = await pw.chromium.launch({ headless: action.headless });
-              return browser;
-            } catch (e) {
-              throw new Error(`Playwright not available: ${e instanceof Error ? e.message : String(e)}`);
-            }
+            const pw = await import("playwright");
+            const browser: Browser = await pw.chromium.launch({ headless: action.headless });
+            return browser;
           },
-          catch: (e) => new GateError({ cause: e })
+          catch: (e) => new GateError({ cause: new Error(`Playwright not available: ${e instanceof Error ? e.message : String(e)}`) })
         }),
         (browser) =>
           Effect.gen(function* () {
@@ -138,7 +134,7 @@ export const BrowserExecutor: ActionExecutor = {
         Effect.timeout(`${(action.waitMs ?? 5000) + 10000} millis`),
         Effect.catchTag("TimeoutException", (e) => Effect.fail(new GateError({ cause: e })))
       );
-    });
+    }).pipe(Effect.withSpan("BrowserExecutor.execute"));
   }
 };
 
@@ -205,7 +201,7 @@ export function createAgentExecutor(runtime?: FilepathRuntime): ActionExecutor {
             )
           )
         );
-      });
+      }).pipe(Effect.withSpan("AgentExecutor.execute"));
     },
   };
 }
@@ -232,7 +228,9 @@ export function getActionExecutor(action: Action): ActionExecutor {
       return BrowserExecutor;
     case "Agent":
       return createAgentExecutor(_agentRuntime);
-    default:
-      throw new Error("Unknown action type");
+    default: {
+      const _exhaustive: never = action;
+      return { execute: () => Effect.die(new Error(`Unknown action type: ${(action as Action)._tag}`)) };
+    }
   }
 }

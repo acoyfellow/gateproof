@@ -36,21 +36,26 @@ export function createEmptyObserveResource() {
  * Runs a gate with standardized error handling
  * Returns a result object with consistent structure even on errors
  */
-export async function runGateWithErrorHandling(
+export function runGateWithErrorHandling(
   gate: GateSpec,
-  name: string
+  _name: string
 ): Promise<GateResult> {
-  try {
-    return await Gate.run(gate);
-  } catch (unknownError) {
-    const error = unknownError instanceof Error ? unknownError : new Error(String(unknownError));
-    console.error(`   ❌ Error: ${error.message}`);
-    return {
-      status: "failed" as const,
-      durationMs: 0,
-      logs: [],
-      evidence: { actionsSeen: [], errorTags: [], requestIds: [], stagesSeen: [] },
-      error: error instanceof Error ? error : new Error(String(error)),
-    };
-  }
+  return Effect.runPromise(
+    Effect.tryPromise({
+      try: () => Gate.run(gate),
+      catch: (unknownError) => unknownError
+    }).pipe(
+      Effect.catchAll((unknownError) => {
+        const error = unknownError instanceof Error ? unknownError : new Error(String(unknownError));
+        console.error(`   Error: ${error.message}`);
+        return Effect.succeed({
+          status: "failed" as const,
+          durationMs: 0,
+          logs: [],
+          evidence: { actionsSeen: [], errorTags: [], requestIds: [], stagesSeen: [] },
+          error,
+        } as GateResult);
+      })
+    )
+  );
 }
