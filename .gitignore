@@ -10,3 +10,4 @@ coverage/
 .vscode/
 .gateproof/*.json
 !.gateproof/scope.defaults.json
+.alchemy/
