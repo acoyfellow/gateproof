@@ -92,7 +92,7 @@ function makeLogTimeoutError(
 
 function runAction(action: Action): Effect.Effect<void, GateError> {
   const executor = getActionExecutor(action);
-  return executor.execute(action);
+  return executor.execute(action).pipe(Effect.withSpan("runAction"));
 }
 
 /**
@@ -180,7 +180,7 @@ function collectLogs(
 
     // No logs collected after waiting – return empty array.
     return [];
-  });
+  }).pipe(Effect.withSpan("collectLogs"));
 }
 
 function handleGateError(
@@ -206,7 +206,7 @@ export namespace Gate {
   export function runEffect(
     spec: GateSpec
   ): Effect.Effect<GateResult, GateErrorType, Scope.Scope> {
-    return Effect.acquireUseRelease(
+    return Effect.withSpan(Effect.acquireUseRelease(
       spec.observe.start().pipe(
         Effect.catchAll((error) =>
           Effect.fail(new GateError({ cause: error }))
@@ -301,7 +301,7 @@ export namespace Gate {
             ),
             Effect.catchAll(() => Effect.void)
           )
-    );
+    ), "Gate.runEffect");
   }
 }
 
@@ -327,6 +327,7 @@ function printResult(report: GateSpec["report"], result: GateResult): void {
 }
 
 export { Act } from "./act";
+export type { AgentActConfig } from "./act";
 export { Assert } from "./assert";
 export type { Log, GateResult, LogFilter } from "./types";
 export type { ObserveResource } from "./observe";
@@ -336,3 +337,60 @@ export { createTestObserveResource } from "./test-helpers";
 export { createHttpObserveResource } from "./http-backend";
 export type { GateResultV1, PrdReportV1, StoryResultV1, SerializableError, LLMFailureSummary } from "./report";
 export { serializeError, toGateResultV1, createLLMFailureSummary, formatLLMFailureSummary } from "./report";
+
+// ─── Filepath Agent Protocol (Phase 2) ───
+export {
+  AgentEvent,
+  TextEvent,
+  ToolEvent,
+  CommandEvent,
+  CommitEvent,
+  SpawnEvent,
+  WorkersEvent,
+  StatusEvent,
+  HandoffEvent,
+  DoneEvent,
+  UserMessage,
+  SignalMessage,
+  AgentInput,
+  AgentStatus,
+  parseAgentEvent,
+  serializeInput,
+  agentEventToLog,
+  ndjsonLineToLog,
+} from "./filepath-protocol";
+
+export {
+  createFilepathBackend,
+  createFilepathObserveResource,
+  createMockFilepathContainer,
+} from "./filepath-backend";
+
+export type {
+  FilepathContainer,
+  FilepathRuntime,
+} from "./filepath-backend";
+
+export { setFilepathRuntime } from "./action-executors";
+
+// ─── Cloudflare Sandbox Runtime (Phase 2) ───
+
+export {
+  CloudflareSandboxRuntime,
+  BroadcastIterable,
+  pipeReadableStreamToLines,
+} from "./filepath-runtime";
+
+export type {
+  CloudflareSandboxRuntimeOptions,
+  SandboxInstance,
+  SandboxProcess,
+} from "./filepath-runtime";
+
+// ─── Authority / Governance (Phase 2) ───
+export {
+  validateAuthority,
+  mergeAuthority,
+  flattenStoryTree,
+} from "./authority";
+export type { AuthorityViolation } from "./authority";

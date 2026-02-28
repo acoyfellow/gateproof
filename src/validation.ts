@@ -12,15 +12,17 @@ export function validateWorkerName(name: string): Effect.Effect<string, GateErro
 }
 
 export function validateUrl(url: string): Effect.Effect<string, GateError> {
-  try {
-    const parsed = new URL(url);
-    if (!["http:", "https:"].includes(parsed.protocol)) {
-      return Effect.fail(new GateError({ cause: new Error("URL must use http or https protocol") }));
-    }
-    return Effect.succeed(url);
-  } catch {
-    return Effect.fail(new GateError({ cause: new Error("Invalid URL format") }));
-  }
+  return Effect.try({
+    try: () => new URL(url),
+    catch: () => new GateError({ cause: new Error("Invalid URL format") })
+  }).pipe(
+    Effect.flatMap((parsed) => {
+      if (!["http:", "https:"].includes(parsed.protocol)) {
+        return Effect.fail(new GateError({ cause: new Error("URL must use http or https protocol") }));
+      }
+      return Effect.succeed(url);
+    })
+  );
 }
 
 export function validateCommand(command: string): Effect.Effect<string, GateError> {

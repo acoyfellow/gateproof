@@ -78,9 +78,13 @@
     "zod": "^4.3.6"
   },
   "peerDependencies": {
+    "@cloudflare/sandbox": "",
     "playwright": ""
   },
   "peerDependenciesMeta": {
+    "@cloudflare/sandbox": {
+      "optional": true
+    },
     "playwright": {
       "optional": true
     }

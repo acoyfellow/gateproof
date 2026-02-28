@@ -19,7 +19,7 @@ export function createPollingBackend<T>(
   stop(): Effect.Effect<void, ObservabilityError>;
 } {
   const stoppedRef = Ref.unsafeMake(false);
-  let fiberRef: Fiber.RuntimeFiber<void, ObservabilityError> | null = null;
+  const fiberRef = Ref.unsafeMake<Fiber.RuntimeFiber<void, ObservabilityError> | null>(null);
 
   return {
     start() {
@@ -69,7 +69,7 @@ export function createPollingBackend<T>(
             )
           )
         );
-        fiberRef = fiber;
+        yield* Ref.set(fiberRef, fiber);
 
         return createLogStreamFromQueue(queue);
       });
@@ -77,9 +77,10 @@ export function createPollingBackend<T>(
     stop() {
       return Effect.gen(function* () {
         yield* Ref.set(stoppedRef, true);
-        if (fiberRef) {
-          yield* Fiber.interrupt(fiberRef);
-          fiberRef = null;
+        const fiber = yield* Ref.get(fiberRef);
+        if (fiber) {
+          yield* Fiber.interrupt(fiber);
+          yield* Ref.set(fiberRef, null);
         }
       });
     }

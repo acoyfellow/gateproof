@@ -100,6 +100,50 @@ await gate("checkout-flow", {
 });
 ```
 
+## Agent gates
+
+Spawn an AI agent in an isolated container, observe its NDJSON event stream, and assert what it's allowed to do.
+
+```ts
+import { Gate, Act, Assert } from "gateproof";
+import { setFilepathRuntime, CloudflareSandboxRuntime } from "gateproof";
+import { getSandbox } from "@cloudflare/sandbox";
+
+// 1. Wire up your container runtime (once at startup)
+setFilepathRuntime(new CloudflareSandboxRuntime({
+  getSandbox: (config) => getSandbox(env.Sandbox, `agent-${config.name}`),
+}));
+
+// 2. Run the gate
+const container = await runtime.spawn({
+  name: "fix-auth",
+  agent: "claude-code",
+  model: "claude-sonnet-4-20250514",
+  task: "Fix the null pointer in src/auth.ts",
+});
+
+const observe = createFilepathObserveResource(container, "fix-auth");
+
+await Gate.run({
+  name: "fix-auth-bug",
+  observe,
+  act: [Act.wait(300_000)],
+  assert: [
+    Assert.noErrors(),
+    Assert.hasAction("commit"),
+    Assert.hasAction("done"),
+    Assert.authority({
+      canCommit: true,
+      canSpawn: false,
+      forbiddenTools: ["delete_file"],
+    }),
+  ],
+  stop: { idleMs: 5000, maxMs: 300_000 },
+});
+```
+
+`Assert.authority()` enforces governance policies against the agent's actual behavior — what it committed, spawned, and which tools it used.
+
 ## Writing good gates
 
 The hardest part of gateproof is not the library — it's writing gates that actually prove what you think they prove.

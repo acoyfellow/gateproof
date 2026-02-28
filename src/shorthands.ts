@@ -385,6 +385,86 @@ export function not(assertion: Assertion): Assertion {
   );
 }
 
+/**
+ * Agent action helpers — shortcuts for running AI agents in Filepath containers.
+ *
+ * @example
+ * ```ts
+ * import { agentAct } from "gateproof/shorthands";
+ *
+ * const result = await gate("fix-auth", {
+ *   act: agentAct.run({
+ *     name: "fix-auth",
+ *     agent: "claude-code",
+ *     model: "claude-sonnet-4-20250514",
+ *     task: "Fix the authentication bug in src/auth.ts",
+ *   }),
+ *   assert: [hasAction("commit"), noErrors()],
+ * });
+ * ```
+ */
+export const agentAct = {
+  /**
+   * Run an AI agent in a Filepath container
+   */
+  run(config: import("./act").AgentActConfig): Action {
+    return Act.agent(config);
+  },
+
+  /**
+   * Run Claude Code agent with a task
+   */
+  claudeCode(task: string, options?: Partial<import("./act").AgentActConfig>): Action {
+    return Act.agent({
+      name: options?.name ?? "claude-code",
+      agent: "claude-code",
+      model: options?.model ?? "claude-sonnet-4-20250514",
+      task,
+      ...options,
+    });
+  },
+
+  /**
+   * Run Codex agent with a task
+   */
+  codex(task: string, options?: Partial<import("./act").AgentActConfig>): Action {
+    return Act.agent({
+      name: options?.name ?? "codex",
+      agent: "codex",
+      model: options?.model ?? "gpt-4o",
+      task,
+      ...options,
+    });
+  },
+};
+
+/**
+ * Creates a gate that runs an AI agent and checks for commits/completion.
+ *
+ * @example
+ * ```ts
+ * const result = await agentGate("fix-bug", {
+ *   agent: "claude-code",
+ *   model: "claude-sonnet-4-20250514",
+ *   task: "Fix the off-by-one error in pagination.ts",
+ * });
+ * ```
+ */
+export async function agentGate(
+  name: string,
+  config: Omit<import("./act").AgentActConfig, "name"> & { name?: string },
+  options?: {
+    observe?: ObserveResource;
+    assert?: Assertion | Assertion[];
+  }
+): Promise<GateResult> {
+  return gate(name, {
+    observe: options?.observe,
+    act: Act.agent({ name: config.name ?? name, ...config } as import("./act").AgentActConfig),
+    assert: options?.assert ?? [hasAction("done"), noErrors()],
+  });
+}
+
 // Re-export Gate for escape hatch to full API
 export { Gate };
 export type { GateSpec, GateResult, Log, Assertion, Action, ObserveResource };

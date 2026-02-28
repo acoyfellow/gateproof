@@ -3,6 +3,7 @@ import type { Browser, Page } from "playwright";
 import type { Action } from "./act";
 import { GateError } from "./index";
 import { validateCommand, validateUrl, validateWorkerName } from "./validation";
+import type { FilepathRuntime } from "./filepath-backend";
 
 export interface ActionExecutor {
   execute(action: Action): Effect.Effect<void, GateError>;
@@ -16,7 +17,7 @@ export const WaitExecutor: ActionExecutor = {
     if (action.ms < 0 || action.ms > 3600000) {
       return Effect.fail(new GateError({ cause: new Error("Wait time must be between 0 and 3600000ms") }));
     }
-    return Effect.sleep(`${action.ms} millis`);
+    return Effect.sleep(`${action.ms} millis`).pipe(Effect.withSpan("WaitExecutor.execute"));
   }
 };
 
@@ -49,7 +50,7 @@ export const DeployExecutor: ActionExecutor = {
         Effect.retry(Schedule.exponential("1 second").pipe(Schedule.compose(Schedule.recurs(2)))),
         Effect.catchTag("TimeoutException", (e) => Effect.fail(new GateError({ cause: e })))
       );
-    });
+    }).pipe(Effect.withSpan("DeployExecutor.execute"));
   }
 };
 
@@ -92,7 +93,7 @@ export const ExecExecutor: ActionExecutor = {
         Effect.retry(Schedule.exponential("100 millis").pipe(Schedule.compose(Schedule.recurs(3)))),
         Effect.catchTag("TimeoutException", (e) => Effect.fail(new GateError({ cause: e })))
       );
-    });
+    }).pipe(Effect.withSpan("ExecExecutor.execute"));
   }
 };
 
@@ -106,15 +107,11 @@ export const BrowserExecutor: ActionExecutor = {
       yield* Effect.acquireUseRelease(
         Effect.tryPromise({
           try: async () => {
-            try {
-              const pw = await import("playwright");
-              const browser: Browser = await pw.chromium.launch({ headless: action.headless });
-              return browser;
-            } catch (e) {
-              throw new Error(`Playwright not available: ${e instanceof Error ? e.message : String(e)}`);
-            }
+            const pw = await import("playwright");
+            const browser: Browser = await pw.chromium.launch({ headless: action.headless });
+            return browser;
           },
-          catch: (e) => new GateError({ cause: e })
+          catch: (e) => new GateError({ cause: new Error(`Playwright not available: ${e instanceof Error ? e.message : String(e)}`) })
         }),
         (browser) =>
           Effect.gen(function* () {
@@ -137,9 +134,87 @@ export const BrowserExecutor: ActionExecutor = {
         Effect.timeout(`${(action.waitMs ?? 5000) + 10000} millis`),
         Effect.catchTag("TimeoutException", (e) => Effect.fail(new GateError({ cause: e })))
       );
-    });
+    }).pipe(Effect.withSpan("BrowserExecutor.execute"));
   }
 };
+
+/**
+ * Executes an AI agent in a Filepath container.
+ *
+ * The agent runs in an isolated container, communicating via the
+ * Filepath Agent Protocol (FAP). NDJSON events on stdout are consumed
+ * by the observe layer; this executor just manages the lifecycle.
+ *
+ * When no FilepathRuntime is configured, the executor fails with a
+ * clear error message — it does not silently skip.
+ */
+export function createAgentExecutor(runtime?: FilepathRuntime): ActionExecutor {
+  return {
+    execute(action) {
+      if (action._tag !== "Agent") {
+        return Effect.fail(new GateError({ cause: new Error("Invalid action") }));
+      }
+      if (!runtime) {
+        return Effect.fail(
+          new GateError({
+            cause: new Error(
+              "Act.agent() requires a FilepathRuntime. " +
+              "Provide one via createAgentExecutor(runtime) or use a mock for testing."
+            ),
+          })
+        );
+      }
+      const config = action.config;
+      const timeoutMs = config.timeoutMs ?? 300_000;
+      return Effect.gen(function* () {
+        const container = yield* Effect.tryPromise({
+          try: () => runtime.spawn(config),
+          catch: (e) =>
+            new GateError({
+              cause: new Error(
+                `Failed to spawn agent "${config.name}": ${e instanceof Error ? e.message : String(e)}`
+              ),
+            }),
+        });
+        // Wait for the container to finish (the observe layer reads stdout separately).
+        // We just need to ensure the container lifecycle completes within timeout.
+        yield* Effect.tryPromise({
+          try: async () => {
+            for await (const _line of container.stdout) {
+              // Drain stdout — the observe resource also reads this stream.
+              // In a real implementation, the container's stdout would be tee'd.
+            }
+          },
+          catch: (e) =>
+            new GateError({
+              cause: new Error(
+                `Agent "${config.name}" failed: ${e instanceof Error ? e.message : String(e)}`
+              ),
+            }),
+        }).pipe(
+          Effect.timeout(`${timeoutMs} millis`),
+          Effect.catchTag("TimeoutException", (e) =>
+            Effect.fail(
+              new GateError({
+                cause: new Error(`Agent "${config.name}" timed out after ${timeoutMs}ms`),
+              })
+            )
+          )
+        );
+      }).pipe(Effect.withSpan("AgentExecutor.execute"));
+    },
+  };
+}
+
+let _agentRuntime: FilepathRuntime | undefined;
+
+/**
+ * Set the global FilepathRuntime for agent execution.
+ * Call this once at startup if using Act.agent().
+ */
+export function setFilepathRuntime(runtime: FilepathRuntime): void {
+  _agentRuntime = runtime;
+}
 
 export function getActionExecutor(action: Action): ActionExecutor {
   switch (action._tag) {
@@ -151,7 +226,11 @@ export function getActionExecutor(action: Action): ActionExecutor {
       return ExecExecutor;
     case "Browser":
       return BrowserExecutor;
-    default:
-      throw new Error("Unknown action type");
+    case "Agent":
+      return createAgentExecutor(_agentRuntime);
+    default: {
+      const _exhaustive: never = action;
+      return { execute: () => Effect.die(new Error(`Unknown action type: ${(action as Action)._tag}`)) };
+    }
   }
 }

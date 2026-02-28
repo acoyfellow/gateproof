@@ -29,8 +29,7 @@ function stripContainersFromWrangler(): Plugin {
 export default defineConfig({
   resolve: {
     alias: {
-      "cloudflare:workers": resolve("./scripts/cloudflare-workers-stub.js"),
-      "$docs": resolve("./docs")
+      "cloudflare:workers": resolve("./scripts/cloudflare-workers-stub.js")
     }
   },
   plugins: [stripContainersFromWrangler(), tailwindcss(), sveltekit()],

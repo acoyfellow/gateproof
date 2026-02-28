@@ -22,7 +22,8 @@ export const docsNav: DocCategory[] = [
 			{ title: 'Accessibility', slug: 'how-to/accessibility' },
 			{ title: 'Run in CI', slug: 'how-to/run-in-ci' },
 			{ title: 'Run in a Loop', slug: 'how-to/run-in-a-loop' },
-			{ title: 'Write a PRD Story', slug: 'how-to/write-a-prd-story' }
+			{ title: 'Write a PRD Story', slug: 'how-to/write-a-prd-story' },
+			{ title: 'Run an Agent Gate', slug: 'how-to/run-an-agent-gate' }
 		]
 	},
 	{
