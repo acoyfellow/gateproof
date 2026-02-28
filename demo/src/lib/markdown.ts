@@ -66,17 +66,8 @@ export async function renderMarkdown(source: string): Promise<RenderResult> {
 		return `<pre><code class="language-${language}">${text}</code></pre>`;
 	};
 
-	// Rewrite internal doc links: docs/foo/bar.md → /docs/foo/bar
 	renderer.link = ({ href, text }: { href: string; text: string }) => {
-		let url = href;
-		// Handle relative doc links like ../how-to/add-a-gate.md or ./foo.md or foo.md
-		if (url && !url.startsWith('http') && !url.startsWith('#') && !url.startsWith('/')) {
-			url = url.replace(/\.md$/, '');
-			// Normalize: if it starts with docs/, strip that prefix since our route is /docs/
-			url = url.replace(/^docs\//, '');
-			url = `/docs/${url}`;
-		}
-		return `<a href="${url}">${text}</a>`;
+		return `<a href="${href}">${text}</a>`;
 	};
 
 	const html = await marked.parse(source, { renderer });
