@@ -1,7 +1,7 @@
 <script lang="ts">
   import CodeBlock from './CodeBlock.svelte';
   
-  type PatternId = 'e2e' | 'prd' | 'cloudflare' | 'ci-cd' | 'advanced';
+  type PatternId = 'e2e' | 'agent' | 'prd' | 'cloudflare' | 'ci-cd' | 'advanced';
 
   type Pattern = {
     id: PatternId;
@@ -48,6 +48,51 @@ const result = await Gate.run({
 });
 
 if (result.status !== "success") process.exit(1);`
+    },
+    {
+      id: 'agent',
+      tab: 'Agent Gate',
+      title: 'Agent gate: observe, govern, assert',
+      description: 'Spawn an AI agent in a container, watch its NDJSON event stream, and enforce authority policies.',
+      language: 'typescript',
+      code: `// patterns/agent-first/agent-gate.ts
+import { Gate, Act, Assert } from "gateproof";
+import { createFilepathObserveResource, setFilepathRuntime, CloudflareSandboxRuntime } from "gateproof";
+import { getSandbox } from "@cloudflare/sandbox";
+
+// Wire up the container runtime
+setFilepathRuntime(new CloudflareSandboxRuntime({
+  getSandbox: (config) => getSandbox(env.Sandbox, \`agent-\${config.name}\`),
+}));
+
+// Spawn the agent container
+const container = await runtime.spawn({
+  name: "fix-auth",
+  agent: "claude-code",
+  model: "claude-sonnet-4-20250514",
+  task: "Fix the null pointer in src/auth.ts",
+});
+
+// Observe its NDJSON stdout → structured logs
+const observe = createFilepathObserveResource(container, "fix-auth");
+
+const result = await Gate.run({
+  name: "fix-auth-bug",
+  observe,
+  act: [Act.wait(300_000)],
+  assert: [
+    Assert.noErrors(),
+    Assert.hasAction("commit"),
+    Assert.hasAction("done"),
+    // Governance: what is the agent allowed to do?
+    Assert.authority({
+      canCommit: true,
+      canSpawn: false,
+      forbiddenTools: ["delete_file"],
+    }),
+  ],
+  stop: { idleMs: 5000, maxMs: 300_000 },
+});`
     },
     {
       id: 'prd',

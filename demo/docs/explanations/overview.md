@@ -20,6 +20,28 @@ Gates observe logs/telemetry, perform actions, and assert evidence. This prevent
 
 - `docs/effect-and-schema.md` explains Effect and Schema design choices
 
+## Agent containers and authority
+
+Gateproof can observe AI agents running in isolated containers. The agent emits NDJSON events on stdout (tool calls, commits, status updates), and gateproof maps them to structured logs.
+
+`Assert.authority()` enforces governance policies against the agent's observed behavior:
+
+```ts
+Assert.authority({
+  canCommit: true,           // allowed to commit
+  canSpawn: false,           // must not spawn child agents
+  forbiddenTools: ["rm"],    // must not use these tools
+})
+```
+
+This turns "trust but verify" into "verify, then trust." The agent runs freely inside its container; the gate checks that it stayed within bounds.
+
+### Container runtime
+
+The real runtime uses Cloudflare Sandbox (`@cloudflare/sandbox`). The container's stdout is a `ReadableStream<Uint8Array>` that gets parsed into NDJSON lines and exposed as a broadcast `AsyncIterable<string>` — both the executor and observe layer can read concurrently without interference.
+
+For testing, use `createMockFilepathContainer()` to emit events without a real container.
+
 ## Agent prompt templates
 
 > Contributed by @grok

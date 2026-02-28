@@ -19,6 +19,44 @@ Act.wait(ms)                     // Sleep
 Act.deploy({ worker })           // Deploy marker
 ```
 
+## Agent Actions
+
+```ts
+Act.agent({
+  name: "fix-auth",               // Display name
+  agent: "claude-code",           // Agent type: "claude-code" | "codex" | "cursor" | image
+  model: "claude-sonnet-4-20250514",
+  task: "Fix the null pointer",   // Natural language task (→ FILEPATH_TASK env var)
+  repo?: "https://github.com/...",  // Git repo to clone into /workspace
+  env?: { KEY: "value" },         // Extra environment variables
+  timeoutMs?: 300_000,            // Default: 5 minutes
+})
+```
+
+## Container Runtime
+
+```ts
+import { setFilepathRuntime, CloudflareSandboxRuntime } from "gateproof";
+import { getSandbox } from "@cloudflare/sandbox";
+
+// Register once at startup
+setFilepathRuntime(new CloudflareSandboxRuntime({
+  getSandbox: (config) => getSandbox(env.Sandbox, `agent-${config.name}`),
+  command?: (config) => ["my-agent", "--model", config.model],  // Override entrypoint
+}));
+```
+
+Or spawn containers manually and observe them directly:
+
+```ts
+import { createFilepathObserveResource } from "gateproof";
+
+const container = await runtime.spawn(config);
+const observe = createFilepathObserveResource(container, "my-agent");
+```
+
+The container's stdout must emit NDJSON (one JSON object per line). Supported event types: `text`, `tool`, `command`, `commit`, `spawn`, `workers`, `status`, `handoff`, `done`.
+
 ## Assertions
 
 ```ts
@@ -26,7 +64,14 @@ Assert.noErrors()
 Assert.hasAction("name")
 Assert.hasStage("stage")
 Assert.custom("name", (logs) => boolean)
+Assert.authority({
+  canCommit: true,          // Agent is allowed to commit
+  canSpawn: false,          // Agent must NOT spawn child agents
+  forbiddenTools: ["delete_file"],  // Tools the agent must not use
+})
 ```
+
+`Assert.authority()` checks the agent's actual behavior (commits, spawns, tool calls observed in logs) against the policy you define. Fails if the agent exceeded its authority.
 
 ## Shorthands (optional)
 
