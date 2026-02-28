@@ -30,6 +30,47 @@ This is a deliberate simplification. We trade random input generation and exhaus
 
 > Lineage: the *observe → act → assert* pattern draws on property-based testing ideas from [Chen, Rizkallah et al. — "Property-Based Testing: Climbing the Stairway to Verification" (SLE 2022)](https://doi.org/10.1145/3567512.3567520), which demonstrated that refinement properties can serve as a practical, incremental path toward verified systems.
 
+## When to scaffold vs when to gate
+
+Gates assume a running system. Scaffold enough that the agent has a shape to work within — directory structure, interface boundaries, a build that fails with missing implementations rather than missing files. Then write gates that define what done means. The agent's job is to make the gates pass, not to guess what they should be.
+
+**The most common mistake:** putting scaffolding inside gates.
+
+```ts
+// wrong — this gate creates what it asserts
+const gate = await Gate.run({
+  act: [
+    Act.exec("mkdir -p src"),
+    Act.exec("cargo init"),
+    Act.exec("cargo build"),  // now asserting something we just made
+  ],
+  assert: [Assert.noErrors()],
+});
+```
+
+This always passes on first run and tells you nothing. The gate didn't prove the system works — it built the system and then rubber-stamped it.
+
+**The fix:** scaffold outside the gate, then gate the result.
+
+```ts
+// scaffold phase (before gates, in setup scripts or agent preamble)
+// mkdir -p src && cargo init
+
+// gate phase — asserts against a system that already exists
+const gate = await Gate.run({
+  observe: createCliObserveResource(),
+  act: [Act.exec("cargo build --release")],
+  assert: [
+    Assert.noErrors(),
+    Assert.custom("compiled", (logs) =>
+      logs.some((l) => l.message?.includes("Finished"))
+    ),
+  ],
+});
+```
+
+A gate that an agent can't fail is not a gate. It's a script.
+
 ## Install
 
 ```bash
@@ -53,6 +94,27 @@ const result = await Gate.run({
 
 if (result.status !== "success") process.exit(1);
 ```
+
+## Local CLI observe
+
+For agents building locally, `createCliObserveResource` captures stdout and stderr from `Act.exec` calls within the same gate run and surfaces them as `Log[]` for the assert phase.
+
+```ts
+import { Gate, Act, Assert, createCliObserveResource } from "gateproof";
+
+const result = await Gate.run({
+  observe: createCliObserveResource(),
+  act: [Act.exec("cargo build --release")],
+  assert: [
+    Assert.noErrors(),
+    Assert.custom("compiled", (logs) =>
+      logs.some((l) => l.message?.includes("Finished"))
+    ),
+  ],
+});
+```
+
+Each line of process output becomes a log with `stage: "cli"` and `action: "stdout"` or `"stderr"`. Process start and exit are logged with `action: "exec"`. A non-zero exit code sets `status: "error"` on the exit log so `Assert.noErrors()` catches build failures.
 
 ## Stories + PRD
 

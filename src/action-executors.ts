@@ -1,8 +1,10 @@
 import { Effect, Schedule } from "effect";
 import type { Browser, Page } from "playwright";
 import type { Action } from "./act";
+import type { Log } from "./types";
 import { GateError } from "./index";
 import { validateCommand, validateUrl, validateWorkerName } from "./validation";
+import { hasActiveCliObservers, notifyCliObservers } from "./cli-observe";
 
 export interface ActionExecutor {
   execute(action: Action): Effect.Effect<void, GateError>;
@@ -75,11 +77,70 @@ export const ExecExecutor: ActionExecutor = {
           const { spawn } = await import("node:child_process");
           return new Promise<void>((resolve, reject) => {
             const proc = spawn(action.command, { shell: true, cwd: action.cwd });
+            const commandStartTime = Date.now();
+            const observing = hasActiveCliObservers();
             let stderr = "";
-            proc.stderr?.on("data", (data) => {
+
+            if (observing) {
+              notifyCliObservers({
+                timestamp: new Date().toISOString(),
+                stage: "cli",
+                action: "exec",
+                status: "start",
+                message: action.command,
+                data: { command: action.command, cwd: action.cwd },
+              } as Log);
+
+              proc.stdout?.on("data", (data: Buffer) => {
+                const lines = data.toString().split("\n").filter((l: string) => l.length > 0);
+                for (const line of lines) {
+                  notifyCliObservers({
+                    timestamp: new Date().toISOString(),
+                    stage: "cli",
+                    action: "stdout",
+                    status: "info",
+                    message: line,
+                    data: { stream: "stdout", command: action.command },
+                  } as Log);
+                }
+              });
+            }
+
+            proc.stderr?.on("data", (data: Buffer) => {
               stderr += data.toString();
+              if (observing) {
+                const lines = data.toString().split("\n").filter((l: string) => l.length > 0);
+                for (const line of lines) {
+                  notifyCliObservers({
+                    timestamp: new Date().toISOString(),
+                    stage: "cli",
+                    action: "stderr",
+                    status: "info",
+                    message: line,
+                    data: { stream: "stderr", command: action.command },
+                  } as Log);
+                }
+              }
             });
+
             proc.on("close", (code) => {
+              if (observing) {
+                const durationMs = Date.now() - commandStartTime;
+                const exitLog: Log = {
+                  timestamp: new Date().toISOString(),
+                  stage: "cli",
+                  action: "exec",
+                  status: code === 0 ? "success" : "error",
+                  message: `Command exited with code ${code}`,
+                  durationMs,
+                  data: { command: action.command, exitCode: code },
+                };
+                if (code !== 0) {
+                  exitLog.error = { tag: "ExecFailed", message: `Exit code ${code}` };
+                }
+                notifyCliObservers(exitLog);
+              }
+
               if (code === 0) resolve();
               else reject(new Error(`Command failed with code ${code}${stderr ? `: ${stderr}` : ""}`));
             });
