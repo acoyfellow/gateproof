@@ -4,16 +4,23 @@
   const githubUrl = "https://github.com/acoyfellow/gateproof";
   const npmUrl = "https://www.npmjs.com/package/gateproof";
 
-  const exampleCode = `import { Gate, Act, Assert, createHttpObserveResource } from "gateproof";
+  const exampleCode = `import { Gate, Act, Assert } from "gateproof";
+import { CloudflareProvider } from "gateproof/cloudflare";
+
+const provider = CloudflareProvider({
+  accountId: process.env.CLOUDFLARE_ACCOUNT_ID!,
+  apiToken: process.env.CLOUDFLARE_API_TOKEN!,
+});
 
 const result = await Gate.run({
-  name: "post-deploy",
-  observe: createHttpObserveResource({
-    url: "https://api.example.com/health",
-  }),
-  act: [Act.wait(500)],
-  assert: [Assert.noErrors()],
-  stop: { maxMs: 10_000 },
+  name: "user-signup",
+  observe: provider.observe({ backend: "analytics", dataset: "worker_logs" }),
+  act: [Act.browser({ url: "https://app.example.com/signup" })],
+  assert: [
+    Assert.hasAction("user_created"),
+    Assert.noErrors(),
+  ],
+  stop: { maxMs: 15_000 },
 });
 
 if (result.status !== "success") process.exit(1);`;
