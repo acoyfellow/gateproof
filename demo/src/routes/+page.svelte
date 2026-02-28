@@ -2,72 +2,39 @@
   import HeroSection from '$lib/components/HeroSection.svelte';
   import CodeBlock from '$lib/components/CodeBlock.svelte';
 
-  const agentCode = `import { Gate, Act, Assert } from "gateproof";
-import { setFilepathRuntime, CloudflareSandboxRuntime,
-         createFilepathObserveResource } from "gateproof";
-import { getSandbox } from "@cloudflare/sandbox";
+  const observeCode = `import { Gate, Act, Assert } from "gateproof";
+import { CloudflareProvider } from "gateproof/cloudflare";
 
-setFilepathRuntime(new CloudflareSandboxRuntime({
-  getSandbox: (cfg) => getSandbox(env.Sandbox, \`agent-\${cfg.name}\`),
-}));
+const provider = CloudflareProvider({
+  accountId: process.env.CLOUDFLARE_ACCOUNT_ID!,
+  apiToken: process.env.CLOUDFLARE_API_TOKEN!,
+});
 
 const result = await Gate.run({
-  name: "fix-auth-bug",
-  observe: createFilepathObserveResource(container, "fix-auth"),
-  act: [Act.agent({
-    agent: "claude-code",
-    task: "Fix the null pointer in src/auth.ts",
-    timeoutMs: 300_000,
-  })],
-  assert: [
-    Assert.hasAction("commit"),
-    Assert.hasAction("done"),
-    Assert.authority({
-      canCommit: true,
-      canSpawn: false,
-      forbiddenTools: ["delete_file"],
-    }),
-  ],
-});`;
+  name: "signup-e2e",
+  observe: provider.observe({ backend: "analytics", dataset: "worker_logs" }),
+  act: [Act.browser({ url: "https://app.example.com/signup" })],
+  assert: [Assert.hasAction("user_created"), Assert.noErrors()],
+  stop: { maxMs: 15_000 },
+});
+if (result.status !== "success") process.exit(1);`;
 
   const prdCode = `import { definePrd, runPrdLoop, createOpenCodeAgent } from "gateproof/prd";
 
-const prd = definePrd({
-  stories: [
-    {
-      id: "user-signup",
-      title: "User can sign up — evidence: user_created",
-      gateFile: "./gates/signup.gate.ts",
-      scope: { allowedPaths: ["src/routes/**"], maxChangedFiles: 5 },
-    },
-    {
-      id: "email-verify",
-      title: "Email verification works — evidence: email_sent",
-      gateFile: "./gates/email.gate.ts",
-      dependsOn: ["user-signup"],
-    },
-  ] as const,
+// Set OPENCODE_ZEN_API_KEY or pass apiKey
+const agent = createOpenCodeAgent({
+  apiKey: process.env.OPENCODE_ZEN_API_KEY,
+  model: "gpt-5.3-codex",
 });
 
-await runPrdLoop(prd, {
-  agent: createOpenCodeAgent({ model: "big-pickle" }),
-  maxIterations: 7,
-  autoCommit: true,
-});`;
+const prd = definePrd({
+  stories: [
+    { id: "user-signup", title: "User can sign up", gateFile: "./gates/signup.gate.ts", scope: { allowedPaths: ["src/routes/**"] } },
+    { id: "email-verify", title: "Email verification works", gateFile: "./gates/email.gate.ts", dependsOn: ["user-signup"] },
+  ],
+});
 
-  const shorthandCode = `import {
-  gate, commandGate, browserGate,
-  noErrors, hasAction, browserAct, cloudflare,
-} from "gateproof/shorthands";
-
-// One-liner: run a command, check exit code
-await commandGate("build", "bun run build");
-
-// Browser gate with Cloudflare log observation
-await browserGate("homepage", "https://app.example.com", {
-  observe: cloudflare.logs({ dataset: "worker_logs" }),
-  assert: [hasAction("page_loaded"), noErrors()],
-});`;
+await runPrdLoop(prd, { agent, maxIterations: 7 });`;
 
   const features = [
     {
@@ -87,12 +54,6 @@ await browserGate("homepage", "https://app.example.com", {
       description: "Assert.authority() checks what the agent actually did against what you allowed. Did it commit when forbidden? Spawn child agents? Use a banned tool? The gate fails.",
       link: "/docs/reference/api",
       linkText: "API reference",
-    },
-    {
-      title: "Shorthands",
-      description: "gate(), commandGate(), browserGate() — write gates with less boilerplate. Flat assertions, action helpers, and Cloudflare observe helpers that read credentials from env.",
-      link: "/docs/how-to/use-shorthands",
-      linkText: "Use shorthands",
     },
   ];
 </script>
@@ -119,17 +80,17 @@ await browserGate("homepage", "https://app.example.com", {
 
   <section class="max-w-4xl mx-auto px-4 sm:px-8 pb-24">
     <h2 class="text-2xl sm:text-3xl tracking-tight text-foreground mb-3" style="font-family: var(--font-display)">
-      Agent gates
+      Observe from production
     </h2>
     <p class="text-muted-foreground mb-6 max-w-2xl">
-      Spawn an agent in a container, observe its behavior via NDJSON, and assert it stayed within bounds.
+      Point a gate at Cloudflare Analytics or Workers Logs. Run actions (browser, exec), collect logs, assert on evidence.
     </p>
     <div class="rounded-lg border border-border overflow-hidden">
       <div class="flex items-center gap-2 bg-card px-4 py-2.5 border-b border-border">
-        <span class="text-xs text-muted-foreground font-mono">agent-gate.ts</span>
+        <span class="text-xs text-muted-foreground font-mono">gate.ts</span>
       </div>
       <div class="bg-card/50 p-4">
-        <CodeBlock code={agentCode} language="typescript" />
+        <CodeBlock code={observeCode} language="typescript" />
       </div>
     </div>
   </section>
@@ -139,7 +100,7 @@ await browserGate("homepage", "https://app.example.com", {
       PRD loops
     </h2>
     <p class="text-muted-foreground mb-6 max-w-2xl">
-      Define stories with gates. An agent iterates until every gate passes.
+      Define stories with gates. An agent (OpenCode Zen, set <span class="font-mono text-foreground/80">OPENCODE_ZEN_API_KEY</span>) iterates until every gate passes.
     </p>
     <div class="rounded-lg border border-border overflow-hidden">
       <div class="flex items-center gap-2 bg-card px-4 py-2.5 border-b border-border">
@@ -147,23 +108,6 @@ await browserGate("homepage", "https://app.example.com", {
       </div>
       <div class="bg-card/50 p-4">
         <CodeBlock code={prdCode} language="typescript" />
-      </div>
-    </div>
-  </section>
-
-  <section class="max-w-4xl mx-auto px-4 sm:px-8 pb-24">
-    <h2 class="text-2xl sm:text-3xl tracking-tight text-foreground mb-3" style="font-family: var(--font-display)">
-      Shorthands
-    </h2>
-    <p class="text-muted-foreground mb-6 max-w-2xl">
-      Less boilerplate for common patterns.
-    </p>
-    <div class="rounded-lg border border-border overflow-hidden">
-      <div class="flex items-center gap-2 bg-card px-4 py-2.5 border-b border-border">
-        <span class="text-xs text-muted-foreground font-mono">gates.ts</span>
-      </div>
-      <div class="bg-card/50 p-4">
-        <CodeBlock code={shorthandCode} language="typescript" />
       </div>
     </div>
   </section>

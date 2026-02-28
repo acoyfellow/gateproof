@@ -1,6 +1,6 @@
 {
   "name": "gateproof",
-  "version": "0.2.3",
+  "version": "0.2.4",
   "type": "module",
   "description": "E2E testing harness. Observe logs, run actions, assert results.",
   "main": "./dist/index.js",
@@ -17,10 +17,6 @@
     "./prd": {
       "types": "./dist/prd/index.d.ts",
       "import": "./dist/prd/index.js"
-    },
-    "./shorthands": {
-      "types": "./dist/shorthands.d.ts",
-      "import": "./dist/shorthands.js"
     }
   },
   "bin": {

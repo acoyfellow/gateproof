@@ -81,23 +81,29 @@ if (!result.success) process.exit(1);
 
 ## Assertions
 
-Core: `noErrors()`, `hasAction(name)`, `hasStage(name)`, `custom(name, fn)`
-
-Shorthands: `hasAnyEvidence()`, `hasMinLogs(n)`, `hasLogWith(field, value)`, `allLogsMatch(name, fn)`, `someLogsMatch(name, fn)`, `anyOf(...assertions)`, `not(assertion)`
+`Assert.noErrors()`, `Assert.hasAction(name)`, `Assert.hasStage(name)`, `Assert.custom(name, fn)`, `Assert.authority(policy)`.
 
 ```ts
-import { gate, noErrors, hasAction, hasMinLogs, custom, anyOf } from "gateproof/shorthands";
+import { Gate, Act, Assert } from "gateproof";
+import { CloudflareProvider } from "gateproof/cloudflare";
 
-await gate("checkout-flow", {
-  observe: cloudflare.logs({ dataset: "worker_logs" }),
-  act: browserAct.goto("https://app.example.com/checkout"),
-  assert: [
-    noErrors(),
-    hasAction("checkout_started"),
-    hasMinLogs(3),
-    custom("has-total", (logs) => logs.some(l => l.data?.total > 0)),
-  ],
+const provider = CloudflareProvider({
+  accountId: process.env.CLOUDFLARE_ACCOUNT_ID!,
+  apiToken: process.env.CLOUDFLARE_API_TOKEN!,
 });
+
+const result = await Gate.run({
+  name: "checkout-flow",
+  observe: provider.observe({ backend: "analytics", dataset: "worker_logs" }),
+  act: [Act.browser({ url: "https://app.example.com/checkout" })],
+  assert: [
+    Assert.noErrors(),
+    Assert.hasAction("checkout_started"),
+    Assert.custom("has-total", (logs) => logs.some(l => (l as { data?: { total?: number } }).data?.total > 0)),
+  ],
+  stop: { maxMs: 15_000 },
+});
+if (result.status !== "success") process.exit(1);
 ```
 
 ## Agent gates
@@ -148,7 +154,7 @@ await Gate.run({
 
 The hardest part of gateproof is not the library — it's writing gates that actually prove what you think they prove.
 
-**A weak gate passes on silence.** If your system emits no logs and your only assertion is `noErrors()`, the gate passes vacuously. Nothing was tested. Use `requirePositiveSignal: true` on stories, or assert specific evidence (`hasAction`, `hasStage`, `hasMinLogs`).
+**A weak gate passes on silence.** If your system emits no logs and your only assertion is `Assert.noErrors()`, the gate passes vacuously. Nothing was tested. Use `requirePositiveSignal: true` on stories, or assert specific evidence (`Assert.hasAction`, `Assert.hasStage`).
 
 **A good gate is falsifiable.** Ask: "what broken implementation would still pass this gate?" If the answer is "many," the gate is too weak. Tighten it until a broken system fails.
 
@@ -187,20 +193,6 @@ import { runPrdLoop, createOpenCodeAgent } from "gateproof/prd";
 await runPrdLoop("./prd.ts", {
   agent: createOpenCodeAgent({ apiKey: process.env.OPENCODE_ZEN_API_KEY }),
   maxIterations: 7,
-});
-```
-
-## Shorthands (less boilerplate)
-
-> Contributed by @grok
-
-```ts
-import { gate, noErrors, hasAction, browserAct, cloudflare } from "gateproof/shorthands";
-
-const result = await gate("user-signup", {
-  observe: cloudflare.logs({ dataset: "worker_logs" }),
-  act: browserAct.goto("https://app.example.com/signup"),
-  assert: [noErrors(), hasAction("user_created")],
 });
 ```
 

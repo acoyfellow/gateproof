@@ -18,7 +18,7 @@ const result = await Gate.run({
   act: [Act.agent({
     name: "waitlist-feature",
     agent: "claude-code",
-    model: "claude-sonnet-4-20250514",
+    model: "claude-opus-4-6",
     task: "Add the waitlist: landing form that POSTs to /api/waitlist, persist email in KV, show thank-you and current count.",
     timeoutMs: 300_000,
   })],

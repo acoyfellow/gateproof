@@ -36,8 +36,8 @@
           <li>CI can hard‑fail on missing proof</li>
         </ul>
         <div class="mt-5 rounded-lg bg-black/60 border border-white/10 p-4 font-mono text-xs text-white/80">
-          <div>assert: hasAction("user_created")</div>
-          <div>assert: noErrors()</div>
+          <div>assert: Assert.hasAction("user_created")</div>
+          <div>assert: Assert.noErrors()</div>
           <div>result: success | failed | timeout</div>
         </div>
       </div>
