@@ -20,6 +20,10 @@ Everything else is in service of that:
 - gates check whether each step is real yet
 - the loop keeps pulling the code toward the next passing gate
 
+If you need the one-line explanation:
+
+**Write what done looks like in `prd.ts`, then loop until the gates prove it's real.**
+
 ## The idea
 
 Plans are solid. Implementation is liquid.

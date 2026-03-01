@@ -37,7 +37,7 @@ function printHelp(): void {
     "",
     "Subcommands:",
     "  prdts   Generate a prd.ts from story descriptions",
-    "  smoke   Run gates once without agent loop (validate setup)",
+    "  smoke   Run the PRD once and see what is still false before the loop",
     "",
     "Usage:",
     "  npx gateproof prdts --in stories.txt --out prd.ts",
@@ -298,6 +298,9 @@ function buildPrompt(promptText: string): string {
 Prompt:
 ${promptText}
 
+The PRD is the source of truth. Each story should describe a step toward the finished product.
+Each gate should be a real checkpoint that tells us whether that story is actually true yet.
+
 Requirements:
 1. Generate kebab-case IDs for each story (e.g., "user-signup", "email-verification")
 2. Create clear, descriptive titles
@@ -308,6 +311,7 @@ Requirements:
    - Include Assert.custom or Assert.noErrors assertions
    - Be self-contained and runnable
    - Match the story's intent (e.g., if story is about API health, gate should check API endpoint)
+   - Prefer checks that prove the thing happened, not just that nothing failed
 5. Infer dependencies from the prompt (e.g., if a story mentions "depends on signup", add "user-signup" to dependsOn)
 6. If dependencies are mentioned in natural language, map them to the appropriate story IDs
 
@@ -421,7 +425,8 @@ ${gateCode}
 /**
  * gateproof PRD - Single File
  * 
- * Complete PRD with inline gate implementations.
+ * This file is the source of truth for what "done" looks like.
+ * Each gate is a checkpoint that asks whether a story is true yet.
  * Add your API keys/config at the top and run: bun run prd.ts
  */
 
@@ -495,7 +500,7 @@ async function runPrd() {
     const story = byId.get(storyId);
     if (!story) continue;
 
-    console.log(\`\\n--- \${story.id}: \${story.title}\`);
+    console.log(\`\\n--- checking \${story.id}: \${story.title}\`);
     const gateFn = gates[storyId];
     if (!gateFn) {
       throw new Error(\`No gate implementation for story: \${storyId}\`);
@@ -505,7 +510,7 @@ async function runPrd() {
     const result = await Gate.run(gateSpec);
 
     if (result.status !== "success") {
-      console.error(\`\\n❌ PRD failed at: \${story.id} - \${story.title}\`);
+      console.error(\`\\n❌ PRD is not true yet at: \${story.id} - \${story.title}\`);
       if (result.error) {
         console.error(\`Error: \${result.error.message}\`);
       }
@@ -513,7 +518,7 @@ async function runPrd() {
     }
   }
 
-  console.log("\\n✅ All PRD stories passed!");
+  console.log("\\n✅ All PRD stories are true enough to ship.");
 }
 
 if (import.meta.main) {

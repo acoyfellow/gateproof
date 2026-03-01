@@ -13,8 +13,8 @@ export type Story<TId extends string = string> = {
   scope?: StoryScope;
   progress?: string[];
   /**
-   * When true, auto-fail the gate if no positive evidence is collected.
-   * Positive evidence means at least one log with an action or stage field.
+   * When true, auto-fail the gate if no positive proof is collected.
+   * Positive proof means at least one log with an action or stage field.
    * Default: false (for backward compatibility).
    */
   requirePositiveSignal?: boolean;
@@ -46,8 +46,8 @@ export type Story<TId extends string = string> = {
 /**
  * Authority policy for a story — governance surface.
  *
- * Controls what an agent can do when executing this story's gate.
- * Think of it as the "permissions" for the story's execution context.
+ * Controls what an agent can do while making this story true.
+ * Think of it as the "permissions" around this checkpoint.
  */
 export interface StoryAuthority {
   /**
@@ -105,6 +105,9 @@ export interface StoryAuthority {
 }
 
 export type Prd<TId extends string = string> = {
+  /**
+   * The ordered source of truth for what the software should become.
+   */
   stories: readonly Story<TId>[];
 
   /**

@@ -132,6 +132,7 @@ type StoryOutcome<TId extends string> =
 
 /**
  * Runs a single story gate and returns a typed outcome.
+ * This is one checkpoint asking whether the story is true yet.
  */
 async function runStory<TId extends string>(
   story: Story<TId>,
@@ -171,7 +172,7 @@ async function runStory<TId extends string>(
       throw new Error(`Gate file must export "run" function: ${story.gateFile}`);
     }
 
-    console.log(`\n--- ${story.id}: ${story.title}`);
+    console.log(`\n--- checking ${story.id}: ${story.title}`);
     const result = (await run()) as GateResult;
     const durationMs = Date.now() - storyStartTime;
 
@@ -185,7 +186,7 @@ async function runStory<TId extends string>(
       if (!hasPositiveSignal) {
         const storyError: SerializableError = {
           name: "NoPositiveSignal",
-          message: `Story "${story.id}" requires positive signal but no actions or stages were observed`,
+          message: `Story "${story.id}" requires positive proof but no actions or stages were observed`,
         };
         return {
           ok: false,
@@ -194,7 +195,7 @@ async function runStory<TId extends string>(
             status: "failed", durationMs, error: storyError,
           },
           story,
-          error: new Error(`No positive signal observed for story "${story.id}"`),
+          error: new Error(`No positive proof observed for story "${story.id}"`),
         };
       }
     }
@@ -245,7 +246,7 @@ function writeReport(reportPath: string | undefined, report: PrdReportV1): void 
 /**
  * Runs a PRD by executing story gates in dependency order.
  * Independent stories (no mutual dependencies) within a level run concurrently.
- * Stops on first failure within a level.
+ * Stops at the first point where reality no longer matches the plan.
  */
 export async function runPrd<TId extends string>(
   prd: Prd<TId>,
