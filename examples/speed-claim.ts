@@ -1,10 +1,10 @@
-import { Claim, Evidence, Expectation, Report } from "../src/index";
+import { Gate, Evidence, Expectation, Report } from "../src/index";
 
 const coldBaseline = Number(process.env.COLD_BUILD_MS ?? "252000");
 const warmDuration = Number(process.env.WARM_BUILD_MS ?? "38214");
 const requiredSavings = Number(process.env.MIN_DELTA_MS ?? "60000");
 
-const claim = Claim.define({
+const gate = Gate.define({
   name: "Warm build is materially faster than cold",
   intent: "Proves the product's core performance claim with explicit timing evidence",
   prerequisites: [
@@ -48,7 +48,7 @@ const claim = Claim.define({
   },
 });
 
-const result = await claim.run({
+const result = await gate.run({
   env: process.env as Record<string, string | undefined>,
 });
 

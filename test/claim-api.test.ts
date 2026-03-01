@@ -1,6 +1,6 @@
 import { test, expect } from "bun:test";
 import {
-  Claim,
+  Gate,
   Evidence,
   Expectation,
   Report,
@@ -8,7 +8,7 @@ import {
 } from "../src/index";
 
 test("claim: passes with outcome evidence and satisfied expectation", async () => {
-  const claim = Claim.define({
+  const gate = Gate.define({
     name: "Health endpoint is live",
     intent: "Proves the API responds with HTTP 200",
     exercise: async () => {},
@@ -26,7 +26,7 @@ test("claim: passes with outcome evidence and satisfied expectation", async () =
     },
   });
 
-  const result = await claim.run({
+  const result = await gate.run({
     env: process.env as Record<string, string | undefined>,
     target: "https://api.example.com",
   });
@@ -37,7 +37,7 @@ test("claim: passes with outcome evidence and satisfied expectation", async () =
 });
 
 test("claim: returns skip when a prerequisite fails", async () => {
-  const claim = Claim.define({
+  const gate = Gate.define({
     name: "Needs baseline",
     intent: "Requires a baseline measurement before execution",
     prerequisites: [async () => false],
@@ -48,7 +48,7 @@ test("claim: returns skip when a prerequisite fails", async () => {
     expect: async () => Expectation.ok(),
   });
 
-  const result = await claim.run({
+  const result = await gate.run({
     env: {},
   });
 
@@ -57,7 +57,7 @@ test("claim: returns skip when a prerequisite fails", async () => {
 });
 
 test("claim: downgrades to inconclusive when only telemetry is collected", async () => {
-  const claim = Claim.define({
+  const gate = Gate.define({
     name: "Webhook queues a job",
     intent: "Needs externally observable proof",
     exercise: async () => {},
@@ -74,7 +74,7 @@ test("claim: downgrades to inconclusive when only telemetry is collected", async
     },
   });
 
-  const result = await claim.run({
+  const result = await gate.run({
     env: {},
   });
 
@@ -83,7 +83,7 @@ test("claim: downgrades to inconclusive when only telemetry is collected", async
 });
 
 test("claim: downgrades to inconclusive when synthetic evidence is disallowed", async () => {
-  const claim = Claim.define({
+  const gate = Gate.define({
     name: "Placeholder proof is rejected",
     intent: "Synthetic evidence must not count as a real pass",
     exercise: async () => {},
@@ -99,7 +99,7 @@ test("claim: downgrades to inconclusive when synthetic evidence is disallowed", 
     },
   });
 
-  const result = await claim.run({
+  const result = await gate.run({
     env: {},
   });
 
@@ -108,7 +108,7 @@ test("claim: downgrades to inconclusive when synthetic evidence is disallowed", 
 });
 
 test("claim: reports are machine-serializable and human-readable", async () => {
-  const claim = Claim.define({
+  const gate = Gate.define({
     name: "Health endpoint is live",
     intent: "Proves the API responds with HTTP 200",
     exercise: async () => {},
@@ -125,7 +125,7 @@ test("claim: reports are machine-serializable and human-readable", async () => {
     },
   });
 
-  const result = await claim.run({
+  const result = await gate.run({
     env: {},
   });
 
@@ -134,9 +134,9 @@ test("claim: reports are machine-serializable and human-readable", async () => {
   const parsed = JSON.parse(json);
   const v1 = toClaimResultV1(result);
 
-  expect(text).toContain("Claim: Health endpoint is live");
+  expect(text).toContain("Gate: Health endpoint is live");
   expect(parsed.version).toBe("1");
-  expect(parsed.kind).toBe("claim");
+  expect(parsed.kind).toBe("gate");
   expect(parsed.status).toBe("pass");
   expect(v1.proofStrength).toBe("strong");
 });

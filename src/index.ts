@@ -8,6 +8,8 @@ import { ObservabilityError } from "./observe";
 import { Schema } from "@effect/schema";
 import { Act } from "./act";
 import { getActionExecutor } from "./action-executors";
+import { Claim } from "./claim";
+import type { ClaimContext, ClaimDefinition, ClaimResult } from "./claim-types";
 import {
   DEFAULT_IDLE_MS,
   DEFAULT_MAX_MS,
@@ -199,6 +201,17 @@ function handleGateError(
 }
 
 export namespace Gate {
+  export function define(definition: ClaimDefinition): Claim {
+    return Claim.define(definition);
+  }
+
+  export function prove(
+    definition: ClaimDefinition,
+    ctx: ClaimContext
+  ): Promise<ClaimResult> {
+    return Claim.define(definition).run(ctx);
+  }
+
   export function run(spec: GateSpec): Promise<GateResult> {
     return Effect.runPromise(Effect.scoped(runEffect(spec)));
   }

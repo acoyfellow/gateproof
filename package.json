@@ -2,7 +2,7 @@
   "name": "gateproof",
   "version": "0.2.4",
   "type": "module",
-  "description": "Product-claim verifier. Run evidence-backed acceptance gates against real systems.",
+  "description": "Reverse-build software from prd.ts. Loop until the gates pass.",
   "main": "./dist/index.js",
   "types": "./dist/index.d.ts",
   "exports": {
@@ -52,7 +52,8 @@
   },
   "keywords": [
     "acceptance",
-    "claims",
+    "gates",
+    "prd",
     "verification",
     "observability",
     "effect"

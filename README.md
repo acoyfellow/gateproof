@@ -1,37 +1,36 @@
 # gateproof
 
-Gateproof is a product-claim verifier. It encodes launch-critical claims as executable contracts, runs them against real systems, and returns evidence-backed results.
+Reverse-build software from `prd.ts`. Loop until the gates pass.
 
-Software is built in reverse. You know what you want before you know how to get there. Gateproof turns that into a workflow you can actually run.
+Gateproof is for writing down what "done" looks like first, then letting real checkpoints pull the code toward that reality.
 
-Write claims. Attach evidence. Let agents iterate until reality matches intent.
+Write stories. Attach gates. Let the loop keep working until reality matches intent.
 
-A **claim** states what the product must prove in real conditions. It can set up preconditions, exercise the system, collect explicit evidence, and evaluate an expectation. A **gate** is still available as the low-level runtime primitive. A **story** is a gate or claim with a name and a place in a plan. A **prd.ts** is a list of stories in dependency order. The agent's only job is to make the next failing claim pass honestly.
+A **story** is a piece of intended reality. A **gate** is a real-world checkpoint that asks, "is this actually true yet?" A **prd.ts** is the ordered source of truth. The loop reads the plan, finds the next failing gate, makes a change, and runs again.
 
-## The thesis
+## The idea
 
 Plans are solid. Implementation is liquid.
 
-Any codebase can be scoped down to stories and a `prd.ts`. Multiple agents can work the same plan, falling through the same checkpoints. Once a gate passes, previous work can't break -- the gate proves it. The skill shifts from writing code to defining the right guardrails.
+You already know what you want before you know exactly how to build it. `prd.ts` captures that. Gates keep that intent grounded in reality.
 
-Gates are checkpoints that keep agents safe. They don't decide intent. They verify reality.
+Once a gate passes, you have enough proof from the real system to believe that part is working. The loop can move on to the next broken thing. That is the whole trick.
 
-## Why this works
+## The workflow
 
-Formal verification research established that the relationship between a specification and its implementation — called **refinement** — is itself a testable property. You don't need a theorem prover to get value from this idea. You can test refinement cheaply by running the system and checking that its behavior satisfies the spec.
+Gateproof is built around four simple parts:
 
-Gateproof distills this into four practical ideas:
+1. **`prd.ts`** — the map of where the software is supposed to end up
+2. **Stories** — the chunks of reality you want to become true
+3. **Gates** — checkpoints that verify those chunks in the real world
+4. **Loop** — keep fixing the next failing gate until the plan is real
 
-1. **Claim** — state the product behavior that must hold
-2. **Evidence** — collect real, explicit signals from a running system
-3. **Expectation** — check whether the evidence satisfies the claim
-4. **Report** — return a readable, machine-serializable result
+You can make gates weak or strong.
 
-Each run is a refinement check: does the running system's behavior refine what the claim says? The PRD orders these checks by dependency, so failures localize to the first broken obligation.
+- A weak gate says "nothing broke."
+- A strong gate says "the thing I wanted actually happened."
 
-This is a deliberate simplification. We trade random input generation and exhaustive coverage for something an engineer can write in minutes and an agent can iterate against in a loop. The gate is the contract. The loop is the proof search.
-
-> Lineage: the *observe → act → assert* pattern draws on property-based testing ideas from [Chen, Rizkallah et al. — "Property-Based Testing: Climbing the Stairway to Verification" (SLE 2022)](https://doi.org/10.1145/3567512.3567520), which demonstrated that refinement properties can serve as a practical, incremental path toward verified systems.
+Gateproof is about writing stronger gates, so agents are pulled by reality instead of pushing code forward blindly.
 
 ## Install
 
@@ -39,12 +38,12 @@ This is a deliberate simplification. We trade random input generation and exhaus
 bun add gateproof
 ```
 
-## Minimal claim
+## Minimal gate
 
 ```ts
-import { Claim, Evidence, Expectation, Report } from "gateproof";
+import { Gate, Evidence, Expectation, Report } from "gateproof";
 
-const claim = Claim.define({
+const gate = Gate.define({
   name: "Health endpoint is live",
   intent: "Proves the deployed API responds with HTTP 200",
   exercise: async () => {},
@@ -71,7 +70,7 @@ const claim = Claim.define({
   },
 });
 
-const result = await claim.run({
+const result = await gate.run({
   env: process.env as Record<string, string | undefined>,
   target: "https://api.example.com",
 });
@@ -105,9 +104,9 @@ const result = await runPrd(prd);
 if (!result.success) process.exit(1);
 ```
 
-## Low-level gates
+## Low-level log gates
 
-The low-level runtime is still available when you need direct control over logs, browser actions, or shell steps.
+If you want direct control over logs, browser actions, or shell steps, the original low-level runtime is still there.
 
 `Assert.noErrors()`, `Assert.hasAction(name)`, `Assert.hasStage(name)`, `Assert.custom(name, fn)`, `Assert.authority(policy)`.
 
@@ -184,13 +183,13 @@ The hardest part of gateproof is not the library — it's writing gates that act
 
 **A weak gate passes on silence.** If your system emits no logs and your only assertion is `Assert.noErrors()`, the gate passes vacuously. Nothing was tested. Use `requirePositiveSignal: true` on stories, or assert specific evidence (`Assert.hasAction`, `Assert.hasStage`).
 
-**A good gate is falsifiable.** Ask: "what broken implementation would still pass this gate?" If the answer is "many," the gate is too weak. Tighten it until a broken system fails.
+**A good gate is grounded.** Ask: "what broken implementation would still pass this gate?" If the answer is "many," the gate is too weak. Tighten it until a broken system fails.
 
 **Start narrow, then widen.** One specific assertion that catches a real failure is worth more than ten vague ones. You can always add assertions later — you can't take back a false pass.
 
 ## The loop
 
-Gate fails. Agent reads the failure evidence. Agent fixes code. Gate re-runs. Loop until pass.
+Gate fails. Agent reads the proof. Agent fixes code. Gate re-runs. Loop until pass.
 
 **Bring your own agent** — the loop takes any async function:
 

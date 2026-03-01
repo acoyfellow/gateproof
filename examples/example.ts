@@ -1,8 +1,8 @@
-import { Claim, Evidence, Expectation, Report } from "../src/index";
+import { Gate, Evidence, Expectation, Report } from "../src/index";
 
 const apiUrl = process.argv[2] || "https://api.example.com";
 
-const claim = Claim.define({
+const gate = Gate.define({
   name: "Health endpoint is live",
   intent: "Proves the deployed API responds to a basic health check",
   prerequisites: [
@@ -40,7 +40,7 @@ const claim = Claim.define({
   },
 });
 
-const result = await claim.run({
+const result = await gate.run({
   env: process.env as Record<string, string | undefined>,
   target: apiUrl,
 });

@@ -2,7 +2,7 @@ import type { ClaimResult } from "./claim-types";
 
 export interface ClaimResultV1 {
   version: "1";
-  kind: "claim";
+  kind: "gate";
   name: string;
   intent: string;
   status: ClaimResult["status"];
@@ -20,7 +20,7 @@ export interface ClaimResultV1 {
 export function toClaimResultV1(result: ClaimResult): ClaimResultV1 {
   return {
     version: "1",
-    kind: "claim",
+    kind: "gate",
     name: result.name,
     intent: result.intent,
     status: result.status,
@@ -38,22 +38,35 @@ export function toClaimResultV1(result: ClaimResult): ClaimResultV1 {
 
 function formatEvidence(result: ClaimResult): string[] {
   if (result.evidence.length === 0) {
-    return ["Evidence:", "  (none)"];
+    return ["Proof:", "  (none)"];
   }
 
-  const lines = ["Evidence:"];
+  const lines = ["Proof:"];
   for (const item of result.evidence) {
     lines.push(`  - [${item.kind}] ${item.id}: ${item.summary}`);
   }
   return lines;
 }
 
+function formatStatus(status: ClaimResult["status"]): string {
+  switch (status) {
+    case "pass":
+      return "PASS";
+    case "fail":
+      return "FAIL";
+    case "skip":
+      return "SKIPPED";
+    case "inconclusive":
+      return "NOT ENOUGH PROOF";
+  }
+}
+
 export const Report = {
   text(result: ClaimResult): string {
     const lines = [
-      `Claim: ${result.name}`,
-      `Intent: ${result.intent}`,
-      `Result: ${result.status.toUpperCase()}`,
+      `Gate: ${result.name}`,
+      `What this gate proves: ${result.intent}`,
+      `Result: ${formatStatus(result.status)}`,
       `Proof strength: ${result.proofStrength}`,
       `Duration: ${result.durationMs}ms`,
     ];
@@ -63,7 +76,7 @@ export const Report = {
     }
 
     if (result.expectation) {
-      lines.push(`Expectation: ${result.expectation.reason}`);
+      lines.push(`Why it passed or failed: ${result.expectation.reason}`);
     }
 
     lines.push(...formatEvidence(result));
