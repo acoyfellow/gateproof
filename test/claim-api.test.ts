@@ -7,7 +7,7 @@ import {
   toClaimResultV1,
 } from "../src/index";
 
-test("claim: passes with outcome evidence and satisfied expectation", async () => {
+test("gate: passes with outcome evidence and satisfied expectation", async () => {
   const gate = Gate.define({
     name: "Health endpoint is live",
     intent: "Proves the API responds with HTTP 200",
@@ -36,7 +36,7 @@ test("claim: passes with outcome evidence and satisfied expectation", async () =
   expect(result.evidence).toHaveLength(1);
 });
 
-test("claim: returns skip when a prerequisite fails", async () => {
+test("gate: returns skip when a prerequisite fails", async () => {
   const gate = Gate.define({
     name: "Needs baseline",
     intent: "Requires a baseline measurement before execution",
@@ -56,7 +56,7 @@ test("claim: returns skip when a prerequisite fails", async () => {
   expect(result.phase).toBe("prerequisites");
 });
 
-test("claim: downgrades to inconclusive when only telemetry is collected", async () => {
+test("gate: downgrades to inconclusive when only telemetry is collected", async () => {
   const gate = Gate.define({
     name: "Webhook queues a job",
     intent: "Needs externally observable proof",
@@ -82,7 +82,7 @@ test("claim: downgrades to inconclusive when only telemetry is collected", async
   expect(result.notes.some((note) => note.includes("Missing required evidence kinds"))).toBe(true);
 });
 
-test("claim: downgrades to inconclusive when synthetic evidence is disallowed", async () => {
+test("gate: downgrades to inconclusive when synthetic evidence is disallowed", async () => {
   const gate = Gate.define({
     name: "Placeholder proof is rejected",
     intent: "Synthetic evidence must not count as a real pass",
@@ -107,7 +107,7 @@ test("claim: downgrades to inconclusive when synthetic evidence is disallowed", 
   expect(result.notes.some((note) => note.includes("Synthetic evidence is not allowed"))).toBe(true);
 });
 
-test("claim: reports are machine-serializable and human-readable", async () => {
+test("gate: reports are machine-serializable and human-readable", async () => {
   const gate = Gate.define({
     name: "Health endpoint is live",
     intent: "Proves the API responds with HTTP 200",
@@ -135,6 +135,7 @@ test("claim: reports are machine-serializable and human-readable", async () => {
   const v1 = toClaimResultV1(result);
 
   expect(text).toContain("Gate: Health endpoint is live");
+  expect(text).toContain("What done looks like here:");
   expect(parsed.version).toBe("1");
   expect(parsed.kind).toBe("gate");
   expect(parsed.status).toBe("pass");

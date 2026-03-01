@@ -65,9 +65,9 @@ export const Report = {
   text(result: ClaimResult): string {
     const lines = [
       `Gate: ${result.name}`,
-      `What this gate proves: ${result.intent}`,
+      `What done looks like here: ${result.intent}`,
       `Result: ${formatStatus(result.status)}`,
-      `Proof strength: ${result.proofStrength}`,
+      `How solid the proof is: ${result.proofStrength}`,
       `Duration: ${result.durationMs}ms`,
     ];
 
@@ -76,7 +76,7 @@ export const Report = {
     }
 
     if (result.expectation) {
-      lines.push(`Why it passed or failed: ${result.expectation.reason}`);
+      lines.push(`What happened: ${result.expectation.reason}`);
     }
 
     lines.push(...formatEvidence(result));

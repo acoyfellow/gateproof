@@ -8,6 +8,18 @@ Write stories. Attach gates. Let the loop keep working until reality matches int
 
 A **story** is a piece of intended reality. A **gate** is a real-world checkpoint that asks, "is this actually true yet?" A **prd.ts** is the ordered source of truth. The loop reads the plan, finds the next failing gate, makes a change, and runs again.
 
+## The north star
+
+The goal is not to write tests.
+
+The goal is to make `prd.ts` true.
+
+Everything else is in service of that:
+
+- stories break the vision into steps
+- gates check whether each step is real yet
+- the loop keeps pulling the code toward the next passing gate
+
 ## The idea
 
 Plans are solid. Implementation is liquid.
@@ -41,9 +53,15 @@ bun add gateproof
 ## Minimal gate
 
 ```ts
-import { Gate, Evidence, Expectation, Report } from "gateproof";
+import {
+  Gate,
+  Evidence,
+  Expectation,
+  Report,
+  type GateDefinition,
+} from "gateproof";
 
-const gate = Gate.define({
+const definition: GateDefinition = {
   name: "Health endpoint is live",
   intent: "Proves the deployed API responds with HTTP 200",
   exercise: async () => {},
@@ -68,7 +86,9 @@ const gate = Gate.define({
     allowSynthetic: false,
     minProofStrength: "strong",
   },
-});
+};
+
+const gate = Gate.define(definition);
 
 const result = await gate.run({
   env: process.env as Record<string, string | undefined>,
@@ -103,6 +123,14 @@ const prd = definePrd({
 const result = await runPrd(prd);
 if (!result.success) process.exit(1);
 ```
+
+The practical flow is:
+
+1. Write `prd.ts`
+2. Add the next gate
+3. Run the loop
+4. Fix whatever the gate proves is still false
+5. Repeat until the PRD is real
 
 ## Low-level log gates
 
