@@ -2,7 +2,7 @@
   "name": "gateproof",
   "version": "0.2.4",
   "type": "module",
-  "description": "E2E testing harness. Observe logs, run actions, assert results.",
+  "description": "Product-claim verifier. Run evidence-backed acceptance gates against real systems.",
   "main": "./dist/index.js",
   "types": "./dist/index.d.ts",
   "exports": {
@@ -36,7 +36,8 @@
     "test": "bun test",
     "test:demo": "bun test test/demo.test.ts",
     "test:production": "bun test test/demo.production.test.ts",
-    "example": "bun run patterns/basic/simple-gate.ts",
+    "example": "bun run examples/example.ts",
+    "example:threshold": "bun run examples/speed-claim.ts",
     "pattern:basic": "bun run patterns/basic/*.ts",
     "pattern:cloudflare": "bun run patterns/cloudflare/*.ts",
     "gate:production": "bun run gates/production/smoke.gate.ts",
@@ -50,8 +51,9 @@
     "prepublishOnly": "bun run build && bun test"
   },
   "keywords": [
-    "e2e",
-    "testing",
+    "acceptance",
+    "claims",
+    "verification",
     "observability",
     "effect"
   ],

@@ -18,9 +18,11 @@
         "typescript": "^5.9.3",
       },
       "peerDependencies": {
+        "@cloudflare/sandbox": "",
         "playwright": "",
       },
       "optionalPeers": [
+        "@cloudflare/sandbox",
         "playwright",
       ],
     },

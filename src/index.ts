@@ -337,6 +337,28 @@ export { createTestObserveResource } from "./test-helpers";
 export { createHttpObserveResource } from "./http-backend";
 export type { GateResultV1, PrdReportV1, StoryResultV1, SerializableError, LLMFailureSummary } from "./report";
 export { serializeError, toGateResultV1, createLLMFailureSummary, formatLLMFailureSummary } from "./report";
+export { Claim } from "./claim";
+export { Evidence } from "./evidence";
+export { Expectation } from "./expectation";
+export { Report, toClaimResultV1 } from "./claim-report";
+export type {
+  ClaimContext,
+  ClaimDefinition,
+  ClaimResult,
+  ClaimStatus,
+  ClaimStep,
+  ClaimSerializableError,
+  EvidenceCollector,
+  EvidenceKind,
+  EvidenceRecord,
+  ExpectationCheck,
+  ExpectationResult,
+  MaybePromise,
+  PrerequisiteCheck,
+  ProofStrength,
+  Requirement,
+} from "./claim-types";
+export type { ClaimResultV1 } from "./claim-report";
 
 // ─── Filepath Agent Protocol (Phase 2) ───
 export {

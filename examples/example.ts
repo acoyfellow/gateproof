@@ -1,49 +1,49 @@
-import { Gate, Act, Assert } from "../src/index";
-import { CloudflareProvider } from "../src/cloudflare/index";
+import { Claim, Evidence, Expectation, Report } from "../src/index";
 
-const accountId = process.env.CLOUDFLARE_ACCOUNT_ID || "";
-const apiToken = process.env.CLOUDFLARE_API_TOKEN || "";
-const workerName = process.argv[2] || "my-worker";
-const testUrl = process.argv[3] || `https://${workerName}.workers.dev/`;
+const apiUrl = process.argv[2] || "https://api.example.com";
 
-console.log(`Running E2E test with gateproof`);
-console.log(`Worker: ${workerName}`);
-console.log(`URL: ${testUrl}\n`);
+const claim = Claim.define({
+  name: "Health endpoint is live",
+  intent: "Proves the deployed API responds to a basic health check",
+  prerequisites: [
+    async () => Boolean(apiUrl)
+  ],
+  exercise: async () => {
+    // No-op: this claim reads externally observable state directly.
+  },
+  collect: [
+    Evidence.http({
+      id: "health-response",
+      request: async () => new Response("ok", { status: 200 }),
+    }),
+    Evidence.logs({
+      id: "supporting-logs",
+      read: async () => ["health check requested"],
+    }),
+  ],
+  expect: async (evidence) => {
+    const response = evidence.find((entry) => entry.id === "health-response");
+    const status = Number(
+      (response?.data as { status?: number } | undefined)?.status ?? 0
+    );
 
-const provider = CloudflareProvider({
-  accountId,
-  apiToken
+    if (status === 200) {
+      return Expectation.ok("health endpoint returned HTTP 200");
+    }
+
+    return Expectation.fail("health endpoint did not return HTTP 200", { status });
+  },
+  requirements: {
+    minKinds: ["outcome"],
+    allowSynthetic: false,
+    minProofStrength: "strong",
+  },
 });
 
-const gate = {
-  name: "smoke-test",
-  observe: provider.observe({
-    backend: "analytics",
-    dataset: "worker_logs"
-  }),
-  act: [
-    Act.browser({
-      url: testUrl,
-      headless: false,
-      waitMs: 5000
-    })
-  ],
-  assert: [Assert.noErrors()],
-  stop: { idleMs: 3000, maxMs: 10000 },
-  report: "pretty" as const
-};
+const result = await claim.run({
+  env: process.env as Record<string, string | undefined>,
+  target: apiUrl,
+});
 
-Gate.run(gate)
-  .then((res) => {
-    console.log(`\n✅ Test completed with status: ${res.status}`);
-    if (res.status !== "success") {
-      const errorTag = res.error && "_tag" in res.error ? (res.error as any)._tag : "unknown";
-    console.error(`\n❌ Test failed. Error: ${errorTag}`);
-      process.exit(1);
-    }
-    process.exit(0);
-  })
-  .catch((err) => {
-    console.error("Fatal error:", err);
-    process.exit(1);
-  });
+console.log(Report.text(result));
+process.exit(result.status === "pass" ? 0 : 1);

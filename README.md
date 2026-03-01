@@ -1,10 +1,12 @@
 # gateproof
 
-Software is built in reverse. You know what you want before you know how to get there. TDD proved the idea: write the test first, then make it pass. Gateproof takes the next step.
+Gateproof is a product-claim verifier. It encodes launch-critical claims as executable contracts, runs them against real systems, and returns evidence-backed results.
 
-Write stories. Attach gates. Let agents iterate until reality matches intent.
+Software is built in reverse. You know what you want before you know how to get there. Gateproof turns that into a workflow you can actually run.
 
-A **gate** observes real evidence (logs, telemetry), acts (browser, shell, deploy), and asserts outcomes. A **story** is a gate with a name and a place in a plan. A **prd.ts** is a list of stories in dependency order. The agent's only job is to make the next failing gate pass.
+Write claims. Attach evidence. Let agents iterate until reality matches intent.
+
+A **claim** states what the product must prove in real conditions. It can set up preconditions, exercise the system, collect explicit evidence, and evaluate an expectation. A **gate** is still available as the low-level runtime primitive. A **story** is a gate or claim with a name and a place in a plan. A **prd.ts** is a list of stories in dependency order. The agent's only job is to make the next failing claim pass honestly.
 
 ## The thesis
 
@@ -18,13 +20,14 @@ Gates are checkpoints that keep agents safe. They don't decide intent. They veri
 
 Formal verification research established that the relationship between a specification and its implementation — called **refinement** — is itself a testable property. You don't need a theorem prover to get value from this idea. You can test refinement cheaply by running the system and checking that its behavior satisfies the spec.
 
-Gateproof distills this into three primitives:
+Gateproof distills this into four practical ideas:
 
-1. **Observe** — collect real evidence (logs, telemetry) from a running system
-2. **Act** — trigger real behavior (browser navigation, shell commands, deploys)
-3. **Assert** — check that the evidence satisfies the specification
+1. **Claim** — state the product behavior that must hold
+2. **Evidence** — collect real, explicit signals from a running system
+3. **Expectation** — check whether the evidence satisfies the claim
+4. **Report** — return a readable, machine-serializable result
 
-Each gate is a refinement check: does the running system's behavior refine what the story claims? The PRD orders these checks by dependency, so failures localize to the first broken obligation.
+Each run is a refinement check: does the running system's behavior refine what the claim says? The PRD orders these checks by dependency, so failures localize to the first broken obligation.
 
 This is a deliberate simplification. We trade random input generation and exhaustive coverage for something an engineer can write in minutes and an agent can iterate against in a loop. The gate is the contract. The loop is the proof search.
 
@@ -36,22 +39,45 @@ This is a deliberate simplification. We trade random input generation and exhaus
 bun add gateproof
 ```
 
-## Minimal gate
+## Minimal claim
 
 ```ts
-import { Gate, Act, Assert, createHttpObserveResource } from "gateproof";
+import { Claim, Evidence, Expectation, Report } from "gateproof";
 
-const result = await Gate.run({
-  name: "post-deploy",
-  observe: createHttpObserveResource({
-    url: "https://api.example.com/health",
-  }),
-  act: [Act.wait(500)],
-  assert: [Assert.noErrors()],
-  stop: { maxMs: 10_000 },
+const claim = Claim.define({
+  name: "Health endpoint is live",
+  intent: "Proves the deployed API responds with HTTP 200",
+  exercise: async () => {},
+  collect: [
+    Evidence.http({
+      id: "health-response",
+      request: async () => fetch("https://api.example.com/health"),
+    }),
+  ],
+  expect: async (evidence) => {
+    const response = evidence[0];
+    const status = Number(
+      (response?.data as { status?: number } | undefined)?.status ?? 0
+    );
+
+    return status === 200
+      ? Expectation.ok("health endpoint returned HTTP 200")
+      : Expectation.fail("health endpoint failed", { status });
+  },
+  requirements: {
+    minKinds: ["outcome"],
+    allowSynthetic: false,
+    minProofStrength: "strong",
+  },
 });
 
-if (result.status !== "success") process.exit(1);
+const result = await claim.run({
+  env: process.env as Record<string, string | undefined>,
+  target: "https://api.example.com",
+});
+
+console.log(Report.text(result));
+if (result.status !== "pass") process.exit(1);
 ```
 
 ## Stories + PRD
@@ -79,7 +105,9 @@ const result = await runPrd(prd);
 if (!result.success) process.exit(1);
 ```
 
-## Assertions
+## Low-level gates
+
+The low-level runtime is still available when you need direct control over logs, browser actions, or shell steps.
 
 `Assert.noErrors()`, `Assert.hasAction(name)`, `Assert.hasStage(name)`, `Assert.custom(name, fn)`, `Assert.authority(policy)`.
 
