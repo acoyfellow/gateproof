@@ -1,5 +1,5 @@
 import { test, expect, describe } from "bun:test";
-import { Effect, Queue, Runtime } from "effect";
+import { Effect } from "effect";
 import {
   createMockFilepathContainer,
   createFilepathBackend,
@@ -25,6 +25,43 @@ describe("createMockFilepathContainer", () => {
     expect(logs).toHaveLength(2);
     expect(JSON.parse(logs[0]).type).toBe("text");
     expect(JSON.parse(logs[1]).type).toBe("commit");
+  });
+
+  test("supports concurrent stdout readers", async () => {
+    const container = createMockFilepathContainer();
+
+    const readerA = (async () => {
+      const values: string[] = [];
+      for await (const line of container.stdout) {
+        values.push(line);
+        if (values.length === 2) break;
+      }
+      return values;
+    })();
+
+    const readerB = (async () => {
+      const values: string[] = [];
+      for await (const line of container.stdout) {
+        values.push(line);
+        if (values.length === 2) break;
+      }
+      return values;
+    })();
+
+    container.emitRaw('{"type":"text","content":"hello"}');
+    container.emitRaw('{"type":"done"}');
+    container.done();
+
+    const [a, b] = await Promise.all([readerA, readerB]);
+
+    expect(a).toEqual([
+      '{"type":"text","content":"hello"}',
+      '{"type":"done"}',
+    ]);
+    expect(b).toEqual([
+      '{"type":"text","content":"hello"}',
+      '{"type":"done"}',
+    ]);
   });
 
   test("emitRaw sends raw lines", async () => {

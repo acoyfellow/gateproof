@@ -4,37 +4,34 @@
   const githubUrl = "https://github.com/acoyfellow/gateproof";
   const npmUrl = "https://www.npmjs.com/package/gateproof";
 
-  const exampleCode = `import { Gate, Act, Assert } from "gateproof";
-import { setFilepathRuntime, CloudflareSandboxRuntime, createFilepathObserveResource } from "gateproof";
-import { getSandbox } from "@cloudflare/sandbox";
+	  const exampleCode = `import { Gate, Evidence, Expectation } from "gateproof";
 
-setFilepathRuntime(new CloudflareSandboxRuntime({
-  getSandbox: (cfg) => getSandbox(env.Sandbox, \`agent-\${cfg.name}\`),
-}));
+	const gate = Gate.define({
+	  name: "waitlist signup works",
+	  intent: "A visitor can join the waitlist and see a thank-you",
+	  exercise: async ({ target }) => {
+	    await fetch(\`\${target}/api/waitlist\`, {
+	      method: "POST",
+	      headers: { "content-type": "application/json" },
+	      body: JSON.stringify({ email: "sam@example.com" }),
+	    });
+	  },
+	  collect: [
+	    Evidence.http({
+	      id: "waitlist-count",
+	      request: ({ target }) => fetch(\`\${target}/api/waitlist/count\`),
+	    }),
+	  ],
+	  expect: async ([count]) =>
+	    Expectation.ok("waitlist count changed in the real app"),
+	});
 
-const result = await Gate.run({
-  name: "waitlist-signup",
-  observe: createFilepathObserveResource(container, "waitlist-feature"),
-  act: [Act.agent({
-    name: "waitlist-feature",
-    agent: "claude-code",
-    model: "claude-opus-4-6",
-    task: "Add the waitlist: landing form that POSTs to /api/waitlist, persist email in KV, show thank-you and current count.",
-    timeoutMs: 300_000,
-  })],
-  assert: [
-    Assert.hasAction("commit"),
-    Assert.hasAction("done"),
-    Assert.authority({
-      canCommit: true,
-      canSpawn: false,
-      forbiddenTools: ["delete_file"],
-    }),
-  ],
-  stop: { maxMs: 300_000 },
-});
+	const result = await gate.run({
+	  env: process.env,
+	  target: "https://app.example.com",
+	});
 
-if (result.status !== "success") process.exit(1);`;
+	if (result.status !== "pass") process.exit(1);`;
 </script>
 
 <section class="relative min-h-[92vh] flex flex-col items-center justify-center px-4 sm:px-8 py-20 overflow-hidden">
@@ -83,16 +80,16 @@ if (result.status !== "success") process.exit(1);`;
       <span class="text-accent">gate</span><span class="text-foreground">proof</span>
     </h1>
 
-    <p
-      class="mt-8 text-xl sm:text-2xl text-secondary-foreground"
-      style="font-family: var(--font-display)"
-    >
-      Make agent work falsifiable.
-    </p>
+	    <p
+	      class="mt-8 text-xl sm:text-2xl text-secondary-foreground"
+	      style="font-family: var(--font-display)"
+	    >
+	      Make prd.ts real.
+	    </p>
 
-    <p class="mt-4 text-lg text-muted-foreground max-w-md mx-auto leading-relaxed text-balance">
-      prd.ts defines intent. Gates verify reality. CI ships only with evidence.
-    </p>
+	    <p class="mt-4 text-lg text-muted-foreground max-w-md mx-auto leading-relaxed text-balance">
+	      Define done first. Gates tell you what is still false. The loop keeps working until reality matches the plan.
+	    </p>
 
     <div class="mt-10 inline-flex items-center gap-3 rounded-lg border border-border bg-card p-6 w-full backdrop-blur-2xl bg-opacity-50">
       <span class="text-muted-foreground text-sm select-none">$</span>
@@ -121,8 +118,8 @@ if (result.status !== "success") process.exit(1);`;
         <span class="text-xs text-muted-foreground font-mono">gate.ts</span>
       </div>
       <div class="bg-card/50 p-4">
-        <CodeBlock code={exampleCode} language="typescript" />
-      </div>
-    </div>
-  </div>
+	        <CodeBlock code={exampleCode} language="typescript" wrap={true} />
+	      </div>
+	    </div>
+	  </div>
 </section>

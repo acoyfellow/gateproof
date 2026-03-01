@@ -165,21 +165,26 @@ const result = await Gate.run({
 if (result.status !== "success") process.exit(1);
 ```
 
-## Agent gates
+## Advanced: gate an agent runtime
 
-Spawn an AI agent in an isolated container, observe its NDJSON event stream, and assert what it's allowed to do.
+If you want, Gateproof can also watch an agent runtime and gate what the agent actually does.
+
+The Filepath bridge is one advanced way to do that. It is not the core idea. The core idea is still simple: `prd.ts` says what should be true, and gates check whether it is true yet.
 
 ```ts
-import { Gate, Act, Assert } from "gateproof";
-import { setFilepathRuntime, CloudflareSandboxRuntime } from "gateproof";
+import {
+  Gate,
+  Act,
+  Assert,
+  CloudflareSandboxRuntime,
+  createFilepathObserveResource,
+} from "gateproof";
 import { getSandbox } from "@cloudflare/sandbox";
 
-// 1. Wire up your container runtime (once at startup)
-setFilepathRuntime(new CloudflareSandboxRuntime({
+const runtime = new CloudflareSandboxRuntime({
   getSandbox: (config) => getSandbox(env.Sandbox, `agent-${config.name}`),
-}));
+});
 
-// 2. Run the gate
 const container = await runtime.spawn({
   name: "fix-auth",
   agent: "claude-code",

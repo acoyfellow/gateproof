@@ -37,12 +37,12 @@ const prd = definePrd({
 await runPrdLoop(prd, { agent, maxIterations: 7 });`;
 
   const features = [
-    {
-      title: "Agent gates",
-      description: "Spawn AI agents in isolated Cloudflare Sandbox containers. Observe their NDJSON event stream. Assert governance policies against their actual behavior — commits, tool calls, spawns.",
-      link: "/docs/how-to/run-an-agent-gate",
-      linkText: "Run an agent gate",
-    },
+	    {
+	      title: "Agent gates",
+	      description: "Run an agent inside a controlled runtime. Watch what it actually does. The gate fails if it breaks the rules you set.",
+	      link: "/docs/how-to/run-an-agent-gate",
+	      linkText: "Run an agent gate",
+	    },
     {
       title: "PRD-driven loops",
       description: "Define intent as stories with gates. Run them in dependency order. If a gate fails, an agent fixes the code and the loop re-runs — until all gates pass or you hit max iterations.",
@@ -59,8 +59,8 @@ await runPrdLoop(prd, { agent, maxIterations: 7 });`;
 </script>
 
 <svelte:head>
-  <title>gateproof - Make agent work falsifiable</title>
-  <meta name="description" content="prd.ts defines intent, gates verify reality, CI ships only with evidence." />
+  <title>gateproof - Make prd.ts real</title>
+  <meta name="description" content="Write what done looks like in prd.ts, then loop until the gates prove it is real." />
 </svelte:head>
 
 <main>
@@ -89,26 +89,26 @@ await runPrdLoop(prd, { agent, maxIterations: 7 });`;
       <div class="flex items-center gap-2 bg-card px-4 py-2.5 border-b border-border">
         <span class="text-xs text-muted-foreground font-mono">gate.ts</span>
       </div>
-      <div class="bg-card/50 p-4">
-        <CodeBlock code={observeCode} language="typescript" />
-      </div>
-    </div>
-  </section>
+	      <div class="bg-card/50 p-4">
+	        <CodeBlock code={observeCode} language="typescript" wrap={true} />
+	      </div>
+	    </div>
+	  </section>
 
   <section class="max-w-4xl mx-auto px-4 sm:px-8 pb-24">
     <h2 class="text-2xl sm:text-3xl tracking-tight text-foreground mb-3" style="font-family: var(--font-display)">
       PRD loops
     </h2>
-    <p class="text-muted-foreground mb-6 max-w-2xl">
-      Define stories with gates. An agent (OpenCode Zen, set <span class="font-mono text-foreground/80">OPENCODE_ZEN_API_KEY</span>) iterates until every gate passes.
-    </p>
+	    <p class="text-muted-foreground mb-6 max-w-2xl">
+	      Define stories with gates. The loop keeps fixing the next failing checkpoint until your PRD is true.
+	    </p>
     <div class="rounded-lg border border-border overflow-hidden">
       <div class="flex items-center gap-2 bg-card px-4 py-2.5 border-b border-border">
         <span class="text-xs text-muted-foreground font-mono">prd.ts</span>
       </div>
-      <div class="bg-card/50 p-4">
-        <CodeBlock code={prdCode} language="typescript" />
-      </div>
-    </div>
-  </section>
+	      <div class="bg-card/50 p-4">
+	        <CodeBlock code={prdCode} language="typescript" wrap={true} />
+	      </div>
+	    </div>
+	  </section>
 </main>

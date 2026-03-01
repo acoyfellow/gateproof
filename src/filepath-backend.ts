@@ -19,7 +19,13 @@ import { agentEventToLog, parseAgentEvent, serializeInput, type AgentEvent } fro
  * Implemented by real container runtimes or test mocks.
  */
 export interface FilepathContainer {
-  /** NDJSON line stream from the container's stdout */
+  /**
+   * NDJSON line stream from the container's stdout.
+   *
+   * This stream must support concurrent readers. Gateproof's observe layer may
+   * read it to collect proof while the action executor also watches it for
+   * lifecycle completion.
+   */
   stdout: AsyncIterable<string>;
   /** Send an NDJSON message to the container's stdin */
   sendInput(line: string): Promise<void>;
@@ -102,44 +108,38 @@ export function createMockFilepathContainer(): FilepathContainer & {
   done(): void;
 } {
   const lines: string[] = [];
-  let resolve: (() => void) | null = null;
+  const waiters = new Set<() => void>();
   let isDone = false;
 
+  const wakeReaders = () => {
+    for (const waiter of waiters) waiter();
+    waiters.clear();
+  };
+
   const waitForLine = () =>
-    new Promise<void>((r) => {
-      resolve = r;
+    new Promise<void>((resolve) => {
+      waiters.add(resolve);
     });
 
   return {
     emit(event: AgentEvent) {
       lines.push(JSON.stringify(event));
-      if (resolve) {
-        const r = resolve;
-        resolve = null;
-        r();
-      }
+      wakeReaders();
     },
     emitRaw(line: string) {
       lines.push(line);
-      if (resolve) {
-        const r = resolve;
-        resolve = null;
-        r();
-      }
+      wakeReaders();
     },
     done() {
       isDone = true;
-      if (resolve) {
-        const r = resolve;
-        resolve = null;
-        r();
-      }
+      wakeReaders();
     },
     stdout: {
       async *[Symbol.asyncIterator]() {
+        let index = 0;
         while (true) {
-          if (lines.length > 0) {
-            yield lines.shift()!;
+          if (index < lines.length) {
+            yield lines[index++]!;
           } else if (isDone) {
             return;
           } else {
@@ -153,11 +153,7 @@ export function createMockFilepathContainer(): FilepathContainer & {
     },
     async stop() {
       isDone = true;
-      if (resolve) {
-        const r = resolve;
-        resolve = null;
-        r();
-      }
+      wakeReaders();
     },
   };
 }

@@ -34,21 +34,31 @@
   });
 </script>
 
-<div class="text-xs font-mono leading-relaxed min-w-0 w-full" class:wrap>
-  {#if loading}
-    <pre class="text-gray-100 whitespace-pre overflow-x-auto sm:whitespace-pre sm:overflow-x-auto" class:pre-wrap={wrap} class:overflow-x-hidden={wrap}>
-      <code>{code}</code>
-    </pre>
-  {:else}
-    {@html highlightedHtml}
-  {/if}
+	<div class="text-xs font-mono leading-relaxed min-w-0 w-full" class:wrap>
+	  {#if loading}
+	    <pre
+	      class="text-gray-100 whitespace-pre overflow-x-auto sm:whitespace-pre sm:overflow-x-auto"
+	      class:whitespace-pre-wrap={wrap}
+	      class:break-words={wrap}
+	      class:overflow-x-hidden={wrap}
+	    >
+	      <code>{code}</code>
+	    </pre>
+	  {:else}
+	    {@html highlightedHtml}
+	  {/if}
 </div>
 
 <style>
-  .wrap :global(.shiki),
-  .wrap :global(.shiki pre) {
-    overflow-x: hidden !important;
-  }
+	.wrap :global(.shiki),
+	.wrap :global(.shiki pre) {
+	    overflow: hidden !important;
+	  }
+
+	.wrap :global(pre.shiki) {
+	    overflow: hidden !important;
+	    max-height: none !important;
+	  }
 
   .wrap :global(.shiki code) {
     white-space: pre-wrap !important;
