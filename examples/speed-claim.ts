@@ -1,32 +1,41 @@
 import { Gate, Evidence, Expectation, Report } from "../src/index";
 
-const coldBaseline = Number(process.env.COLD_BUILD_MS ?? "252000");
-const warmDuration = Number(process.env.WARM_BUILD_MS ?? "38214");
+const target = process.env.TARGET_URL;
+const coldBaseline = Number(process.env.COLD_BUILD_MS ?? "0");
 const requiredSavings = Number(process.env.MIN_DELTA_MS ?? "60000");
 
 const gate = Gate.define({
   name: "Warm build is materially faster than cold",
   intent: "Proves the product's core performance claim with explicit timing evidence",
   prerequisites: [
+    async () => Boolean(target),
     async () => Number.isFinite(coldBaseline) && coldBaseline > 0,
-    async () => Number.isFinite(warmDuration) && warmDuration > 0,
   ],
   exercise: async () => {
-    // In a real deployment, trigger the warm build here.
+    // Trigger the build via your own endpoint before collecting timing evidence.
   },
   collect: [
     Evidence.timing({
       id: "warm-build-duration",
-      measure: async () => warmDuration,
+      measure: async () => {
+        const startedAt = Date.now();
+        const response = await fetch(`${target!.replace(/\/$/, "")}/build/warm`, {
+          method: "POST",
+        });
+        if (!response.ok) {
+          throw new Error(`Warm build failed with HTTP ${response.status}`);
+        }
+        return Date.now() - startedAt;
+      },
     }),
     Evidence.control({
       id: "baseline",
       read: async () => ({ coldBaseline }),
       summarize: (data) => `cold baseline ${data.coldBaseline}ms`,
     }),
-    Evidence.logs({
-      id: "supporting-logs",
-      read: async () => [`build_duration_ms=${warmDuration}`],
+    Evidence.http({
+      id: "warm-build-health",
+      request: async () => fetch(`${target!.replace(/\/$/, "")}/build/warm/status`),
     }),
   ],
   expect: async (evidence) => {
@@ -43,7 +52,6 @@ const gate = Gate.define({
   },
   requirements: {
     minKinds: ["outcome"],
-    allowSynthetic: false,
     minProofStrength: "strong",
   },
 });

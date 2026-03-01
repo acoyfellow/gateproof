@@ -12,9 +12,9 @@ const packageRoots = [
 ];
 
 const escapeRegExp = (value) => value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
-const stubAbsolutePath = resolve(process.cwd(), "scripts/cloudflare-workers-stub.js");
+const shimAbsolutePath = resolve(process.cwd(), "scripts/cloudflare-workers-shim.js");
 const makeRelativeImport = (fromDir) => {
-  let rel = relative(fromDir, stubAbsolutePath).split("\\").join("/");
+  let rel = relative(fromDir, shimAbsolutePath).split("\\").join("/");
   if (!rel.startsWith(".") && !rel.startsWith("/")) {
     rel = `./${rel}`;
   }
@@ -36,8 +36,8 @@ for (const root of packageRoots) {
 
     if (relativePath === "dist/lib/container.js") {
       const importPattern = /import\s*\{\s*DurableObject\s*\}\s*from\s*['"]cloudflare:workers['"];?/;
-      const stubImport = `import { DurableObject } from '${makeRelativeImport(dirname(targetPath))}';`;
-      modified = modified.replace(importPattern, stubImport);
+      const shimImport = `import { DurableObject } from '${makeRelativeImport(dirname(targetPath))}';`;
+      modified = modified.replace(importPattern, shimImport);
     }
 
     if (modified !== contents) {

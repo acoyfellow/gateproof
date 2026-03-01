@@ -10135,7 +10135,7 @@ declare namespace Rpc {
     type MaybeCallableProvider<T> = T extends (...args: any[]) => any ? MethodOrProperty<T> : unknown;
     // Base type for all other types providing RPC-like interfaces.
     // Rewrites all methods/properties to be `MethodOrProperty`s, while preserving callable types.
-    // `Reserved` names (e.g. stub method names like `dup()`) and symbols can't be accessed over RPC.
+    // `Reserved` names (e.g. helper method names like `dup()`) and symbols can't be accessed over RPC.
     export type Provider<T extends object, Reserved extends string = never> = MaybeCallableProvider<T> & Pick<{
         [K in keyof T]: MethodOrProperty<T[K]>;
     }, Exclude<keyof T, Reserved | symbol | keyof StubBase<never>>>;

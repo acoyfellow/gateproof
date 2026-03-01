@@ -65,16 +65,6 @@ function requirementNotes(
     }
   }
 
-  if (requirements?.allowSynthetic === false) {
-    const synthetic = evidence.filter((entry) => entry.kind === "synthetic");
-    if (synthetic.length > 0) {
-      notes.push(
-        `Synthetic evidence is not allowed (${synthetic.map((entry) => entry.id).join(", ")}).`
-      );
-      return { ok: false, notes, proofStrength };
-    }
-  }
-
   if (
     requirements?.minProofStrength &&
     strengthRank(proofStrength) < strengthRank(requirements.minProofStrength)

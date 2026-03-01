@@ -87,7 +87,6 @@ const definition: GateDefinition = {
   },
   requirements: {
     minKinds: ["outcome"],
-    allowSynthetic: false,
     minProofStrength: "strong",
   },
 };

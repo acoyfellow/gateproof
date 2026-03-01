@@ -105,7 +105,7 @@ export async function withSandboxRetry<T>(operation: () => Promise<T>, options: 
 
 /**
  * Get sandbox in a way that works in both local dev and production.
- * In local dev, returns a mock sandbox that throws informative errors.
+ * In local dev, throws informative errors immediately.
  * In production, uses the actual env.Sandbox binding.
  */
 const delay = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));

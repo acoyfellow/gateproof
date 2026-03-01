@@ -348,7 +348,7 @@ export async function runPrdLoop(
   if (typeof prdPathOrStory === "string") {
     prdPath = resolve(cwd, prdPathOrStory);
   } else {
-    // Single story mode - create a synthetic PRD
+    // Single story mode - wrap the story in a temporary PRD shape
     const story = prdPathOrStory;
     prdPath = resolve(cwd, "prd.ts"); // For context building only
     singleStoryPrd = { stories: [story] };

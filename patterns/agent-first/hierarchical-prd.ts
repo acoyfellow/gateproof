@@ -99,25 +99,10 @@ const authLogin = flat.find((s) => s.id === "auth-login")!;
 const merged = mergeAuthority(authLogin.authority, prd.defaultAuthority);
 console.log(JSON.stringify(merged, null, 2));
 
-// ─── Validate authority against mock logs ───
+// ─── Validate authority against a real run ───
 
-console.log("\nValidating mock agent behavior against auth-oauth policy:");
+console.log("\nValidate authority with logs from a real gate run:");
 const authOauth = flat.find((s) => s.id === "auth-oauth")!;
 const oauthAuthority = mergeAuthority(authOauth.authority, prd.defaultAuthority)!;
-
-// Simulate: agent tried to write a file (violation: only read_file allowed)
-const mockLogs = [
-  { action: "tool:read_file", status: "success" as const, stage: "agent" },
-  { action: "tool:write_file", status: "success" as const, stage: "agent" }, // violation!
-  { action: "commit", status: "success" as const, stage: "agent" }, // violation: canCommit=false
-];
-
-const violations = validateAuthority(mockLogs, oauthAuthority);
-if (violations.length > 0) {
-  console.log(`Found ${violations.length} violation(s):`);
-  for (const v of violations) {
-    console.log(`  [${v.rule}] ${v.message}`);
-  }
-} else {
-  console.log("No violations found.");
-}
+console.log("Feed validateAuthority() the logs captured from your actual gate output.");
+console.log(JSON.stringify(oauthAuthority, null, 2));

@@ -163,7 +163,7 @@ export function createAgentExecutor(runtime?: FilepathRuntime): ActionExecutor {
           new GateError({
             cause: new Error(
               "Act.agent() requires a FilepathRuntime. " +
-              "Provide one via createAgentExecutor(runtime) or use a mock for testing."
+              "Provide one via createAgentExecutor(runtime)."
             ),
           })
         );

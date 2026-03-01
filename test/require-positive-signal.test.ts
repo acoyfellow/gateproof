@@ -82,7 +82,7 @@ test("gate with requirePositiveSignal fails with no evidence", async () => {
 
   expect(result.success).toBe(false);
   expect(result.failedStory?.id).toBe("needs-evidence");
-  expect(result.error?.message).toContain("positive signal");
+  expect(result.error?.message).toContain("positive proof");
 });
 
 test("gate with requirePositiveSignal passes with evidence", async () => {

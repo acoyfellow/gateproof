@@ -8,15 +8,15 @@
  * evidence for gate assertions.
  */
 
-import { Effect, Queue, Runtime } from "effect";
+import { Effect } from "effect";
 import type { Log } from "./types";
 import type { AgentActConfig } from "./act";
 import { createObserveResource, type Backend, type ObserveResource } from "./observe";
-import { agentEventToLog, parseAgentEvent, serializeInput, type AgentEvent } from "./filepath-protocol";
+import { agentEventToLog, parseAgentEvent } from "./filepath-protocol";
 
 /**
  * Interface for a Filepath container connection.
- * Implemented by real container runtimes or test mocks.
+ * Implemented by real container runtimes.
  */
 export interface FilepathContainer {
   /**
@@ -35,7 +35,7 @@ export interface FilepathContainer {
 
 /**
  * Interface for spawning Filepath containers.
- * Swap implementations for real containers vs test mocks.
+ * Real runtimes implement this to launch containers.
  */
 export interface FilepathRuntime {
   spawn(config: AgentActConfig): Promise<FilepathContainer>;
@@ -94,66 +94,4 @@ export function createFilepathObserveResource(
   agentName?: string
 ): ObserveResource {
   return createObserveResource(createFilepathBackend(container, agentName));
-}
-
-/**
- * Creates a mock Filepath container for testing.
- *
- * Feed it NDJSON events and it emits them as if they came from a real container.
- * Use `container.emit(event)` to push events, `container.done()` to signal completion.
- */
-export function createMockFilepathContainer(): FilepathContainer & {
-  emit(event: AgentEvent): void;
-  emitRaw(line: string): void;
-  done(): void;
-} {
-  const lines: string[] = [];
-  const waiters = new Set<() => void>();
-  let isDone = false;
-
-  const wakeReaders = () => {
-    for (const waiter of waiters) waiter();
-    waiters.clear();
-  };
-
-  const waitForLine = () =>
-    new Promise<void>((resolve) => {
-      waiters.add(resolve);
-    });
-
-  return {
-    emit(event: AgentEvent) {
-      lines.push(JSON.stringify(event));
-      wakeReaders();
-    },
-    emitRaw(line: string) {
-      lines.push(line);
-      wakeReaders();
-    },
-    done() {
-      isDone = true;
-      wakeReaders();
-    },
-    stdout: {
-      async *[Symbol.asyncIterator]() {
-        let index = 0;
-        while (true) {
-          if (index < lines.length) {
-            yield lines[index++]!;
-          } else if (isDone) {
-            return;
-          } else {
-            await waitForLine();
-          }
-        }
-      },
-    },
-    async sendInput(line: string) {
-      // Mock: just collect input, no real stdin
-    },
-    async stop() {
-      isDone = true;
-      wakeReaders();
-    },
-  };
 }

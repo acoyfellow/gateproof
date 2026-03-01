@@ -3,8 +3,7 @@ export type ClaimStatus = "pass" | "fail" | "skip" | "inconclusive";
 export type EvidenceKind =
   | "outcome"
   | "control_plane"
-  | "telemetry"
-  | "synthetic";
+  | "telemetry";
 
 export type ProofStrength = "strong" | "moderate" | "weak";
 
@@ -21,7 +20,6 @@ export interface EvidenceRecord<T = unknown> {
 
 export interface Requirement {
   minKinds?: EvidenceKind[];
-  allowSynthetic?: boolean;
   minProofStrength?: ProofStrength;
 }
 

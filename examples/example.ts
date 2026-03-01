@@ -14,11 +14,7 @@ const gate = Gate.define({
   collect: [
     Evidence.http({
       id: "health-response",
-      request: async () => new Response("ok", { status: 200 }),
-    }),
-    Evidence.logs({
-      id: "supporting-logs",
-      read: async () => ["health check requested"],
+      request: async () => fetch(`${apiUrl.replace(/\/$/, "")}/health`),
     }),
   ],
   expect: async (evidence) => {
@@ -35,7 +31,6 @@ const gate = Gate.define({
   },
   requirements: {
     minKinds: ["outcome"],
-    allowSynthetic: false,
     minProofStrength: "strong",
   },
 });

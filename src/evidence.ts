@@ -123,22 +123,4 @@ export const Evidence = {
       );
     };
   },
-
-  synthetic<T>(opts: {
-    id: string;
-    build: (ctx: ClaimContext) => T | Promise<T>;
-    source?: string;
-    summarize?: (data: T) => string;
-  }) {
-    return async (ctx: ClaimContext): Promise<EvidenceRecord<T>> => {
-      const data = await opts.build(ctx);
-      return createRecord(
-        opts.id,
-        "synthetic",
-        opts.source ?? "synthetic",
-        opts.summarize?.(data) ?? "synthetic evidence generated",
-        data
-      );
-    };
-  },
 };

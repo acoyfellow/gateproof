@@ -743,27 +743,32 @@ The agent must emit one JSON object per line on stdout:
 | \`status\` | \`state: "thinking"\\|"idle"\\|"error"\` |
 | \`done\` | \`summary\` |
 
-## Testing with the mock container
+## Attach to a real container
 
-For unit tests, use the mock instead of a real container:
+Do not simulate agent output here. Start a real container and let the gate read its stdout directly:
 
 \`\`\`ts
-import { createMockFilepathContainer, createFilepathObserveResource } from "gateproof";
+import { CloudflareSandboxRuntime, createFilepathObserveResource } from "gateproof";
+import { getSandbox } from "@cloudflare/sandbox";
 
-const container = createMockFilepathContainer();
-const observe = createFilepathObserveResource(container, "test-agent");
+const runtime = new CloudflareSandboxRuntime({
+  getSandbox: (config) => getSandbox(env.Sandbox, \`agent-\${config.name}\`),
+});
 
-// Simulate agent behavior
-container.emit({ type: "text", content: "working on it" });
-container.emit({ type: "commit", hash: "abc123", message: "fix: auth bug" });
-container.emit({ type: "done", summary: "Fixed" });
-container.done();
+const container = await runtime.spawn({
+  name: "fix-auth",
+  agent: "codex",
+  model: "gpt-5",
+  task: "Fix the auth bug",
+});
+
+const observe = createFilepathObserveResource(container, "fix-auth");
 
 const result = await Gate.run({
   observe,
-  act: [Act.wait(50)],
+  act: [Act.wait(300_000)],
   assert: [Assert.hasAction("commit"), Assert.noErrors()],
-  stop: { idleMs: 1000, maxMs: 5000 },
+  stop: { idleMs: 1000, maxMs: 300000 },
 });
 \`\`\`
 
@@ -1125,7 +1130,7 @@ This turns "trust but verify" into "verify, then trust." The agent runs freely i
 
 The real runtime uses Cloudflare Sandbox (\`@cloudflare/sandbox\`). The container's stdout is a \`ReadableStream<Uint8Array>\` that gets parsed into NDJSON lines and exposed as a broadcast \`AsyncIterable<string>\` — both the executor and observe layer can read concurrently without interference.
 
-For testing, use \`createMockFilepathContainer()\` to emit events without a real container.
+If you cannot start a real container yet, fail fast and wire the runtime first. Do not fake the event stream.
 
 ## Agent prompt templates
 

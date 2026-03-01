@@ -2,7 +2,7 @@ import { sveltekit } from "@sveltejs/kit/vite";
 import { defineConfig, type Plugin } from "vite";
 import tailwindcss from "@tailwindcss/vite";
 import { resolve } from "node:path";
-import { readFileSync, writeFileSync } from "node:fs";
+import { existsSync, readFileSync, writeFileSync } from "node:fs";
 
 /**
  * Strip `containers` from the alchemy-generated wrangler.jsonc so that
@@ -14,6 +14,9 @@ function stripContainersFromWrangler(): Plugin {
     name: "strip-wrangler-containers",
     configureServer() {
       const cfgPath = resolve(".alchemy/local/wrangler.jsonc");
+      if (!existsSync(cfgPath)) {
+        return;
+      }
       try {
         const raw = readFileSync(cfgPath, "utf-8");
         const json = JSON.parse(raw);
@@ -21,7 +24,11 @@ function stripContainersFromWrangler(): Plugin {
           delete json.containers;
           writeFileSync(cfgPath, JSON.stringify(json, null, 2) + "\n");
         }
-      } catch {}
+      } catch (error) {
+        throw new Error(
+          `Failed to strip containers from ${cfgPath}: ${error instanceof Error ? error.message : String(error)}`
+        );
+      }
     },
   };
 }
@@ -29,7 +36,7 @@ function stripContainersFromWrangler(): Plugin {
 export default defineConfig({
   resolve: {
     alias: {
-      "cloudflare:workers": resolve("./scripts/cloudflare-workers-stub.js")
+      "cloudflare:workers": resolve("./scripts/cloudflare-workers-shim.js")
     }
   },
   plugins: [stripContainersFromWrangler(), tailwindcss(), sveltekit()],
