@@ -13,6 +13,127 @@ import {
 import { Cloudflare } from "../src/cloudflare/index";
 import { renderReadme } from "../scripts/render-scope";
 
+const installCloudflareTailMocks = (
+  messages: ReadonlyArray<unknown>,
+  options?: {
+    autoOpen?: boolean;
+    createTimeout?: boolean;
+  },
+): (() => void) => {
+  const originalFetch = globalThis.fetch;
+  const originalWebSocket = globalThis.WebSocket;
+  const autoOpen = options?.autoOpen ?? true;
+  const createTimeout = options?.createTimeout ?? false;
+
+  const materializeMessage = (message: unknown): unknown => {
+    if (!message || typeof message !== "object" || Array.isArray(message)) {
+      return message;
+    }
+
+    const now = Date.now();
+    const payload = { ...(message as Record<string, unknown>) };
+
+    if (typeof payload.eventTimestamp === "number") {
+      payload.eventTimestamp = now;
+    }
+
+    if (Array.isArray(payload.logs)) {
+      payload.logs = payload.logs.map((entry) => {
+        if (!entry || typeof entry !== "object" || Array.isArray(entry)) {
+          return entry;
+        }
+
+        const logEntry = { ...(entry as Record<string, unknown>) };
+        if (typeof logEntry.timestamp === "number") {
+          logEntry.timestamp = now;
+        }
+        return logEntry;
+      });
+    }
+
+    return payload;
+  };
+
+  class MockWebSocket extends EventTarget {
+    readonly url: string;
+    readonly protocol: string;
+    readyState = 0;
+
+    constructor(url: string | URL, protocols?: string | string[]) {
+      super();
+      this.url = String(url);
+      this.protocol = Array.isArray(protocols)
+        ? (protocols[0] ?? "")
+        : (protocols ?? "");
+
+      if (autoOpen) {
+        queueMicrotask(() => {
+          this.readyState = 1;
+          this.dispatchEvent(new Event("open"));
+        });
+      }
+    }
+
+    send(_data: string): void {
+      for (const message of messages) {
+        queueMicrotask(() => {
+          this.dispatchEvent(
+            new MessageEvent("message", {
+              data: JSON.stringify(materializeMessage(message)),
+            }),
+          );
+        });
+      }
+    }
+
+    close(): void {
+      this.readyState = 3;
+      this.dispatchEvent(new Event("close"));
+    }
+  }
+
+  globalThis.fetch = (async (...args: Parameters<typeof fetch>) => {
+    const url = String(args[0]);
+    const init = args[1];
+    const method = init?.method ?? "GET";
+
+    if (url.includes("/tails") && method === "POST") {
+      if (createTimeout) {
+        return new Promise<Response>((_resolve, reject) => {
+          init?.signal?.addEventListener(
+            "abort",
+            () => reject(new DOMException("Aborted", "AbortError")),
+            { once: true },
+          );
+        });
+      }
+
+      return Response.json({
+        success: true,
+        result: {
+          id: "tail-id",
+          url: "wss://tail.example",
+        },
+      });
+    }
+
+    if (url.includes("/tails/tail-id") && method === "DELETE") {
+      return Response.json({
+        success: true,
+      });
+    }
+
+    return new Response("not found", { status: 404 });
+  }) as typeof fetch;
+
+  globalThis.WebSocket = MockWebSocket as unknown as typeof WebSocket;
+
+  return () => {
+    globalThis.fetch = originalFetch;
+    globalThis.WebSocket = originalWebSocket;
+  };
+};
+
 describe("Plan runtime", () => {
   test("passes a simple HTTP gate", async () => {
     const server = Bun.serve({
@@ -86,22 +207,20 @@ describe("Plan runtime", () => {
   });
 
   test("passes when a Cloudflare log contains the required action", async () => {
-    const originalFetch = globalThis.fetch;
-    globalThis.fetch = (async (...args: Parameters<typeof fetch>) => {
-      const url = String(args[0]);
-      if (url.includes("/workers/")) {
-        return Response.json({
-          result: [
-            {
-              timestamp: new Date().toISOString(),
-              message: "action=webhook_received",
-            },
-          ],
-        });
-      }
-
-      return new Response("not found", { status: 404 });
-    }) as typeof fetch;
+    const restore = installCloudflareTailMocks([
+      {
+        eventTimestamp: Date.now(),
+        outcome: "ok",
+        scriptName: "worker",
+        logs: [
+          {
+            timestamp: Date.now(),
+            level: "log",
+            message: ["action=webhook_received"],
+          },
+        ],
+      },
+    ]);
 
     try {
       const result = await Effect.runPromise(
@@ -133,25 +252,14 @@ describe("Plan runtime", () => {
       expect(result.goals[0]?.status).toBe("pass");
       expect(result.goals[0]?.evidence.logs?.[0]?.action).toBe("webhook_received");
     } finally {
-      globalThis.fetch = originalFetch;
+      restore();
     }
   });
 
   test("degrades to inconclusive when Cloudflare logs cannot be parsed", async () => {
-    const originalFetch = globalThis.fetch;
-    globalThis.fetch = (async (...args: Parameters<typeof fetch>) => {
-      const url = String(args[0]);
-      if (url.includes("/workers/")) {
-        return new Response("{", {
-          status: 200,
-          headers: {
-            "Content-Type": "application/json",
-          },
-        });
-      }
-
-      return new Response("not found", { status: 404 });
-    }) as typeof fetch;
+    const restore = installCloudflareTailMocks([
+      "{",
+    ]);
 
     try {
       const result = await Effect.runPromise(
@@ -169,6 +277,7 @@ describe("Plan runtime", () => {
                     sinceMs: 60_000,
                     pollInterval: 1,
                   }),
+                  timeoutMs: 50,
                   assert: [Assert.hasAction("webhook_received")],
                 }),
               },
@@ -179,9 +288,77 @@ describe("Plan runtime", () => {
 
       expect(result.status).toBe("inconclusive");
       expect(result.goals[0]?.status).toBe("inconclusive");
-      expect(result.goals[0]?.evidence.errors[0]).toContain("failed to observe Cloudflare worker worker");
+      expect(result.goals[0]?.summary).toContain("missing log evidence");
     } finally {
-      globalThis.fetch = originalFetch;
+      restore();
+    }
+  });
+
+  test("returns promptly when Cloudflare tail creation times out", async () => {
+    const restore = installCloudflareTailMocks([], { createTimeout: true });
+
+    try {
+      const startedAt = Date.now();
+      const result = await Effect.runPromise(
+        Plan.run(
+          Plan.define({
+            goals: [
+              {
+                id: "tail-timeout",
+                title: "Cloudflare tail create timeout",
+                gate: Gate.define({
+                  observe: Cloudflare.observe({
+                    accountId: "acct",
+                    apiToken: "token",
+                    workerName: "worker",
+                  }),
+                  assert: [Assert.hasAction("webhook_received")],
+                }),
+              },
+            ],
+          }),
+        ),
+      );
+
+      expect(result.status).toBe("inconclusive");
+      expect(result.goals[0]?.status).toBe("inconclusive");
+      expect(Date.now() - startedAt).toBeLessThan(6_500);
+    } finally {
+      restore();
+    }
+  });
+
+  test("returns promptly when the Cloudflare tail websocket never opens", async () => {
+    const restore = installCloudflareTailMocks([], { autoOpen: false });
+
+    try {
+      const startedAt = Date.now();
+      const result = await Effect.runPromise(
+        Plan.run(
+          Plan.define({
+            goals: [
+              {
+                id: "tail-never-opens",
+                title: "Cloudflare tail websocket never opens",
+                gate: Gate.define({
+                  observe: Cloudflare.observe({
+                    accountId: "acct",
+                    apiToken: "token",
+                    workerName: "worker",
+                  }),
+                  assert: [Assert.hasAction("webhook_received")],
+                }),
+              },
+            ],
+          }),
+        ),
+      );
+
+      expect(result.status).toBe("inconclusive");
+      expect(result.goals[0]?.status).toBe("inconclusive");
+      expect(Date.now() - startedAt).toBeLessThan(3_500);
+    } finally {
+      restore();
     }
   });
 
@@ -212,25 +389,22 @@ describe("Plan runtime", () => {
   });
 
   test("checks numeric delta from log messages", async () => {
-    const originalFetch = globalThis.fetch;
     const originalBaseline = process.env.COLD_BUILD_MS;
     process.env.COLD_BUILD_MS = "200000";
-
-    globalThis.fetch = (async (...args: Parameters<typeof fetch>) => {
-      const url = String(args[0]);
-      if (url.includes("/workers/")) {
-        return Response.json({
-          result: [
-            {
-              timestamp: new Date().toISOString(),
-              message: "action=build_complete build_duration_ms=120000",
-            },
-          ],
-        });
-      }
-
-      return new Response("not found", { status: 404 });
-    }) as typeof fetch;
+    const restore = installCloudflareTailMocks([
+      {
+        eventTimestamp: Date.now(),
+        outcome: "ok",
+        scriptName: "worker",
+        logs: [
+          {
+            timestamp: Date.now(),
+            level: "log",
+            message: ["action=build_complete build_duration_ms=120000"],
+          },
+        ],
+      },
+    ]);
 
     try {
       const result = await Effect.runPromise(
@@ -264,7 +438,7 @@ describe("Plan runtime", () => {
 
       expect(result.status).toBe("pass");
     } finally {
-      globalThis.fetch = originalFetch;
+      restore();
       if (originalBaseline === undefined) {
         delete process.env.COLD_BUILD_MS;
       } else {

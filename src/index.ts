@@ -2,6 +2,18 @@ import { spawn } from "node:child_process";
 import { setTimeout as delay } from "node:timers/promises";
 import { Effect } from "effect";
 
+const createRequestTimeout = (
+  timeoutMs: number,
+): { signal: AbortSignal; clear: () => void } => {
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), timeoutMs);
+
+  return {
+    signal: controller.signal,
+    clear: () => clearTimeout(timer),
+  };
+};
+
 export type GateStatus = "pass" | "fail" | "skip" | "inconclusive";
 export type ProofStrength = "strong" | "moderate" | "weak" | "none";
 
@@ -207,9 +219,19 @@ export interface PlanRunLoopOptions {
   agent?: LoopAgent;
 }
 
-type ObserveResult =
-  | { kind: "http"; http?: HttpObservationResult }
-  | { kind: "cloudflare-workers-logs"; logs?: ReadonlyArray<LogEvent> };
+interface CloudflareTailCreateResponse {
+  result: {
+    id: string;
+    url: string;
+  };
+  success: true;
+}
+
+interface CloudflareTailSession {
+  ready: () => Promise<void>;
+  collect: (timeoutMs: number) => Promise<ReadonlyArray<LogEvent>>;
+  close: () => Promise<void>;
+}
 
 const describeStatus = (status: GateStatus): string => {
   switch (status) {
@@ -239,53 +261,65 @@ const parseStageToken = (message?: string): string | undefined => {
   return match?.[1];
 };
 
-const toLogEvent = (entry: unknown): LogEvent | null => {
-  if (typeof entry === "string") {
-    return {
-      message: entry,
-      action: parseActionToken(entry),
-      stage: parseStageToken(entry),
-    };
+const parseCloudflareTailPayload = (payload: unknown): ReadonlyArray<LogEvent> => {
+  if (!isRecord(payload) || !Array.isArray(payload.logs)) {
+    return [];
   }
 
-  if (!isRecord(entry)) {
-    return null;
+  const eventMetadata = isRecord(payload.event)
+    ? payload.event
+    : undefined;
+  const baseMetadata: Record<string, unknown> = {};
+
+  if (typeof payload.outcome === "string") {
+    baseMetadata.outcome = payload.outcome;
   }
 
-  const message =
-    typeof entry.message === "string"
-      ? entry.message
-      : typeof entry.event === "string"
-        ? entry.event
-        : typeof entry.outcome === "string"
-          ? entry.outcome
+  if (typeof payload.scriptName === "string") {
+    baseMetadata.scriptName = payload.scriptName;
+  }
+
+  if (eventMetadata) {
+    baseMetadata.event = eventMetadata;
+  }
+
+  return payload.logs
+    .map((entry): LogEvent | null => {
+      if (!isRecord(entry)) {
+        return null;
+      }
+
+      const message =
+        Array.isArray(entry.message)
+          ? entry.message
+            .map((part) => (typeof part === "string" ? part : JSON.stringify(part)))
+            .join(" ")
+          : typeof entry.message === "string"
+            ? entry.message
+            : undefined;
+
+      const metadata =
+        Object.keys(baseMetadata).length > 0
+          ? baseMetadata
           : undefined;
 
-  const action =
-    typeof entry.action === "string" ? entry.action : parseActionToken(message);
-  const stage =
-    typeof entry.stage === "string" ? entry.stage : parseStageToken(message);
-
-  const metadata =
-    isRecord(entry.metadata)
-      ? entry.metadata
-      : isRecord(entry.data)
-        ? entry.data
-        : undefined;
-
-  return {
-    timestamp:
-      typeof entry.timestamp === "string"
-        ? entry.timestamp
-        : typeof entry.time === "string"
-          ? entry.time
-          : undefined,
-    level: typeof entry.level === "string" ? entry.level : undefined,
-    message,
-    action,
-    stage,
-    metadata,
-  };
+      return {
+        timestamp:
+          typeof entry.timestamp === "number"
+            ? new Date(entry.timestamp).toISOString()
+            : typeof entry.timestamp === "string"
+              ? entry.timestamp
+              : typeof payload.eventTimestamp === "number"
+                ? new Date(payload.eventTimestamp).toISOString()
+                : undefined,
+        level: typeof entry.level === "string" ? entry.level : undefined,
+        message,
+        action: parseActionToken(message),
+        stage: parseStageToken(message),
+        metadata,
+      };
+    })
+    .filter((event): event is LogEvent => event !== null);
 };
 
 const deriveProofStrength = (
@@ -416,92 +450,191 @@ const runHttpObservation = (
     };
   }).pipe(Effect.catch(() => Effect.succeed(undefined)));
 
-const fetchCloudflareLogs = async (
+const createCloudflareTailSession = async (
   resource: CloudflareObserveDefinition,
   startedAt: number,
-): Promise<ReadonlyArray<LogEvent>> => {
+): Promise<CloudflareTailSession> => {
   const now = Date.now();
   const sinceThreshold = resource.sinceMs
     ? Math.max(startedAt, now - resource.sinceMs)
     : startedAt;
 
+  const createRequest = createRequestTimeout(4_000);
   const response = await fetch(
-    `https://api.cloudflare.com/client/v4/accounts/${resource.accountId}/workers/${resource.workerName}/logs`,
+    `https://api.cloudflare.com/client/v4/accounts/${resource.accountId}/workers/scripts/${resource.workerName}/tails`,
     {
-      method: "GET",
+      method: "POST",
       headers: {
         Authorization: `Bearer ${resource.apiToken}`,
         "Content-Type": "application/json",
       },
+      body: JSON.stringify({ filters: [] }),
+      signal: createRequest.signal,
     },
-  );
+  ).finally(createRequest.clear);
 
   if (!response.ok) {
-    throw new Error(`Cloudflare logs request failed: ${response.status}`);
+    throw new Error(`Cloudflare tail request failed: ${response.status}`);
   }
 
   const payload: unknown = await response.json();
-  let resultSource: ReadonlyArray<unknown> | null = null;
-
-  if (isRecord(payload)) {
-    if (Array.isArray(payload.result)) {
-      resultSource = payload.result;
-    } else if (isRecord(payload.result) && Array.isArray(payload.result.logs)) {
-      resultSource = payload.result.logs;
-    }
+  if (
+    !isRecord(payload) ||
+    payload.success !== true ||
+    !isRecord(payload.result) ||
+    typeof payload.result.id !== "string" ||
+    typeof payload.result.url !== "string"
+  ) {
+    throw new Error("Cloudflare tail response was missing a websocket URL");
   }
 
-  if (!resultSource) {
-    throw new Error("Cloudflare logs response was missing a result array");
-  }
-
-  const events = resultSource
-    .map(toLogEvent)
-    .filter((event): event is LogEvent => event !== null)
-    .filter((event) => {
-      if (!event.timestamp) {
-        return true;
+  const tailRecord: CloudflareTailCreateResponse = {
+    success: true,
+    result: {
+      id: payload.result.id,
+      url: payload.result.url,
+    },
+  };
+  const collected: LogEvent[] = [];
+  let openResolved = false;
+  const websocket = new WebSocket(tailRecord.result.url, "trace-v1");
+  const messageListener = (event: MessageEvent) => {
+    const data = typeof event.data === "string" ? event.data : String(event.data);
+    try {
+      const payload = JSON.parse(data) as unknown;
+      for (const logEvent of parseCloudflareTailPayload(payload)) {
+        if (!logEvent.timestamp) {
+          collected.push(logEvent);
+          continue;
+        }
+        const timestamp = new Date(logEvent.timestamp).getTime();
+        if (Number.isFinite(timestamp) && timestamp >= sinceThreshold) {
+          collected.push(logEvent);
+        }
       }
-      const timestamp = new Date(event.timestamp).getTime();
-      return Number.isFinite(timestamp) && timestamp >= sinceThreshold;
+    } catch {
+      // Ignore malformed tail payloads and continue collecting.
+    }
+  };
+
+  let readyError: Error | undefined;
+  const ready = new Promise<void>((resolve) => {
+    let settled = false;
+    const timeout = setTimeout(() => {
+      if (settled) {
+        return;
+      }
+      settled = true;
+      readyError = new Error("Cloudflare tail websocket timed out");
+      resolve();
+    }, 2_000);
+
+    websocket.addEventListener("open", () => {
+      if (settled) {
+        return;
+      }
+      try {
+        websocket.send(JSON.stringify({ debug: true }));
+        settled = true;
+        clearTimeout(timeout);
+        openResolved = true;
+        resolve();
+      } catch (error) {
+        settled = true;
+        clearTimeout(timeout);
+        readyError = error instanceof Error ? error : new Error(String(error));
+        resolve();
+      }
     });
 
-  return events;
-};
+    websocket.addEventListener("error", () => {
+      if (settled) {
+        return;
+      }
+      if (!openResolved) {
+        settled = true;
+        clearTimeout(timeout);
+        readyError = new Error("Cloudflare tail websocket failed to connect");
+        resolve();
+      }
+    });
 
-const runCloudflareObservation = (
-  resource: CloudflareObserveDefinition,
-  startedAt: number,
-  timeoutMs?: number,
-): Effect.Effect<ReadonlyArray<LogEvent> | undefined, never, never> =>
-  Effect.tryPromise(async () => {
-    const deadline = Date.now() + (timeoutMs ?? 5_000);
-    const pollInterval = resource.pollInterval ?? 1_000;
+    websocket.addEventListener("close", () => {
+      if (!settled && !openResolved) {
+        settled = true;
+        clearTimeout(timeout);
+        readyError = new Error("Cloudflare tail websocket closed before connecting");
+        resolve();
+      }
+    }, { once: true });
+  });
 
-    while (true) {
-      const logs = await fetchCloudflareLogs(resource, startedAt);
-      if (logs.length > 0 || Date.now() >= deadline) {
-        return logs;
+  websocket.addEventListener("message", messageListener);
+
+  const close = async (): Promise<void> => {
+    const waitForClose = new Promise<void>((resolve) => {
+      websocket.addEventListener("close", () => resolve(), { once: true });
+      websocket.addEventListener("error", () => resolve(), { once: true });
+    });
+    const terminable = websocket as WebSocket & { terminate?: () => void };
+
+    try {
+      terminable.terminate?.();
+      if (!terminable.terminate) {
+        websocket.close();
+      }
+    } catch {
+      try {
+        websocket.close();
+      } catch {
+        // ignore close errors
+      }
+    }
+
+    await Promise.race([waitForClose, delay(250)]);
+
+    websocket.removeEventListener("message", messageListener);
+
+    // Cloudflare tail sessions expire server-side; skipping explicit deletion here keeps
+    // the proof loop bounded and avoids hanging the process on teardown network calls.
+  };
+
+  const collect = async (timeoutMs: number): Promise<ReadonlyArray<LogEvent>> => {
+    await ready;
+    if (readyError) {
+      throw readyError;
+    }
+
+    const deadline = Date.now() + timeoutMs;
+    const pollInterval = Math.max(50, Math.min(resource.pollInterval ?? 250, 1_000));
+
+    while (Date.now() < deadline) {
+      if (collected.length > 0) {
+        await delay(Math.min(250, Math.max(0, deadline - Date.now())));
+        return [...collected];
       }
       await delay(pollInterval);
     }
-  }).pipe(Effect.catch(() => Effect.succeed(undefined)));
+
+    return [...collected];
+  };
+
+  return {
+    ready: async (): Promise<void> => {
+      await ready;
+      if (readyError) {
+        throw readyError;
+      }
+    },
+    collect,
+    close,
+  };
+};
 
 const runObservation = (
-  resource: ObserveResourceDefinition,
-  startedAt: number,
-  timeoutMs?: number,
-): Effect.Effect<ObserveResult, never, never> => {
-  if (resource.kind === "http") {
-    return runHttpObservation(resource).pipe(
-      Effect.map((http) => ({ kind: "http" as const, http })),
-    );
-  }
-
-  return runCloudflareObservation(resource, startedAt, timeoutMs).pipe(
-    Effect.map((logs) => ({ kind: "cloudflare-workers-logs" as const, logs })),
-  );
-};
+  resource: HttpObserveResourceDefinition,
+): Effect.Effect<HttpObservationResult | undefined, never, never> =>
+  runHttpObservation(resource);
 
 const extractNumericValue = (
   assertion: NumericDeltaFromEnvAssertionDefinition,
@@ -594,6 +727,30 @@ const evaluateGate = (goal: PlanGoal): Effect.Effect<GateRunResult, never, never
     const startedAt = Date.now();
     const actions: ActionResult[] = [];
     const errors: string[] = [];
+    let cloudflareTail: CloudflareTailSession | undefined;
+    const cloudflareResource =
+      gate.observe?.kind === "cloudflare-workers-logs"
+        ? gate.observe
+        : undefined;
+
+    if (cloudflareResource) {
+      cloudflareTail = yield* Effect.tryPromise(() =>
+        createCloudflareTailSession(cloudflareResource, startedAt),
+      ).pipe(Effect.catch(() => Effect.succeed(undefined)));
+
+      if (cloudflareTail) {
+        const tailSession = cloudflareTail;
+        cloudflareTail = yield* Effect.tryPromise(async () => {
+          try {
+            await tailSession.ready();
+            return tailSession;
+          } catch {
+            await tailSession.close().catch(() => undefined);
+            throw new Error("Cloudflare tail session failed to become ready");
+          }
+        }).pipe(Effect.catch(() => Effect.succeed(undefined)));
+      }
+    }
 
     for (const action of gate.act ?? []) {
       const result = yield* runExecAction(action);
@@ -608,16 +765,23 @@ const evaluateGate = (goal: PlanGoal): Effect.Effect<GateRunResult, never, never
 
     if (gate.observe) {
       const resource = gate.observe;
-      const observation = yield* runObservation(resource, startedAt, gate.timeoutMs);
-      if (observation.kind === "http") {
-        http = observation.http;
+      if (resource.kind === "http") {
+        http = yield* runObservation(resource);
         if (!http) {
-          errors.push(`failed to observe ${resource.kind === "http" ? resource.url : resource.workerName}`);
+          errors.push(`failed to observe ${resource.url}`);
         }
       } else {
-        logs = observation.logs;
+        if (cloudflareTail) {
+          logs = yield* Effect.tryPromise(() =>
+            cloudflareTail.collect(gate.timeoutMs ?? 5_000),
+          ).pipe(Effect.catch(() => Effect.succeed(undefined)));
+          yield* Effect.tryPromise(() => cloudflareTail.close()).pipe(
+            Effect.catch(() => Effect.succeed(undefined)),
+          );
+        }
+
         if (!logs) {
-          errors.push(`failed to observe Cloudflare worker ${resource.kind === "cloudflare-workers-logs" ? resource.workerName : "unknown"}`);
+          errors.push(`failed to observe Cloudflare worker ${resource.workerName}`);
         }
       }
     }
