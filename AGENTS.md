@@ -52,24 +52,31 @@ Gate results include structured evidence:
 
 ```json
 {
-  "status": "failed",
+  "status": "fail",
+  "summary": "one or more gates failed",
   "evidence": {
-    "actionsSeen": ["page_load"],
-    "stagesSeen": ["worker"],
-    "errorTags": ["ValidationError"]
-  },
-  "error": {
-    "name": "AssertionFailed",
-    "message": "HasAction: missing 'user_created'"
+    "actions": [],
+    "http": {
+      "status": 500
+    },
+    "logs": [
+      {
+        "action": "webhook_received",
+        "stage": "worker"
+      }
+    ],
+    "errors": [
+      "expected HTTP 200 but observed 500"
+    ]
   }
 }
 ```
 
 **Use this to diagnose:**
-- `actionsSeen` - What actions were logged
-- `stagesSeen` - What stages/components ran
-- `errorTags` - What errors occurred
-- `error.message` - The exact assertion that failed
+- `actions` - What shell actions ran and whether they succeeded
+- `http` - The latest HTTP observation, if the gate observed a URL
+- `logs` - Structured log events, including `action` and `stage` when present
+- `errors` - The exact assertion or observation failures
 
 ## Common Patterns
 
@@ -114,9 +121,9 @@ When integrated with `Plan.runLoop`, you'll receive context about failures:
 ```typescript
 const result = await Effect.runPromise(Plan.runLoop(scope.plan, {
   agent: async (ctx) => {
-    // ctx.plan         - The executable plan
-    // ctx.failureSummary - What failed and why
-    // ctx.failedGoals   - The Goal objects that failed
+    // ctx.plan        - The executable plan
+    // ctx.result      - The latest plan result
+    // ctx.failedGoals - The Goal objects that failed
 
     // Make targeted fixes...
     return { changes: ["Fixed validation in signup.ts"] };

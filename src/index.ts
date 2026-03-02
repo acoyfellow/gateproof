@@ -1,4 +1,5 @@
 import { spawn } from "node:child_process";
+import { setTimeout as delay } from "node:timers/promises";
 import { Effect } from "effect";
 
 export type GateStatus = "pass" | "fail" | "skip" | "inconclusive";
@@ -32,6 +33,16 @@ export interface HttpObserveResourceDefinition {
   headers?: Record<string, string>;
 }
 
+export interface CloudflareObserveDefinition {
+  kind: "cloudflare-workers-logs";
+  accountId: string;
+  apiToken: string;
+  workerName: string;
+  backend?: "workers-logs";
+  sinceMs?: number;
+  pollInterval?: number;
+}
+
 export interface ExecActionDefinition {
   kind: "exec";
   command: string;
@@ -61,13 +72,36 @@ export interface NoErrorsAssertionDefinition {
   kind: "noErrors";
 }
 
-export type ObserveResourceDefinition = HttpObserveResourceDefinition;
+export interface HasActionAssertionDefinition {
+  kind: "hasAction";
+  action: string;
+}
+
+export interface ResponseBodyIncludesAssertionDefinition {
+  kind: "responseBodyIncludes";
+  text: string;
+}
+
+export interface NumericDeltaFromEnvAssertionDefinition {
+  kind: "numericDeltaFromEnv";
+  source: "httpBody" | "logMessage";
+  pattern: string;
+  baselineEnv: string;
+  minimumDelta: number;
+}
+
+export type ObserveResourceDefinition =
+  | HttpObserveResourceDefinition
+  | CloudflareObserveDefinition;
 export type ActionDefinition = ExecActionDefinition;
 export type PrerequisiteDefinition = EnvPrerequisiteDefinition;
 export type AssertionDefinition =
   | HttpResponseAssertionDefinition
   | DurationAssertionDefinition
-  | NoErrorsAssertionDefinition;
+  | NoErrorsAssertionDefinition
+  | HasActionAssertionDefinition
+  | ResponseBodyIncludesAssertionDefinition
+  | NumericDeltaFromEnvAssertionDefinition;
 
 export interface GateDefinition {
   observe?: ObserveResourceDefinition;
@@ -88,9 +122,14 @@ export interface PlanLoop {
   stopOnFailure?: boolean;
 }
 
+export interface PlanCleanup {
+  actions: ReadonlyArray<ActionDefinition>;
+}
+
 export interface PlanDefinition {
   goals: ReadonlyArray<PlanGoal>;
   loop?: PlanLoop;
+  cleanup?: PlanCleanup;
 }
 
 export interface ScopeFile {
@@ -117,9 +156,19 @@ export interface HttpObservationResult {
   body: string;
 }
 
+export interface LogEvent {
+  timestamp?: string;
+  level?: string;
+  message?: string;
+  action?: string;
+  stage?: string;
+  metadata?: Record<string, unknown>;
+}
+
 export interface GateEvidence {
   actions: ReadonlyArray<ActionResult>;
   http?: HttpObservationResult;
+  logs?: ReadonlyArray<LogEvent>;
   errors: ReadonlyArray<string>;
 }
 
@@ -138,6 +187,7 @@ export interface PlanRunResult {
   iterations: number;
   goals: ReadonlyArray<GateRunResult>;
   summary: string;
+  cleanupErrors: ReadonlyArray<string>;
 }
 
 export interface LoopAgentContext {
@@ -162,6 +212,10 @@ export interface PlanRunLoopOptions {
   agent?: LoopAgent;
 }
 
+type ObserveResult =
+  | { kind: "http"; http?: HttpObservationResult }
+  | { kind: "cloudflare-workers-logs"; logs?: ReadonlyArray<LogEvent> };
+
 const describeStatus = (status: GateStatus): string => {
   switch (status) {
     case "pass":
@@ -175,21 +229,98 @@ const describeStatus = (status: GateStatus): string => {
   }
 };
 
-const deriveProofStrength = (gate: GateDefinition, evidence: GateEvidence, status: GateStatus): ProofStrength => {
+const isRecord = (value: unknown): value is Record<string, unknown> =>
+  typeof value === "object" && value !== null;
+
+const parseActionToken = (message?: string): string | undefined => {
+  if (!message) return undefined;
+  const match = message.match(/\baction=([A-Za-z0-9._:-]+)/);
+  return match?.[1];
+};
+
+const parseStageToken = (message?: string): string | undefined => {
+  if (!message) return undefined;
+  const match = message.match(/\bstage=([A-Za-z0-9._:-]+)/);
+  return match?.[1];
+};
+
+const toLogEvent = (entry: unknown): LogEvent | null => {
+  if (typeof entry === "string") {
+    return {
+      message: entry,
+      action: parseActionToken(entry),
+      stage: parseStageToken(entry),
+    };
+  }
+
+  if (!isRecord(entry)) {
+    return null;
+  }
+
+  const message =
+    typeof entry.message === "string"
+      ? entry.message
+      : typeof entry.event === "string"
+        ? entry.event
+        : typeof entry.outcome === "string"
+          ? entry.outcome
+          : undefined;
+
+  const action =
+    typeof entry.action === "string" ? entry.action : parseActionToken(message);
+  const stage =
+    typeof entry.stage === "string" ? entry.stage : parseStageToken(message);
+
+  const metadata =
+    isRecord(entry.metadata)
+      ? entry.metadata
+      : isRecord(entry.data)
+        ? entry.data
+        : undefined;
+
+  return {
+    timestamp:
+      typeof entry.timestamp === "string"
+        ? entry.timestamp
+        : typeof entry.time === "string"
+          ? entry.time
+          : undefined,
+    level: typeof entry.level === "string" ? entry.level : undefined,
+    message,
+    action,
+    stage,
+    metadata,
+  };
+};
+
+const deriveProofStrength = (
+  gate: GateDefinition,
+  evidence: GateEvidence,
+  status: GateStatus,
+): ProofStrength => {
   if (status === "skip") return "none";
-  if (evidence.http) return "strong";
-  if (evidence.actions.length > 0 && gate.assert && gate.assert.length > 0) return "moderate";
+  if (evidence.http || (evidence.logs && evidence.logs.length > 0)) return "strong";
+  if (evidence.actions.length > 0 && (gate.assert?.length ?? 0) > 0) return "moderate";
   if (evidence.actions.length > 0) return "weak";
   return "none";
 };
 
-const matchesActionFilter = (gate: GateDefinition, actionIncludes?: string): boolean => {
+const matchesActionFilter = (
+  gate: GateDefinition,
+  actionIncludes?: string,
+): boolean => {
   if (!actionIncludes) return true;
-  if (gate.observe?.kind === "http" && gate.observe.url.includes(actionIncludes)) return true;
+
+  if (gate.observe?.kind === "http" && gate.observe.url.includes(actionIncludes)) {
+    return true;
+  }
+
   return gate.act?.some((action) => action.command.includes(actionIncludes)) ?? false;
 };
 
-const runExecAction = (action: ExecActionDefinition): Effect.Effect<ActionResult, never, never> =>
+const runExecAction = (
+  action: ExecActionDefinition,
+): Effect.Effect<ActionResult, never, never> =>
   Effect.tryPromise(() =>
     new Promise<ActionResult>((resolve) => {
       const startedAt = Date.now();
@@ -256,23 +387,23 @@ const runExecAction = (action: ExecActionDefinition): Effect.Effect<ActionResult
           });
         }, action.timeoutMs);
       }
-    })
+    }),
   ).pipe(
     Effect.catch((error: unknown) =>
       Effect.succeed({
-          kind: "exec" as const,
-          command: action.command,
-          ok: false,
-          durationMs: 0,
-          stdout: "",
-          stderr: error instanceof Error ? error.message : String(error),
-          exitCode: null,
-        })
-    )
+        kind: "exec" as const,
+        command: action.command,
+        ok: false,
+        durationMs: 0,
+        stdout: "",
+        stderr: error instanceof Error ? error.message : String(error),
+        exitCode: null,
+      }),
+    ),
   );
 
 const runHttpObservation = (
-  resource: HttpObserveResourceDefinition
+  resource: HttpObserveResourceDefinition,
 ): Effect.Effect<HttpObservationResult | undefined, never, never> =>
   Effect.tryPromise(async () => {
     const startedAt = Date.now();
@@ -288,106 +419,118 @@ const runHttpObservation = (
       ok: response.ok,
       body,
     };
-  }).pipe(
-    Effect.catch(() => Effect.succeed(undefined))
+  }).pipe(Effect.catch(() => Effect.succeed(undefined)));
+
+const fetchCloudflareLogs = async (
+  resource: CloudflareObserveDefinition,
+  startedAt: number,
+): Promise<ReadonlyArray<LogEvent>> => {
+  const now = Date.now();
+  const sinceThreshold = resource.sinceMs
+    ? Math.max(startedAt, now - resource.sinceMs)
+    : startedAt;
+
+  const response = await fetch(
+    `https://api.cloudflare.com/client/v4/accounts/${resource.accountId}/workers/${resource.workerName}/logs`,
+    {
+      method: "GET",
+      headers: {
+        Authorization: `Bearer ${resource.apiToken}`,
+        "Content-Type": "application/json",
+      },
+    },
   );
 
-const evaluateGate = (goal: PlanGoal): Effect.Effect<GateRunResult, never, never> =>
-  Effect.gen(function* () {
-    const gate = goal.gate;
-    const prerequisites = gate.prerequisites ?? [];
+  if (!response.ok) {
+    throw new Error(`Cloudflare logs request failed: ${response.status}`);
+  }
 
-    for (const prerequisite of prerequisites) {
-      if (prerequisite.kind === "env" && !process.env[prerequisite.name]) {
-        return {
-          id: goal.id,
-          title: goal.title,
-          status: "skip" as const,
-          proofStrength: "none" as const,
-          summary: prerequisite.reason ?? `missing required env var ${prerequisite.name}`,
-          evidence: { actions: [], errors: [] },
-        };
+  const payload = (await response.json()) as { result?: ReadonlyArray<unknown> };
+  const events = (payload.result ?? [])
+    .map(toLogEvent)
+    .filter((event): event is LogEvent => event !== null)
+    .filter((event) => {
+      if (!event.timestamp) {
+        return true;
       }
-    }
+      const timestamp = new Date(event.timestamp).getTime();
+      return Number.isFinite(timestamp) && timestamp >= sinceThreshold;
+    });
 
-    const actions: ActionResult[] = [];
-    const errors: string[] = [];
+  return events;
+};
 
-    for (const action of gate.act ?? []) {
-      const result = yield* runExecAction(action);
-      actions.push(result);
-      if (!result.ok) {
-        errors.push(`action failed: ${result.command}`);
+const runCloudflareObservation = (
+  resource: CloudflareObserveDefinition,
+  startedAt: number,
+  timeoutMs?: number,
+): Effect.Effect<ReadonlyArray<LogEvent> | undefined, never, never> =>
+  Effect.tryPromise(async () => {
+    const deadline = Date.now() + (timeoutMs ?? 5_000);
+    const pollInterval = resource.pollInterval ?? 1_000;
+
+    while (true) {
+      const logs = await fetchCloudflareLogs(resource, startedAt);
+      if (logs.length > 0 || Date.now() >= deadline) {
+        return logs;
       }
+      await delay(pollInterval);
     }
+  }).pipe(Effect.catch(() => Effect.succeed(undefined)));
 
-    const http = gate.observe?.kind === "http" ? yield* runHttpObservation(gate.observe) : undefined;
-    if (gate.observe?.kind === "http" && !http) {
-      errors.push(`failed to observe ${gate.observe.url}`);
+const runObservation = (
+  resource: ObserveResourceDefinition,
+  startedAt: number,
+  timeoutMs?: number,
+): Effect.Effect<ObserveResult, never, never> => {
+  if (resource.kind === "http") {
+    return runHttpObservation(resource).pipe(
+      Effect.map((http) => ({ kind: "http" as const, http })),
+    );
+  }
+
+  return runCloudflareObservation(resource, startedAt, timeoutMs).pipe(
+    Effect.map((logs) => ({ kind: "cloudflare-workers-logs" as const, logs })),
+  );
+};
+
+const extractNumericValue = (
+  assertion: NumericDeltaFromEnvAssertionDefinition,
+  evidence: GateEvidence,
+): number | null => {
+  let regex: RegExp;
+
+  try {
+    regex = new RegExp(assertion.pattern);
+  } catch {
+    return null;
+  }
+
+  if (assertion.source === "httpBody") {
+    const bodyText = evidence.http?.body ?? evidence.actions.map((action) => action.stdout).join("\n");
+    const match = bodyText.match(regex);
+    if (!match) return null;
+    const value = Number(match[1] ?? match[0]);
+    return Number.isFinite(value) ? value : null;
+  }
+
+  for (const log of evidence.logs ?? []) {
+    const message = log.message;
+    if (!message) continue;
+    const match = message.match(regex);
+    if (!match) continue;
+    const value = Number(match[1] ?? match[0]);
+    if (Number.isFinite(value)) {
+      return value;
     }
+  }
 
-    const evidence: GateEvidence = {
-      actions,
-      http,
-      errors,
-    };
+  return null;
+};
 
-    const assertions = gate.assert ?? [];
-    if (assertions.length === 0) {
-      return {
-        id: goal.id,
-        title: goal.title,
-        status: "inconclusive",
-        proofStrength: deriveProofStrength(gate, evidence, "inconclusive"),
-        summary: "no assertions defined",
-        evidence,
-      };
-    }
-
-    const issues: string[] = [];
-    let insufficient = false;
-
-    for (const assertion of assertions) {
-      if (assertion.kind === "httpResponse") {
-        if (!http || !matchesActionFilter(gate, assertion.actionIncludes)) {
-          insufficient = true;
-          issues.push("missing matching HTTP evidence");
-          continue;
-        }
-        if (http.status !== assertion.status) {
-          issues.push(`expected HTTP ${assertion.status}, saw ${http.status}`);
-        }
-      }
-
-      if (assertion.kind === "duration") {
-        if (!http || !matchesActionFilter(gate, assertion.actionIncludes)) {
-          insufficient = true;
-          issues.push("missing timing evidence");
-          continue;
-        }
-        if (http.durationMs > assertion.atMostMs) {
-          issues.push(`expected duration <= ${assertion.atMostMs}ms, saw ${http.durationMs}ms`);
-        }
-      }
-
-      if (assertion.kind === "noErrors" && errors.length > 0) {
-        issues.push(errors.join("; "));
-      }
-    }
-
-    const status: GateStatus = insufficient ? "inconclusive" : issues.length > 0 ? "fail" : "pass";
-
-    return {
-      id: goal.id,
-      title: goal.title,
-      status,
-      proofStrength: deriveProofStrength(gate, evidence, status),
-      summary: issues.length > 0 ? issues.join("; ") : "gate passed",
-      evidence,
-    };
-  });
-
-const summarizePlan = (goals: ReadonlyArray<GateRunResult>): Pick<PlanRunResult, "status" | "proofStrength" | "summary"> => {
+const summarizePlan = (
+  goals: ReadonlyArray<GateRunResult>,
+): Pick<PlanRunResult, "status" | "proofStrength" | "summary"> => {
   const statuses = goals.map((goal) => goal.status);
   let status: GateStatus = "pass";
 
@@ -419,6 +562,173 @@ const summarizePlan = (goals: ReadonlyArray<GateRunResult>): Pick<PlanRunResult,
   };
 };
 
+const evaluateGate = (goal: PlanGoal): Effect.Effect<GateRunResult, never, never> =>
+  Effect.gen(function* () {
+    const gate = goal.gate;
+    const prerequisites = gate.prerequisites ?? [];
+
+    for (const prerequisite of prerequisites) {
+      if (prerequisite.kind === "env" && !process.env[prerequisite.name]) {
+        return {
+          id: goal.id,
+          title: goal.title,
+          status: "skip" as const,
+          proofStrength: "none" as const,
+          summary: prerequisite.reason ?? `missing required env var ${prerequisite.name}`,
+          evidence: { actions: [], errors: [] },
+        };
+      }
+    }
+
+    const startedAt = Date.now();
+    const actions: ActionResult[] = [];
+    const errors: string[] = [];
+
+    for (const action of gate.act ?? []) {
+      const result = yield* runExecAction(action);
+      actions.push(result);
+      if (!result.ok) {
+        errors.push(`action failed: ${result.command}`);
+      }
+    }
+
+    let http: HttpObservationResult | undefined;
+    let logs: ReadonlyArray<LogEvent> | undefined;
+
+    if (gate.observe) {
+      const resource = gate.observe;
+      const observation = yield* runObservation(resource, startedAt, gate.timeoutMs);
+      if (observation.kind === "http") {
+        http = observation.http;
+        if (!http) {
+          errors.push(`failed to observe ${resource.kind === "http" ? resource.url : resource.workerName}`);
+        }
+      } else {
+        logs = observation.logs;
+        if (!logs) {
+          errors.push(`failed to observe Cloudflare worker ${resource.kind === "cloudflare-workers-logs" ? resource.workerName : "unknown"}`);
+        }
+      }
+    }
+
+    const evidence: GateEvidence = {
+      actions,
+      http,
+      logs,
+      errors,
+    };
+
+    const assertions = gate.assert ?? [];
+    if (assertions.length === 0) {
+      return {
+        id: goal.id,
+        title: goal.title,
+        status: "inconclusive",
+        proofStrength: deriveProofStrength(gate, evidence, "inconclusive"),
+        summary: "no assertions defined",
+        evidence,
+      };
+    }
+
+    const issues: string[] = [];
+    let insufficient = false;
+
+    for (const assertion of assertions) {
+      if (assertion.kind === "httpResponse") {
+        if (!http || !matchesActionFilter(gate, assertion.actionIncludes)) {
+          insufficient = true;
+          issues.push("missing matching HTTP evidence");
+          continue;
+        }
+        if (http.status !== assertion.status) {
+          issues.push(`expected HTTP ${assertion.status}, saw ${http.status}`);
+        }
+        continue;
+      }
+
+      if (assertion.kind === "duration") {
+        if (!http || !matchesActionFilter(gate, assertion.actionIncludes)) {
+          insufficient = true;
+          issues.push("missing timing evidence");
+          continue;
+        }
+        if (http.durationMs > assertion.atMostMs) {
+          issues.push(`expected duration <= ${assertion.atMostMs}ms, saw ${http.durationMs}ms`);
+        }
+        continue;
+      }
+
+      if (assertion.kind === "noErrors") {
+        if (errors.length > 0) {
+          issues.push(errors.join("; "));
+        }
+        continue;
+      }
+
+      if (assertion.kind === "hasAction") {
+        if (!logs || logs.length === 0) {
+          insufficient = true;
+          issues.push("missing log evidence");
+          continue;
+        }
+        const found = logs.some((log) => log.action === assertion.action);
+        if (!found) {
+          issues.push(`expected action ${assertion.action}`);
+        }
+        continue;
+      }
+
+      if (assertion.kind === "responseBodyIncludes") {
+        const bodyText = http?.body ?? actions.map((action) => action.stdout).join("\n");
+        if (!bodyText) {
+          insufficient = true;
+          issues.push("missing response body evidence");
+          continue;
+        }
+        if (!bodyText.includes(assertion.text)) {
+          issues.push(`expected response body to include ${JSON.stringify(assertion.text)}`);
+        }
+        continue;
+      }
+
+      if (!process.env[assertion.baselineEnv]) {
+        insufficient = true;
+        issues.push(`missing baseline env var ${assertion.baselineEnv}`);
+        continue;
+      }
+
+      const baseline = Number(process.env[assertion.baselineEnv]);
+      if (!Number.isFinite(baseline)) {
+        issues.push(`baseline env var ${assertion.baselineEnv} is not numeric`);
+        continue;
+      }
+
+      const measured = extractNumericValue(assertion, evidence);
+      if (measured === null) {
+        insufficient = true;
+        issues.push("missing numeric evidence");
+        continue;
+      }
+
+      const delta = baseline - measured;
+      if (delta < assertion.minimumDelta) {
+        issues.push(`expected delta >= ${assertion.minimumDelta}, saw ${delta}`);
+      }
+    }
+
+    const status: GateStatus =
+      insufficient ? "inconclusive" : issues.length > 0 ? "fail" : "pass";
+
+    return {
+      id: goal.id,
+      title: goal.title,
+      status,
+      proofStrength: deriveProofStrength(gate, evidence, status),
+      summary: issues.length > 0 ? issues.join("; ") : "gate passed",
+      evidence,
+    };
+  });
+
 const runPlanOnce = (plan: PlanDefinition): Effect.Effect<PlanRunResult, never, never> =>
   Effect.gen(function* () {
     const goals: GateRunResult[] = [];
@@ -431,12 +741,47 @@ const runPlanOnce = (plan: PlanDefinition): Effect.Effect<PlanRunResult, never, 
       ...summary,
       iterations: 1,
       goals,
+      cleanupErrors: [],
+    };
+  });
+
+const runCleanup = (
+  plan: PlanDefinition,
+): Effect.Effect<ReadonlyArray<string>, never, never> =>
+  Effect.gen(function* () {
+    const cleanupErrors: string[] = [];
+
+    for (const action of plan.cleanup?.actions ?? []) {
+      const result = yield* runExecAction(action);
+      if (!result.ok) {
+        cleanupErrors.push(`cleanup failed: ${action.command}`);
+      }
+    }
+
+    return cleanupErrors;
+  });
+
+const withCleanup = (
+  plan: PlanDefinition,
+  result: PlanRunResult,
+): Effect.Effect<PlanRunResult, never, never> =>
+  Effect.gen(function* () {
+    const cleanupErrors = yield* runCleanup(plan);
+    const summary =
+      cleanupErrors.length > 0
+        ? `${result.summary}; cleanup issues: ${cleanupErrors.join("; ")}`
+        : result.summary;
+
+    return {
+      ...result,
+      summary,
+      cleanupErrors,
     };
   });
 
 const runAgent = (
   agent: LoopAgent,
-  context: LoopAgentContext
+  context: LoopAgentContext,
 ): Effect.Effect<void, never, never> => {
   if (!agent) {
     return Effect.void;
@@ -444,14 +789,12 @@ const runAgent = (
 
   return Effect.tryPromise(async () => {
     await Promise.resolve(agent(context));
-  }).pipe(
-    Effect.catch(() => Effect.void)
-  );
+  }).pipe(Effect.catch(() => Effect.void));
 };
 
 const runPlanLoop = (
   plan: PlanDefinition,
-  options: PlanRunLoopOptions = {}
+  options: PlanRunLoopOptions = {},
 ): Effect.Effect<PlanRunResult, never, never> =>
   Effect.gen(function* () {
     const maxIterations = options.maxIterations ?? plan.loop?.maxIterations ?? 1;
@@ -462,6 +805,7 @@ const runPlanLoop = (
       iterations: 0,
       goals: [],
       summary: "loop has not run",
+      cleanupErrors: [],
     };
 
     while (iteration < maxIterations) {
@@ -473,11 +817,11 @@ const runPlanLoop = (
       };
 
       if (latest.status === "pass" || latest.status === "skip") {
-        return latest;
+        return yield* withCleanup(plan, latest);
       }
 
       if (plan.loop?.stopOnFailure && latest.status === "fail") {
-        return latest;
+        return yield* withCleanup(plan, latest);
       }
 
       if (iteration < maxIterations) {
@@ -491,7 +835,7 @@ const runPlanLoop = (
       }
     }
 
-    return latest;
+    return yield* withCleanup(plan, latest);
   });
 
 export const Gate = {
@@ -505,18 +849,21 @@ export const Plan = {
     return definition;
   },
   run(plan: PlanDefinition): Effect.Effect<PlanRunResult, never, never> {
-    return runPlanOnce(plan);
+    return runPlanOnce(plan).pipe(Effect.flatMap((result) => withCleanup(plan, result)));
   },
   runLoop(
     plan: PlanDefinition,
-    options?: PlanRunLoopOptions
+    options?: PlanRunLoopOptions,
   ): Effect.Effect<PlanRunResult, never, never> {
     return runPlanLoop(plan, options);
   },
 };
 
 export const Act = {
-  exec(command: string, options: Omit<ExecActionDefinition, "kind" | "command"> = {}): ExecActionDefinition {
+  exec(
+    command: string,
+    options: Omit<ExecActionDefinition, "kind" | "command"> = {},
+  ): ExecActionDefinition {
     return {
       kind: "exec",
       command,
@@ -526,13 +873,17 @@ export const Act = {
 };
 
 export const Assert = {
-  httpResponse(definition: Omit<HttpResponseAssertionDefinition, "kind">): HttpResponseAssertionDefinition {
+  httpResponse(
+    definition: Omit<HttpResponseAssertionDefinition, "kind">,
+  ): HttpResponseAssertionDefinition {
     return {
       kind: "httpResponse",
       ...definition,
     };
   },
-  duration(definition: Omit<DurationAssertionDefinition, "kind">): DurationAssertionDefinition {
+  duration(
+    definition: Omit<DurationAssertionDefinition, "kind">,
+  ): DurationAssertionDefinition {
     return {
       kind: "duration",
       ...definition,
@@ -540,6 +891,26 @@ export const Assert = {
   },
   noErrors(): NoErrorsAssertionDefinition {
     return { kind: "noErrors" };
+  },
+  hasAction(action: string): HasActionAssertionDefinition {
+    return {
+      kind: "hasAction",
+      action,
+    };
+  },
+  responseBodyIncludes(text: string): ResponseBodyIncludesAssertionDefinition {
+    return {
+      kind: "responseBodyIncludes",
+      text,
+    };
+  },
+  numericDeltaFromEnv(
+    definition: Omit<NumericDeltaFromEnvAssertionDefinition, "kind">,
+  ): NumericDeltaFromEnvAssertionDefinition {
+    return {
+      kind: "numericDeltaFromEnv",
+      ...definition,
+    };
   },
 };
 
@@ -554,7 +925,7 @@ export const Require = {
 };
 
 export const createHttpObserveResource = (
-  definition: Omit<HttpObserveResourceDefinition, "kind">
+  definition: Omit<HttpObserveResourceDefinition, "kind">,
 ): HttpObserveResourceDefinition => ({
   kind: "http",
   ...definition,
