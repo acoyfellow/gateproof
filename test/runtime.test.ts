@@ -294,6 +294,45 @@ describe("Plan runtime", () => {
     }
   });
 
+  test("returns promptly when Cloudflare yields no log events", async () => {
+    const restore = installCloudflareTailMocks([]);
+
+    try {
+      const startedAt = Date.now();
+      const result = await Effect.runPromise(
+        Plan.run(
+          Plan.define({
+            goals: [
+              {
+                id: "quiet-worker",
+                title: "Quiet worker returns promptly",
+                gate: Gate.define({
+                  observe: Cloudflare.observe({
+                    accountId: "acct",
+                    apiToken: "token",
+                    workerName: "worker",
+                    sinceMs: 60_000,
+                    pollInterval: 1,
+                  }),
+                  assert: [
+                    Assert.hasAction("never_happens"),
+                  ],
+                  timeoutMs: 10_000,
+                }),
+              },
+            ],
+          }),
+        ),
+      );
+
+      expect(Date.now() - startedAt).toBeLessThan(4_000);
+      expect(result.status).toBe("inconclusive");
+      expect(result.goals[0]?.summary).toContain("missing log evidence");
+    } finally {
+      restore();
+    }
+  });
+
   test("returns promptly when Cloudflare tail creation times out", async () => {
     const restore = installCloudflareTailMocks([], { createTimeout: true });
 

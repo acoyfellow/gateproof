@@ -605,7 +605,11 @@ const createCloudflareTailSession = async (
       throw readyError;
     }
 
-    const deadline = Date.now() + timeoutMs;
+    // Cloudflare tail events should arrive quickly after the triggering action.
+    // If nothing shows up promptly, return empty evidence instead of burning the
+    // full gate timeout and making the proof loop feel wedged.
+    const effectiveTimeoutMs = Math.min(timeoutMs, 1_500);
+    const deadline = Date.now() + effectiveTimeoutMs;
     const pollInterval = Math.max(50, Math.min(resource.pollInterval ?? 250, 1_000));
 
     while (Date.now() < deadline) {
