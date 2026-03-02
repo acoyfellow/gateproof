@@ -1,6 +1,9 @@
 import type { RequestEvent } from "@sveltejs/kit";
 import { getSandbox, parseSSEStream } from "@cloudflare/sandbox";
 
+type SandboxBinding = Parameters<typeof getSandbox>[0];
+type SandboxEnvironment = { Sandbox?: SandboxBinding };
+
 type RunRequest = {
   prdFile: string;
   apiUrl?: string;
@@ -9,7 +12,7 @@ type RunRequest = {
 
 export const POST = async ({ request, platform }: RequestEvent) => {
   try {
-    const env = platform?.env as { Sandbox?: any } | undefined;
+    const env = platform?.env as SandboxEnvironment | undefined;
     if (!env?.Sandbox) {
       return Response.json({ message: "Sandbox bindings not configured" }, { status: 500 });
     }

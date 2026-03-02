@@ -1,7 +1,9 @@
 import { getSandbox } from "@cloudflare/sandbox";
 
+type SandboxBinding = Parameters<typeof getSandbox>[0];
+
 type Environment = {
-  Sandbox?: unknown;
+  Sandbox?: SandboxBinding;
   DEV?: boolean;
 };
 
@@ -135,9 +137,7 @@ export async function ensureSandboxReady(sandbox: Awaited<ReturnType<typeof getS
 }
 
 export async function getSandboxSafely(env: Environment, sandboxId: string, options?: object) {
-  const isLocalDev = env.DEV || !env.Sandbox;
-
-  if (isLocalDev) {
+  if (env.DEV || !env.Sandbox) {
     throw new Error(
       "Sandbox endpoints are not available in local development.\n" +
       "Sandbox bindings (env.Sandbox) require a Cloudflare production environment.\n\n" +
@@ -148,5 +148,6 @@ export async function getSandboxSafely(env: Environment, sandboxId: string, opti
     );
   }
 
-  return getSandbox(env.Sandbox as any, sandboxId, options);
+  const sandboxBinding = env.Sandbox;
+  return getSandbox(sandboxBinding, sandboxId, options);
 }

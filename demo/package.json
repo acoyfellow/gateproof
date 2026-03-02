@@ -6,6 +6,7 @@
   "scripts": {
     "predev": "node scripts/kill-dev-ports.js",
     "build": "node scripts/patch-cloudflare-containers.js && bun x @sveltejs/kit sync && bun x vite build && node scripts/patch-worker.js",
+    "lint": "bun ../scripts/lint.ts src scripts",
     "vite": "vite",
     "check:watch": "svelte-kit sync && svelte-check --tsconfig ./tsconfig.json --watch",
     "check": "svelte-kit sync && svelte-check --tsconfig ./tsconfig.json",

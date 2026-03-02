@@ -1,222 +1,128 @@
-# gateproof
+# Gateproof
 
-Software is built in reverse. You know what you want before you know how to get there. TDD proved the idea: write the test first, then make it pass. Gateproof takes the next step.
+Write a gate in plan.ts. Let the loop rerun until it passes or stops.
 
-Write stories. Attach gates. Let agents iterate until reality matches intent.
+## Tutorial
 
-A **gate** observes real evidence (logs, telemetry), acts (browser, shell, deploy), and asserts outcomes. A **story** is a gate with a name and a place in a plan. A **prd.ts** is a list of stories in dependency order. The agent's only job is to make the next failing gate pass.
-
-## The thesis
-
-Plans are solid. Implementation is liquid.
-
-Any codebase can be scoped down to stories and a `prd.ts`. Multiple agents can work the same plan, falling through the same checkpoints. Once a gate passes, previous work can't break -- the gate proves it. The skill shifts from writing code to defining the right guardrails.
-
-Gates are checkpoints that keep agents safe. They don't decide intent. They verify reality.
-
-## Why this works
-
-Formal verification research established that the relationship between a specification and its implementation — called **refinement** — is itself a testable property. You don't need a theorem prover to get value from this idea. You can test refinement cheaply by running the system and checking that its behavior satisfies the spec.
-
-Gateproof distills this into three primitives:
-
-1. **Observe** — collect real evidence (logs, telemetry) from a running system
-2. **Act** — trigger real behavior (browser navigation, shell commands, deploys)
-3. **Assert** — check that the evidence satisfies the specification
-
-Each gate is a refinement check: does the running system's behavior refine what the story claims? The PRD orders these checks by dependency, so failures localize to the first broken obligation.
-
-This is a deliberate simplification. We trade random input generation and exhaustive coverage for something an engineer can write in minutes and an agent can iterate against in a loop. The gate is the contract. The loop is the proof search.
-
-> Lineage: the *observe → act → assert* pattern draws on property-based testing ideas from [Chen, Rizkallah et al. — "Property-Based Testing: Climbing the Stairway to Verification" (SLE 2022)](https://doi.org/10.1145/3567512.3567520), which demonstrated that refinement properties can serve as a practical, incremental path toward verified systems.
-
-## Install
-
-```bash
-bun add gateproof
-```
-
-## Minimal gate
+Goal: See the loop in one file.
 
 ```ts
-import { Gate, Act, Assert, createHttpObserveResource } from "gateproof";
+import { Effect } from "effect";
+import {
+  Act,
+  Assert,
+  Gate,
+  Plan,
+  createHttpObserveResource,
+  type ScopeFile,
+} from "gateproof";
 
-const result = await Gate.run({
-  name: "post-deploy",
-  observe: createHttpObserveResource({
-    url: "https://api.example.com/health",
-  }),
-  act: [Act.wait(500)],
-  assert: [Assert.noErrors()],
-  stop: { maxMs: 10_000 },
-});
-
-if (result.status !== "success") process.exit(1);
-```
-
-## Stories + PRD
-
-```ts
-import { definePrd, runPrd } from "gateproof/prd";
-
-const prd = definePrd({
-  stories: [
-    {
-      id: "user-signup",
-      title: "User can sign up with email",
-      gateFile: "./gates/signup.gate.ts",
+const scope = {
+  spec: {
+    title: "Gateproof",
+    tutorial: {
+      goal: "See the loop in one file.",
+      outcome: "Hand plan.ts to a human or an agent and step back.",
     },
-    {
-      id: "email-verification",
-      title: "User receives verification email",
-      gateFile: "./gates/verify.gate.ts",
-      dependsOn: ["user-signup"],
+    howTo: {
+      task: "Write a gate in plan.ts. Let the loop rerun until it passes or stops.",
+      done: "One file explains the work and runs the loop.",
     },
-  ] as const,
-});
-
-const result = await runPrd(prd);
-if (!result.success) process.exit(1);
-```
-
-## Assertions
-
-`Assert.noErrors()`, `Assert.hasAction(name)`, `Assert.hasStage(name)`, `Assert.custom(name, fn)`, `Assert.authority(policy)`.
-
-```ts
-import { Gate, Act, Assert } from "gateproof";
-import { CloudflareProvider } from "gateproof/cloudflare";
-
-const provider = CloudflareProvider({
-  accountId: process.env.CLOUDFLARE_ACCOUNT_ID!,
-  apiToken: process.env.CLOUDFLARE_API_TOKEN!,
-});
-
-const result = await Gate.run({
-  name: "checkout-flow",
-  observe: provider.observe({ backend: "analytics", dataset: "worker_logs" }),
-  act: [Act.browser({ url: "https://app.example.com/checkout" })],
-  assert: [
-    Assert.noErrors(),
-    Assert.hasAction("checkout_started"),
-    Assert.custom("has-total", (logs) => logs.some(l => (l as { data?: { total?: number } }).data?.total > 0)),
-  ],
-  stop: { maxMs: 15_000 },
-});
-if (result.status !== "success") process.exit(1);
-```
-
-## Agent gates
-
-Spawn an AI agent in an isolated container, observe its NDJSON event stream, and assert what it's allowed to do.
-
-```ts
-import { Gate, Act, Assert } from "gateproof";
-import { setFilepathRuntime, CloudflareSandboxRuntime } from "gateproof";
-import { getSandbox } from "@cloudflare/sandbox";
-
-// 1. Wire up your container runtime (once at startup)
-setFilepathRuntime(new CloudflareSandboxRuntime({
-  getSandbox: (config) => getSandbox(env.Sandbox, `agent-${config.name}`),
-}));
-
-// 2. Run the gate
-const container = await runtime.spawn({
-  name: "fix-auth",
-  agent: "claude-code",
-  model: "claude-sonnet-4-20250514",
-  task: "Fix the null pointer in src/auth.ts",
-});
-
-const observe = createFilepathObserveResource(container, "fix-auth");
-
-await Gate.run({
-  name: "fix-auth-bug",
-  observe,
-  act: [Act.wait(300_000)],
-  assert: [
-    Assert.noErrors(),
-    Assert.hasAction("commit"),
-    Assert.hasAction("done"),
-    Assert.authority({
-      canCommit: true,
-      canSpawn: false,
-      forbiddenTools: ["delete_file"],
-    }),
-  ],
-  stop: { idleMs: 5000, maxMs: 300_000 },
-});
-```
-
-`Assert.authority()` enforces governance policies against the agent's actual behavior — what it committed, spawned, and which tools it used.
-
-## Writing good gates
-
-The hardest part of gateproof is not the library — it's writing gates that actually prove what you think they prove.
-
-**A weak gate passes on silence.** If your system emits no logs and your only assertion is `Assert.noErrors()`, the gate passes vacuously. Nothing was tested. Use `requirePositiveSignal: true` on stories, or assert specific evidence (`Assert.hasAction`, `Assert.hasStage`).
-
-**A good gate is falsifiable.** Ask: "what broken implementation would still pass this gate?" If the answer is "many," the gate is too weak. Tighten it until a broken system fails.
-
-**Start narrow, then widen.** One specific assertion that catches a real failure is worth more than ten vague ones. You can always add assertions later — you can't take back a false pass.
-
-## The loop
-
-Gate fails. Agent reads the failure evidence. Agent fixes code. Gate re-runs. Loop until pass.
-
-**Bring your own agent** — the loop takes any async function:
-
-```ts
-import { runPrdLoop } from "gateproof/prd";
-
-await runPrdLoop("./prd.ts", {
-  agent: async (ctx) => {
-    // ctx.failureSummary — what failed and why
-    // ctx.recentDiff    — recent git changes
-    // ctx.prdContent    — full PRD for context
-    // ctx.failedStory   — the Story object that failed
-    // ctx.signal        — AbortSignal for cancellation
-
-    // Use any agent: Claude Code, Cursor, Codex, custom LLM wrapper
-    const result = await yourAgent.fix(ctx.failureSummary);
-    return { changes: result.files, commitMsg: "fix: resolve failing gate" };
+    explanation: {
+      summary: "One file carries the human framing and the executable truth.",
+    },
   },
-  maxIterations: 5,
-});
+  plan: Plan.define({
+    goals: [
+      {
+        id: "health",
+        title: "GET /health returns 200",
+        gate: Gate.define({
+          observe: createHttpObserveResource({
+              url: "http://127.0.0.1:3000/health",
+              pollInterval: 250,
+            }),
+          act: [
+              Act.exec(
+                "curl -fsS http://127.0.0.1:3000/health",
+              )
+            ],
+          assert: [
+              Assert.httpResponse({
+                actionIncludes: "/health",
+                status: 200,
+              }),
+              Assert.duration({
+                actionIncludes: "/health",
+                atMostMs: 1500,
+              }),
+              Assert.noErrors()
+            ],
+        }),
+      },
+    ],
+    loop: {
+      maxIterations: 5,
+    },
+  }),
+} satisfies ScopeFile;
+
+export default scope;
+
+if (import.meta.main) {
+  const result = await Effect.runPromise(
+    Plan.runLoop(scope.plan, {
+      maxIterations: 5,
+    }),
+  );
+
+  console.log(JSON.stringify(result, null, 2));
+
+  if (result.status !== "pass") {
+    process.exitCode = 1;
+  }
+}
+
+// plan.ts
 ```
 
-Or use a pre-built agent:
+Outcome: Hand plan.ts to a human or an agent and step back.
 
-```ts
-import { runPrdLoop, createOpenCodeAgent } from "gateproof/prd";
+## How To
 
-await runPrdLoop("./prd.ts", {
-  agent: createOpenCodeAgent({ apiKey: process.env.OPENCODE_ZEN_API_KEY }),
-  maxIterations: 7,
-});
-```
+Task: Write a gate in plan.ts. Let the loop rerun until it passes or stops.
 
-## Generate a PRD from plain language
+Done when: One file explains the work and runs the loop.
+
+Run it:
 
 ```bash
-echo "Build a signup flow with email verification" | npx gateproof prdts --stdout
+bun run plan.ts
 ```
 
-## End-to-end CLI pipeline
+## Breaking Changes In 0.4.0
 
-> Contributed by @grok
+- `Prd.*` is gone
+- `Claim.*` is gone
+- `plan.ts` is the canonical entrypoint
+- `Plan.*` replaces the old front door
 
-```bash
-# Natural language → prd.ts → agent loop
-echo "Build a signup flow with email verification" | npx gateproof prdts --out prd.ts
-npx gateproof smoke ./prd.ts
-bun run prd.ts
-```
+## Reference
 
-## Docs
+File: `plan.ts`
 
-Full documentation, tutorials, and API reference: [gateproof.dev/docs](https://gateproof.dev/docs)
+Goals:
+- GET /health returns 200
 
-## License
+Loop:
+- maxIterations: 5
 
-MIT
+Core API:
+- `Gate.define(...)`
+- `Plan.define(...)`
+- `Plan.run(...)`
+- `Plan.runLoop(...)`
+
+## Explanation
+
+One file carries the human framing and the executable truth.

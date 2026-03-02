@@ -1,5 +1,4 @@
 <script lang="ts">
-  import { onMount } from 'svelte';
   import { browser } from '$app/environment';
 
   interface Props {
@@ -12,25 +11,32 @@
   
   let highlightedHtml = $state<string>('');
   let loading = $state(true);
-  onMount(async () => {
+
+  async function highlight(currentCode: string, currentLanguage: string) {
     if (!browser) {
+      highlightedHtml = `<pre><code>${currentCode}</code></pre>`;
       loading = false;
-      highlightedHtml = `<pre><code>${code}</code></pre>`;
       return;
     }
 
+    loading = true;
+
     try {
       const { codeToHtml } = await import('shiki');
-      highlightedHtml = await codeToHtml(code, {
-        lang: language,
+      highlightedHtml = await codeToHtml(currentCode, {
+        lang: currentLanguage,
         theme: 'github-dark'
       });
     } catch (error) {
       console.error('Failed to highlight code:', error);
-      highlightedHtml = `<pre><code>${code}</code></pre>`;
+      highlightedHtml = `<pre><code>${currentCode}</code></pre>`;
     } finally {
       loading = false;
     }
+  }
+
+  $effect(() => {
+    void highlight(code, language);
   });
 </script>
 

@@ -3,7 +3,7 @@
 </script>
 
 <svelte:head>
-  <title>Story type reference - gateproof</title>
+  <title>Type reference - gateproof</title>
 </svelte:head>
 
 <div class="min-h-screen p-8 max-w-2xl mx-auto">
@@ -12,43 +12,52 @@
   <h1 class="text-lg mt-6 mb-8 opacity-70">type reference</h1>
 
   <section class="mb-10">
-    <h2 class="text-xs uppercase tracking-widest opacity-40 mb-3">Story</h2>
-    <CodeBlock code={`type Story<TId extends string = string> = {
-  id: TId;
+    <h2 class="text-xs uppercase tracking-widest opacity-40 mb-3">ScopeFile</h2>
+    <CodeBlock code={`type ScopeFile = {
+  spec: SpecDefinition;
+  plan: PlanDefinition;
+};`} />
+  </section>
+
+  <section class="mb-10">
+    <h2 class="text-xs uppercase tracking-widest opacity-40 mb-3">SpecDefinition</h2>
+    <CodeBlock code={`type SpecDefinition = {
   title: string;
-  gateFile: string;
-  dependsOn?: TId[];
-  scope?: StoryScope;
-  progress?: string[];
+  tutorial: { goal: string; outcome: string };
+  howTo: { task: string; done: string };
+  explanation: { summary: string };
 };`} />
   </section>
 
   <section class="mb-10">
-    <h2 class="text-xs uppercase tracking-widest opacity-40 mb-3">StoryScope</h2>
-    <CodeBlock code={`interface StoryScope {
-  allowedPaths?: string[];
-  forbiddenPaths?: string[];
-  maxChangedFiles?: number;
-  maxChangedLines?: number;
+    <h2 class="text-xs uppercase tracking-widest opacity-40 mb-3">PlanDefinition</h2>
+    <CodeBlock code={`type PlanDefinition = {
+  goals: readonly PlanGoal[];
+  loop?: {
+    maxIterations?: number;
+    stopOnFailure?: boolean;
+  };
 };`} />
   </section>
 
   <section class="mb-10">
-    <h2 class="text-xs uppercase tracking-widest opacity-40 mb-3">Prd</h2>
-    <CodeBlock code={`type Prd<TId extends string = string> = {
-  stories: readonly Story<TId>[];
+    <h2 class="text-xs uppercase tracking-widest opacity-40 mb-3">PlanGoal</h2>
+    <CodeBlock code={`type PlanGoal = {
+  id: string;
+  title: string;
+  gate: GateDefinition;
 };`} />
   </section>
 
   <section class="mb-10">
-    <h2 class="text-xs uppercase tracking-widest opacity-40 mb-3">GateResult</h2>
-    <CodeBlock code={`type GateResult = {
-  status: "success" | "failed" | "timeout";
-  [key: string]: unknown;
+    <h2 class="text-xs uppercase tracking-widest opacity-40 mb-3">GateStatus</h2>
+    <CodeBlock code={`type VerificationResult = {
+  status: "pass" | "fail" | "skip" | "inconclusive";
+  proofStrength: "strong" | "moderate" | "weak" | "none";
 };`} />
   </section>
 
   <p class="text-xs opacity-30 mt-12">
-    source: src/prd/types.ts
+    source: src/index.ts
   </p>
 </div>

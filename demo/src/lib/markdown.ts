@@ -56,8 +56,8 @@ export async function renderMarkdown(source: string): Promise<RenderResult> {
 	renderer.code = ({ text, lang }: { text: string; lang?: string }) => {
 		const language = lang || 'text';
 		try {
-			const loadedLangs = highlighter.getLoadedLanguages();
-			if (loadedLangs.includes(language as any)) {
+			const loadedLangs = highlighter.getLoadedLanguages().map(String);
+			if (loadedLangs.includes(language)) {
 				return highlighter.codeToHtml(text, { lang: language, theme: 'github-dark' });
 			}
 		} catch {

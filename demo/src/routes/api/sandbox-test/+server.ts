@@ -1,10 +1,13 @@
 import { getSandbox } from "@cloudflare/sandbox";
 import type { RequestEvent } from "@sveltejs/kit";
 
+type SandboxBinding = Parameters<typeof getSandbox>[0];
+type SandboxEnvironment = { Sandbox?: SandboxBinding };
+
 // Simple endpoint that mimics the official baseline example exactly
 export const GET = async ({ platform }: RequestEvent) => {
   try {
-    const env = platform?.env as { Sandbox?: any } | undefined;
+    const env = platform?.env as SandboxEnvironment | undefined;
 
     if (!env?.Sandbox) {
       return Response.json({ error: "Sandbox binding not available" }, { status: 500 });

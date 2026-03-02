@@ -4,10 +4,10 @@ This document provides instructions for AI agents working with gateproof-based p
 
 ## Quick Start
 
-1. **Read `prd.ts` first** - This is your source of truth. It defines what needs to pass.
-2. **Run gates to understand current state** - Use `bun run prd.ts` to see what's failing.
+1. **Read `plan.ts` first** - This is your source of truth. It contains the handoff context and the executable plan.
+2. **Run the plan to understand current state** - Use `bun run plan.ts` to see what's failing.
 3. **Fix one failing story at a time** - Focus on the first failing gate.
-4. **Verify your fix** - Re-run the PRD to confirm the gate passes.
+4. **Verify your fix** - Re-run the plan to confirm the gate passes.
 
 ## Core Principles
 
@@ -39,14 +39,11 @@ If no scope is defined, use sensible defaults:
 Gates are the acceptance criteria. A story is complete when its gate passes.
 
 ```bash
-# Run all gates
-bun run prd.ts
+# Run the plan
+bun run plan.ts
 
-# Run smoke test (validates setup without agent loop)
-npx gateproof smoke ./prd.ts
-
-# Run with scope checking enabled
-bun run prd.ts --check-scope
+# Re-generate the local README from the same source
+bun run readme:generate
 ```
 
 ## Understanding Gate Output
@@ -110,36 +107,32 @@ Your change touched a forbidden path. Options:
 1. Find an alternative approach that stays within allowed paths.
 2. Ask the user to expand the scope if the change is necessary.
 
-## Working with the PRD Loop
+## Working with the Plan Loop
 
-When integrated with `runPrdLoop`, you'll receive context about failures:
+When integrated with `Plan.runLoop`, you'll receive context about failures:
 
 ```typescript
-const result = await runPrdLoop("./prd.ts", {
+const result = await Effect.runPromise(Plan.runLoop(scope.plan, {
   agent: async (ctx) => {
-    // ctx.prdSlice      - Relevant story details
+    // ctx.plan         - The executable plan
     // ctx.failureSummary - What failed and why
-    // ctx.recentDiff    - Recent git changes
-    // ctx.failedStory   - The Story object that failed
+    // ctx.failedGoals   - The Goal objects that failed
 
     // Make targeted fixes...
     return { changes: ["Fixed validation in signup.ts"] };
   },
-});
+}));
 ```
 
 ## File Structure Conventions
 
 ```
 project/
-├── prd.ts              # PRD definition (read this first!)
-├── gates/              # Gate implementations
-│   └── *.gate.ts       # Each exports async run() -> GateResult
-├── .gateproof/
-│   ├── prd-report.json # Last run report
-│   ├── evidence.log    # Historical evidence across iterations
-│   └── scope.defaults.json # Project-specific scope defaults
-└── src/                # Source code to modify
+├── plan.ts             # One-file handoff (read this first!)
+├── README.md           # Generated from plan.ts
+├── src/                # Gateproof runtime
+├── scripts/            # Repo-local generators
+└── demo/               # Demo app that consumes the same source
 ```
 
 ## Tips for Success
@@ -149,6 +142,14 @@ project/
 3. **Check the evidence** - The logs tell you what happened.
 4. **Stay in scope** - Respect the boundaries defined in the story.
 5. **Prefer iteration** - Small fixes, verify, repeat.
+
+## End-of-Turn Policy
+
+1. Finish the requested work.
+2. Run the repo quality check with `bun run quality:check`.
+3. If it passes, finalize the turn with `bun run turn:finalize`.
+4. If it fails, do not commit.
+5. A turn is not complete until one of those outcomes is explicit.
 
 ## Environment Variables
 

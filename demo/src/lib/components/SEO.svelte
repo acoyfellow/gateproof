@@ -120,7 +120,7 @@
     tags: string;
     publishedTime?: string;
     modifiedTime?: string;
-    ogImage?: any;
+    ogImage?: string;
     readingTime?: string;
     wordCount?: number;
     author?: string;
@@ -316,7 +316,7 @@
     };
   }
 
-  function safeStringify(obj: any): string {
+  function safeStringify(obj: unknown): string {
     try {
       return JSON.stringify(obj, null, 2);
     } catch (e) {

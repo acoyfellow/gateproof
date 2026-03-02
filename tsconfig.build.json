@@ -6,8 +6,8 @@
     "declaration": true,
     "declarationMap": true,
     "sourceMap": true,
-    "moduleResolution": "node"
+    "moduleResolution": "bundler"
   },
   "include": ["src/**/*"],
-  "exclude": ["src/**/*.test.ts", "test/**/*", "node_modules"]
+  "exclude": ["test/**/*", "node_modules"]
 }

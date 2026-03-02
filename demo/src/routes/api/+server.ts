@@ -1,5 +1,11 @@
 import type { RequestEvent } from "@sveltejs/kit";
 
+type StorageObject = {
+  key: string;
+  size: number;
+  uploaded: Date | null;
+};
+
 export const GET = async ({ platform }: RequestEvent) => {
   try {
     // Demonstrate KV access
@@ -7,6 +13,7 @@ export const GET = async ({ platform }: RequestEvent) => {
 
     // Demonstrate R2 list operation
     const r2List = await platform?.env.STORAGE.list({ limit: 5 });
+    const objects = (r2List?.objects ?? []) as StorageObject[];
 
     return new Response(
       JSON.stringify({
@@ -16,12 +23,11 @@ export const GET = async ({ platform }: RequestEvent) => {
           value: kvValue || "No value found",
         },
         r2: {
-          objects:
-            r2List?.objects.map((obj: any) => ({
-              key: obj.key,
-              size: obj.size,
-              uploaded: obj.uploaded,
-            })) || [],
+          objects: objects.map((obj) => ({
+            key: obj.key,
+            size: obj.size,
+            uploaded: obj.uploaded,
+          })),
         },
       }),
       {

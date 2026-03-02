@@ -12,6 +12,11 @@ tsconfig.build.json
 
 # Build artifacts (keep dist/)
 *.tsbuildinfo
+!dist/
+!dist/**
+!README.md
+!LICENSE
+!package.json
 
 # Development tools
 .vscode/

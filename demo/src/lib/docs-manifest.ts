@@ -15,29 +15,15 @@ export const docsNav: DocCategory[] = [
 	},
 	{
 		label: 'How-To Guides',
-		entries: [
-			{ title: 'Add a Gate', slug: 'how-to/add-a-gate' },
-			{ title: 'Add Observability Logging', slug: 'how-to/add-observability-logging' },
-			{ title: 'Accessibility', slug: 'how-to/accessibility' },
-			{ title: 'Run in CI', slug: 'how-to/run-in-ci' },
-			{ title: 'Run in a Loop', slug: 'how-to/run-in-a-loop' },
-			{ title: 'Write a PRD Story', slug: 'how-to/write-a-prd-story' },
-			{ title: 'Run an Agent Gate', slug: 'how-to/run-an-agent-gate' }
-		]
+		entries: [{ title: 'Run in a Loop', slug: 'how-to/run-in-a-loop' }]
 	},
 	{
 		label: 'Reference',
-		entries: [
-			{ title: 'API Reference', slug: 'reference/api' },
-			{ title: 'PRD Runner', slug: 'reference/prd-runner' }
-		]
+		entries: [{ title: 'API Reference', slug: 'reference/api' }]
 	},
 	{
 		label: 'Explanations',
-		entries: [
-			{ title: 'How Gateproof Works', slug: 'explanations/overview' },
-			{ title: 'Effect and Schema', slug: 'effect-and-schema' }
-		]
+		entries: [{ title: 'One File Handoff', slug: 'explanations/one-file-handoff' }]
 	}
 ];
 

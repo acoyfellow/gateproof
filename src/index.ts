@@ -1,396 +1,565 @@
-import { Effect, Queue, Ref, Either, Schedule, Stream, Scope } from "effect";
-import type { GateResult, Log } from "./types";
-import type { ObserveResource } from "./observe";
-import type { Action } from "./act";
-import type { Assertion } from "./assert";
-import { Assert, AssertionFailed, AssertionAggregateFailed } from "./assert";
-import { ObservabilityError } from "./observe";
-import { Schema } from "@effect/schema";
-import { Act } from "./act";
-import { getActionExecutor } from "./action-executors";
-import {
-  DEFAULT_IDLE_MS,
-  DEFAULT_MAX_MS,
-  MAX_LOG_BUFFER,
-  LOG_BUFFER_CAPACITY
-} from "./constants";
-import type { GateResultV1, SerializableError } from "./report";
-import { serializeError, sortDeterministic, toGateResultV1 } from "./report";
+import { spawn } from "node:child_process";
+import { Effect } from "effect";
 
-export class GateError extends Schema.TaggedError<GateError>()("GateError", {
-  cause: Schema.Unknown
-}) {}
+export type GateStatus = "pass" | "fail" | "skip" | "inconclusive";
+export type ProofStrength = "strong" | "moderate" | "weak" | "none";
 
-export class LogTimeoutError extends Schema.TaggedError<LogTimeoutError>()(
-  "LogTimeoutError",
-  {
-    maxMs: Schema.Number,
-    idleMs: Schema.Number,
-    cause: Schema.optional(Schema.Unknown)
+export interface SpecTutorial {
+  goal: string;
+  outcome: string;
+}
+
+export interface SpecHowTo {
+  task: string;
+  done: string;
+}
+
+export interface SpecExplanation {
+  summary: string;
+}
+
+export interface SpecDefinition {
+  title: string;
+  tutorial: SpecTutorial;
+  howTo: SpecHowTo;
+  explanation: SpecExplanation;
+}
+
+export interface HttpObserveResourceDefinition {
+  kind: "http";
+  url: string;
+  pollInterval?: number;
+  headers?: Record<string, string>;
+}
+
+export interface ExecActionDefinition {
+  kind: "exec";
+  command: string;
+  cwd?: string;
+  timeoutMs?: number;
+}
+
+export interface EnvPrerequisiteDefinition {
+  kind: "env";
+  name: string;
+  reason?: string;
+}
+
+export interface HttpResponseAssertionDefinition {
+  kind: "httpResponse";
+  actionIncludes?: string;
+  status: number;
+}
+
+export interface DurationAssertionDefinition {
+  kind: "duration";
+  actionIncludes?: string;
+  atMostMs: number;
+}
+
+export interface NoErrorsAssertionDefinition {
+  kind: "noErrors";
+}
+
+export type ObserveResourceDefinition = HttpObserveResourceDefinition;
+export type ActionDefinition = ExecActionDefinition;
+export type PrerequisiteDefinition = EnvPrerequisiteDefinition;
+export type AssertionDefinition =
+  | HttpResponseAssertionDefinition
+  | DurationAssertionDefinition
+  | NoErrorsAssertionDefinition;
+
+export interface GateDefinition {
+  observe?: ObserveResourceDefinition;
+  act?: ReadonlyArray<ActionDefinition>;
+  assert?: ReadonlyArray<AssertionDefinition>;
+  prerequisites?: ReadonlyArray<PrerequisiteDefinition>;
+  timeoutMs?: number;
+}
+
+export interface PlanGoal {
+  id: string;
+  title: string;
+  gate: GateDefinition;
+}
+
+export interface PlanLoop {
+  maxIterations?: number;
+  stopOnFailure?: boolean;
+}
+
+export interface PlanDefinition {
+  goals: ReadonlyArray<PlanGoal>;
+  loop?: PlanLoop;
+}
+
+export interface ScopeFile {
+  spec: SpecDefinition;
+  plan: PlanDefinition;
+}
+
+export interface ActionResult {
+  kind: "exec";
+  command: string;
+  ok: boolean;
+  durationMs: number;
+  stdout: string;
+  stderr: string;
+  exitCode: number | null;
+}
+
+export interface HttpObservationResult {
+  kind: "http";
+  url: string;
+  status: number;
+  durationMs: number;
+  ok: boolean;
+  body: string;
+}
+
+export interface GateEvidence {
+  actions: ReadonlyArray<ActionResult>;
+  http?: HttpObservationResult;
+  errors: ReadonlyArray<string>;
+}
+
+export interface GateRunResult {
+  id: string;
+  title: string;
+  status: GateStatus;
+  proofStrength: ProofStrength;
+  summary: string;
+  evidence: GateEvidence;
+}
+
+export interface PlanRunResult {
+  status: GateStatus;
+  proofStrength: ProofStrength;
+  iterations: number;
+  goals: ReadonlyArray<GateRunResult>;
+  summary: string;
+}
+
+export interface LoopAgentContext {
+  iteration: number;
+  plan: PlanDefinition;
+  result: PlanRunResult;
+  failedGoals: ReadonlyArray<GateRunResult>;
+}
+
+export interface OpenCodeAgentOptions {
+  apiKey?: string;
+  model?: string;
+}
+
+export type LoopAgent =
+  | ((context: LoopAgentContext) => Promise<unknown> | unknown)
+  | null
+  | undefined;
+
+export interface PlanRunLoopOptions {
+  maxIterations?: number;
+  agent?: LoopAgent;
+}
+
+const describeStatus = (status: GateStatus): string => {
+  switch (status) {
+    case "pass":
+      return "all gates passed";
+    case "fail":
+      return "one or more gates failed";
+    case "skip":
+      return "all gates were skipped";
+    case "inconclusive":
+      return "evidence was missing or ambiguous";
   }
-) {}
+};
 
-export type GateErrorType = GateError | LogTimeoutError | AssertionFailed | AssertionAggregateFailed | ObservabilityError;
+const deriveProofStrength = (gate: GateDefinition, evidence: GateEvidence, status: GateStatus): ProofStrength => {
+  if (status === "skip") return "none";
+  if (evidence.http) return "strong";
+  if (evidence.actions.length > 0 && gate.assert && gate.assert.length > 0) return "moderate";
+  if (evidence.actions.length > 0) return "weak";
+  return "none";
+};
 
-export interface GateSpec {
-  name?: string;
-  observe: ObserveResource;
-  act: Action[];
-  assert: Assertion[];
-  /**
-   * Timeout configuration for log collection.
-   * 
-   * - **idleMs**: If no logs arrive for this duration AND logs have been collected, return early.
-   *   Default: 3000ms
-   * - **maxMs**: Maximum total time to wait for logs. If exceeded, gate fails with timeout.
-   *   Default: 15000ms
-   * 
-   * Examples:
-   * - `{ idleMs: 1000, maxMs: 5000 }`: Wait up to 5s total, but return early if idle > 1s with logs
-   * - `{ idleMs: 0, maxMs: 10000 }`: Wait full 10s, never return early on idle
-   */
-  stop?: { idleMs: number; maxMs: number };
-  /**
-   * Maximum number of logs to collect before stopping.
-   * Defaults to 50_000.
-   */
-  maxLogs?: number;
-  report?: "json" | "pretty";
-}
+const matchesActionFilter = (gate: GateDefinition, actionIncludes?: string): boolean => {
+  if (!actionIncludes) return true;
+  if (gate.observe?.kind === "http" && gate.observe.url.includes(actionIncludes)) return true;
+  return gate.act?.some((action) => action.command.includes(actionIncludes)) ?? false;
+};
 
-function summarize(logs: Log[]): GateResult["evidence"] {
-  const requestIds = new Set<string>();
-  const stages = new Set<string>();
-  const actions = new Set<string>();
-  const errorTags = new Set<string>();
+const runExecAction = (action: ExecActionDefinition): Effect.Effect<ActionResult, never, never> =>
+  Effect.tryPromise(() =>
+    new Promise<ActionResult>((resolve) => {
+      const startedAt = Date.now();
+      const child = spawn(action.command, {
+        cwd: action.cwd,
+        shell: true,
+        env: process.env,
+      });
 
-  for (const log of logs) {
-    if (log.requestId) requestIds.add(log.requestId);
-    if (log.stage) stages.add(log.stage);
-    if (log.action) actions.add(log.action);
-    if (log.error?.tag) errorTags.add(log.error.tag);
-  }
+      let stdout = "";
+      let stderr = "";
+      let settled = false;
 
-  return {
-    requestIds: sortDeterministic([...requestIds]),
-    stagesSeen: sortDeterministic([...stages]),
-    actionsSeen: sortDeterministic([...actions]),
-    errorTags: sortDeterministic([...errorTags])
-  };
-}
+      const finish = (result: ActionResult) => {
+        if (settled) return;
+        settled = true;
+        resolve(result);
+      };
 
-function makeLogTimeoutError(
-  stop: { idleMs: number; maxMs: number },
-  cause?: unknown
-): LogTimeoutError {
-  return new LogTimeoutError({
-    maxMs: stop.maxMs,
-    idleMs: stop.idleMs,
-    cause
-  });
-}
+      child.stdout?.on("data", (chunk) => {
+        stdout += String(chunk);
+      });
 
-function runAction(action: Action): Effect.Effect<void, GateError> {
-  const executor = getActionExecutor(action);
-  return executor.execute(action);
-}
+      child.stderr?.on("data", (chunk) => {
+        stderr += String(chunk);
+      });
 
-/**
- * Collects logs from a stream with timeout and idle detection.
- * 
- * Behavior:
- * - **maxMs**: Maximum total time to wait for logs. If exceeded, returns LogTimeoutError.
- * - **idleMs**: If no logs arrive for this duration, return early (with collected logs if any, or empty array if none).
- * 
- * Examples:
- * - Stream produces logs continuously: collects until maxLogs or maxMs exceeded
- * - Stream stops producing logs: if idleMs elapsed and we have logs, return them
- * - Stream never produces logs: waits for idleMs then returns empty array if maxMs not exceeded, otherwise timeout error
- * - Stream error: preserved in LogTimeoutError.cause
- */
-function collectLogs(
-  stream: AsyncIterable<Log>,
-  stop: { idleMs: number; maxMs: number },
-  maxLogs: number
-): Effect.Effect<Log[], LogTimeoutError> {
-  const startTime = Date.now();
-  const lastLogTimeRef = Ref.unsafeMake(Date.now());
+      child.on("error", (error) => {
+        finish({
+          kind: "exec",
+          command: action.command,
+          ok: false,
+          durationMs: Date.now() - startedAt,
+          stdout,
+          stderr: `${stderr}${error instanceof Error ? error.message : String(error)}`,
+          exitCode: null,
+        });
+      });
 
-  return Effect.gen(function* () {
-    const logStream = Stream.fromAsyncIterable(stream, () => Effect.void);
+      child.on("close", (code) => {
+        finish({
+          kind: "exec",
+          command: action.command,
+          ok: code === 0,
+          durationMs: Date.now() - startedAt,
+          stdout,
+          stderr,
+          exitCode: code,
+        });
+      });
 
-    const collected = yield* logStream.pipe(
-      Stream.tap(() => Ref.set(lastLogTimeRef, Date.now())),
-      Stream.take(maxLogs),
-      Stream.buffer({ capacity: LOG_BUFFER_CAPACITY }),
-      Stream.timeout(`${stop.maxMs} millis`),
-      Stream.runCollect,
-      Effect.catchAll((error) =>
-        Effect.gen(function* () {
-          // Stream-level timeout
-          if (error && typeof error === "object" && "_tag" in error && error._tag === "TimeoutException") {
-            return yield* Effect.fail(makeLogTimeoutError(stop, error));
-          }
-          const now = Date.now();
-          const totalTime = now - startTime;
-          if (totalTime > stop.maxMs) {
-            return yield* Effect.fail(makeLogTimeoutError(stop, error));
-          }
-          // Non-timeout stream error before maxMs elapsed – surface as timeout with cause
-          return yield* Effect.fail(makeLogTimeoutError(stop, error));
+      if (action.timeoutMs && action.timeoutMs > 0) {
+        setTimeout(() => {
+          if (settled) return;
+          child.kill("SIGTERM");
+          finish({
+            kind: "exec",
+            command: action.command,
+            ok: false,
+            durationMs: Date.now() - startedAt,
+            stdout,
+            stderr: `${stderr}timed out after ${action.timeoutMs}ms`,
+            exitCode: null,
+          });
+        }, action.timeoutMs);
+      }
+    })
+  ).pipe(
+    Effect.catch((error: unknown) =>
+      Effect.succeed({
+          kind: "exec" as const,
+          command: action.command,
+          ok: false,
+          durationMs: 0,
+          stdout: "",
+          stderr: error instanceof Error ? error.message : String(error),
+          exitCode: null,
         })
-      )
-    );
+    )
+  );
 
-    const now = Date.now();
-    const lastLogTime = yield* Ref.get(lastLogTimeRef);
-    const idleTime = now - lastLogTime;
-    const totalTime = now - startTime;
+const runHttpObservation = (
+  resource: HttpObserveResourceDefinition
+): Effect.Effect<HttpObservationResult | undefined, never, never> =>
+  Effect.tryPromise(async () => {
+    const startedAt = Date.now();
+    const response = await fetch(resource.url, {
+      headers: resource.headers,
+    });
+    const body = await response.text();
+    return {
+      kind: "http" as const,
+      url: resource.url,
+      status: response.status,
+      durationMs: Date.now() - startedAt,
+      ok: response.ok,
+      body,
+    };
+  }).pipe(
+    Effect.catch(() => Effect.succeed(undefined))
+  );
 
-    if (totalTime > stop.maxMs) {
-      return yield* Effect.fail(makeLogTimeoutError(stop));
-    }
+const evaluateGate = (goal: PlanGoal): Effect.Effect<GateRunResult, never, never> =>
+  Effect.gen(function* () {
+    const gate = goal.gate;
+    const prerequisites = gate.prerequisites ?? [];
 
-    // If we have logs and have been idle longer than idleMs, return what we have.
-    if (idleTime > stop.idleMs && collected.length > 0) {
-      return Array.from(collected);
-    }
-
-    // If we have any logs at all, return them.
-    if (collected.length > 0) {
-      return Array.from(collected);
-    }
-
-    // No logs collected yet. Wait for idleMs before giving up, unless maxMs would be exceeded.
-    if (idleTime < stop.idleMs) {
-      const remainingIdle = stop.idleMs - idleTime;
-      const remainingMax = stop.maxMs - totalTime;
-      const waitTime = Math.min(remainingIdle, remainingMax);
-      
-      if (waitTime > 0) {
-        yield* Effect.sleep(`${waitTime} millis`);
-        
-        // After waiting, check if maxMs is now exceeded
-        const afterWaitTime = Date.now() - startTime;
-        if (afterWaitTime > stop.maxMs) {
-          return yield* Effect.fail(makeLogTimeoutError(stop));
-        }
+    for (const prerequisite of prerequisites) {
+      if (prerequisite.kind === "env" && !process.env[prerequisite.name]) {
+        return {
+          id: goal.id,
+          title: goal.title,
+          status: "skip" as const,
+          proofStrength: "none" as const,
+          summary: prerequisite.reason ?? `missing required env var ${prerequisite.name}`,
+          evidence: { actions: [], errors: [] },
+        };
       }
     }
 
-    // No logs collected after waiting – return empty array.
-    return [];
+    const actions: ActionResult[] = [];
+    const errors: string[] = [];
+
+    for (const action of gate.act ?? []) {
+      const result = yield* runExecAction(action);
+      actions.push(result);
+      if (!result.ok) {
+        errors.push(`action failed: ${result.command}`);
+      }
+    }
+
+    const http = gate.observe?.kind === "http" ? yield* runHttpObservation(gate.observe) : undefined;
+    if (gate.observe?.kind === "http" && !http) {
+      errors.push(`failed to observe ${gate.observe.url}`);
+    }
+
+    const evidence: GateEvidence = {
+      actions,
+      http,
+      errors,
+    };
+
+    const assertions = gate.assert ?? [];
+    if (assertions.length === 0) {
+      return {
+        id: goal.id,
+        title: goal.title,
+        status: "inconclusive",
+        proofStrength: deriveProofStrength(gate, evidence, "inconclusive"),
+        summary: "no assertions defined",
+        evidence,
+      };
+    }
+
+    const issues: string[] = [];
+    let insufficient = false;
+
+    for (const assertion of assertions) {
+      if (assertion.kind === "httpResponse") {
+        if (!http || !matchesActionFilter(gate, assertion.actionIncludes)) {
+          insufficient = true;
+          issues.push("missing matching HTTP evidence");
+          continue;
+        }
+        if (http.status !== assertion.status) {
+          issues.push(`expected HTTP ${assertion.status}, saw ${http.status}`);
+        }
+      }
+
+      if (assertion.kind === "duration") {
+        if (!http || !matchesActionFilter(gate, assertion.actionIncludes)) {
+          insufficient = true;
+          issues.push("missing timing evidence");
+          continue;
+        }
+        if (http.durationMs > assertion.atMostMs) {
+          issues.push(`expected duration <= ${assertion.atMostMs}ms, saw ${http.durationMs}ms`);
+        }
+      }
+
+      if (assertion.kind === "noErrors" && errors.length > 0) {
+        issues.push(errors.join("; "));
+      }
+    }
+
+    const status: GateStatus = insufficient ? "inconclusive" : issues.length > 0 ? "fail" : "pass";
+
+    return {
+      id: goal.id,
+      title: goal.title,
+      status,
+      proofStrength: deriveProofStrength(gate, evidence, status),
+      summary: issues.length > 0 ? issues.join("; ") : "gate passed",
+      evidence,
+    };
   });
-}
 
-function handleGateError(
-  error: GateErrorType,
-  startedAt: number,
-  logs: Log[]
-): GateResult {
-  const errorObj = error instanceof Error ? error : new Error(String(error));
+const summarizePlan = (goals: ReadonlyArray<GateRunResult>): Pick<PlanRunResult, "status" | "proofStrength" | "summary"> => {
+  const statuses = goals.map((goal) => goal.status);
+  let status: GateStatus = "pass";
+
+  if (statuses.length === 0) {
+    status = "inconclusive";
+  } else if (statuses.every((value) => value === "skip")) {
+    status = "skip";
+  } else if (statuses.includes("inconclusive")) {
+    status = "inconclusive";
+  } else if (statuses.includes("fail")) {
+    status = "fail";
+  } else if (statuses.includes("pass")) {
+    status = "pass";
+  }
+
+  const proofStrength: ProofStrength =
+    goals.some((goal) => goal.proofStrength === "strong")
+      ? "strong"
+      : goals.some((goal) => goal.proofStrength === "moderate")
+        ? "moderate"
+        : goals.some((goal) => goal.proofStrength === "weak")
+          ? "weak"
+          : "none";
+
   return {
-    status: "failed",
-    durationMs: Date.now() - startedAt,
-    logs,
-    evidence: summarize(logs),
-    error: errorObj
+    status,
+    proofStrength,
+    summary: describeStatus(status),
   };
-}
+};
 
-export namespace Gate {
-  export function run(spec: GateSpec): Promise<GateResult> {
-    return Effect.runPromise(Effect.scoped(runEffect(spec)));
+const runPlanOnce = (plan: PlanDefinition): Effect.Effect<PlanRunResult, never, never> =>
+  Effect.gen(function* () {
+    const goals: GateRunResult[] = [];
+    for (const goal of plan.goals) {
+      goals.push(yield* evaluateGate(goal));
+    }
+
+    const summary = summarizePlan(goals);
+    return {
+      ...summary,
+      iterations: 1,
+      goals,
+    };
+  });
+
+const runAgent = (
+  agent: LoopAgent,
+  context: LoopAgentContext
+): Effect.Effect<void, never, never> => {
+  if (!agent) {
+    return Effect.void;
   }
 
-  export function runEffect(
-    spec: GateSpec
-  ): Effect.Effect<GateResult, GateErrorType, Scope.Scope> {
-    return Effect.acquireUseRelease(
-      spec.observe.start().pipe(
-        Effect.catchAll((error) =>
-          Effect.fail(new GateError({ cause: error }))
-        )
-      ),
-      (stream) =>
-        Effect.gen(function* () {
-          const startedAt = Date.now();
-          const stop = spec.stop ?? { idleMs: DEFAULT_IDLE_MS, maxMs: DEFAULT_MAX_MS };
-          const maxLogs = spec.maxLogs ?? MAX_LOG_BUFFER;
+  return Effect.tryPromise(async () => {
+    await Promise.resolve(agent(context));
+  }).pipe(
+    Effect.catch(() => Effect.void)
+  );
+};
 
-          yield* Effect.sleep("200 millis");
+const runPlanLoop = (
+  plan: PlanDefinition,
+  options: PlanRunLoopOptions = {}
+): Effect.Effect<PlanRunResult, never, never> =>
+  Effect.gen(function* () {
+    const maxIterations = options.maxIterations ?? plan.loop?.maxIterations ?? 1;
+    let iteration = 0;
+    let latest: PlanRunResult = {
+      status: "inconclusive",
+      proofStrength: "none",
+      iterations: 0,
+      goals: [],
+      summary: "loop has not run",
+    };
 
-          let actionError: GateError | null = null;
-      for (const action of spec.act) {
-        const result = yield* runAction(action).pipe(
-          Effect.tap(() => Effect.log(`Action ${action._tag} completed`)),
-          Effect.tapError((error) => Effect.logError(`Action ${action._tag} failed`, error)),
-          Effect.either
-        );
-        if (Either.isLeft(result)) {
-          actionError = result.left;
-          break;
-        }
+    while (iteration < maxIterations) {
+      iteration += 1;
+      const result = yield* runPlanOnce(plan);
+      latest = {
+        ...result,
+        iterations: iteration,
+      };
+
+      if (latest.status === "pass" || latest.status === "skip") {
+        return latest;
       }
-          const actionResult = actionError ? Either.left(actionError) : Either.right(undefined);
 
-          if (Either.isLeft(actionResult)) {
-            return handleGateError(actionResult.left, startedAt, []);
-          }
+      if (plan.loop?.stopOnFailure && latest.status === "fail") {
+        return latest;
+      }
 
-          const logsResult = yield* collectLogs(stream, stop, maxLogs).pipe(
-            Effect.timeoutFail({
-              duration: `${stop.maxMs} millis`,
-              onTimeout: () => new LogTimeoutError({ maxMs: stop.maxMs, idleMs: stop.idleMs })
-            }),
-            Effect.catchTag("LogTimeoutError", (error) =>
-              Effect.succeed({
-                status: "timeout" as const,
-                durationMs: Date.now() - startedAt,
-                logs: [],
-                evidence: summarize([]),
-                error: error instanceof Error ? error : new Error(String(error))
-              } as GateResult)
-            ),
-            Effect.either
-          );
-
-          if (Either.isRight(logsResult)) {
-            const right = logsResult.right;
-            // Right side can be either collected logs or a pre-built timeout GateResult
-            if (Array.isArray(right)) {
-              const logs = right;
-
-              const assertResult = yield* Assert.run(spec.assert, logs).pipe(
-                Effect.either
-              );
-
-              const evidence = summarize(logs);
-              const durationMs = Date.now() - startedAt;
-
-              if (Either.isLeft(assertResult)) {
-                const result = handleGateError(assertResult.left, startedAt, logs);
-                printResult(spec.report, result);
-                return result;
-              }
-
-              const result: GateResult = {
-                status: "success",
-                durationMs,
-                logs,
-                evidence
-              };
-              printResult(spec.report, result);
-              return result;
-            }
-
-            // Timeout case already mapped into a GateResult above
-            return right as GateResult;
-          }
-
-          // Left side is a LogTimeoutError or other gate error
-          return handleGateError(logsResult.left, startedAt, []);
-
-        }),
-      () =>
-        spec.observe
-          .stop()
-          .pipe(
-            Effect.tapError((error) =>
-              Effect.logError("Failed to stop observe resource", error)
-            ),
-            Effect.catchAll(() => Effect.void)
-          )
-    );
-  }
-}
-
-function printResult(report: GateSpec["report"], result: GateResult): void {
-  if (report === "pretty") {
-    console.log(`\n[${result.status.toUpperCase()}] ${result.durationMs}ms`);
-    console.log(
-      `actions=${result.evidence.actionsSeen.length} stages=${result.evidence.stagesSeen.join(",") || "none"}`
-    );
-    if (result.evidence.errorTags.length) {
-      console.log(`errorTags=${result.evidence.errorTags.join(",")}`);
+      if (iteration < maxIterations) {
+        const failedGoals = latest.goals.filter((goal) => goal.status !== "pass");
+        yield* runAgent(options.agent, {
+          iteration,
+          plan,
+          result: latest,
+          failedGoals,
+        });
+      }
     }
-    if (result.status !== "success" && result.error) {
-      const errorWithTag = result.error as Error & { _tag?: string };
-      const errorTag = errorWithTag._tag ?? "unknown";
-      console.log(`error=${errorTag}`);
-    }
-  } else {
-    // Use serializable version for JSON output
-    const serializable = toGateResultV1(result);
-    console.log(JSON.stringify(serializable, null, 2));
-  }
-}
 
-export { Act } from "./act";
-export type { AgentActConfig } from "./act";
-export { Assert } from "./assert";
-export type { Log, GateResult, LogFilter } from "./types";
-export type { ObserveResource } from "./observe";
-export type { Provider } from "./provider";
-export { createEmptyBackend, createEmptyObserveResource, runGateWithErrorHandling } from "./utils";
-export { createTestObserveResource } from "./test-helpers";
-export { createHttpObserveResource } from "./http-backend";
-export type { GateResultV1, PrdReportV1, StoryResultV1, SerializableError, LLMFailureSummary } from "./report";
-export { serializeError, toGateResultV1, createLLMFailureSummary, formatLLMFailureSummary } from "./report";
+    return latest;
+  });
 
-// ─── Filepath Agent Protocol (Phase 2) ───
-export {
-  AgentEvent,
-  TextEvent,
-  ToolEvent,
-  CommandEvent,
-  CommitEvent,
-  SpawnEvent,
-  WorkersEvent,
-  StatusEvent,
-  HandoffEvent,
-  DoneEvent,
-  UserMessage,
-  SignalMessage,
-  AgentInput,
-  AgentStatus,
-  parseAgentEvent,
-  serializeInput,
-  agentEventToLog,
-  ndjsonLineToLog,
-} from "./filepath-protocol";
+export const Gate = {
+  define(definition: GateDefinition): GateDefinition {
+    return definition;
+  },
+};
 
-export {
-  createFilepathBackend,
-  createFilepathObserveResource,
-  createMockFilepathContainer,
-} from "./filepath-backend";
+export const Plan = {
+  define(definition: PlanDefinition): PlanDefinition {
+    return definition;
+  },
+  run(plan: PlanDefinition): Effect.Effect<PlanRunResult, never, never> {
+    return runPlanOnce(plan);
+  },
+  runLoop(
+    plan: PlanDefinition,
+    options?: PlanRunLoopOptions
+  ): Effect.Effect<PlanRunResult, never, never> {
+    return runPlanLoop(plan, options);
+  },
+};
 
-export type {
-  FilepathContainer,
-  FilepathRuntime,
-} from "./filepath-backend";
+export const Act = {
+  exec(command: string, options: Omit<ExecActionDefinition, "kind" | "command"> = {}): ExecActionDefinition {
+    return {
+      kind: "exec",
+      command,
+      ...options,
+    };
+  },
+};
 
-export { setFilepathRuntime } from "./action-executors";
+export const Assert = {
+  httpResponse(definition: Omit<HttpResponseAssertionDefinition, "kind">): HttpResponseAssertionDefinition {
+    return {
+      kind: "httpResponse",
+      ...definition,
+    };
+  },
+  duration(definition: Omit<DurationAssertionDefinition, "kind">): DurationAssertionDefinition {
+    return {
+      kind: "duration",
+      ...definition,
+    };
+  },
+  noErrors(): NoErrorsAssertionDefinition {
+    return { kind: "noErrors" };
+  },
+};
 
-// ─── Cloudflare Sandbox Runtime (Phase 2) ───
+export const Require = {
+  env(name: string, reason?: string): EnvPrerequisiteDefinition {
+    return {
+      kind: "env",
+      name,
+      reason,
+    };
+  },
+};
 
-export {
-  CloudflareSandboxRuntime,
-  BroadcastIterable,
-  pipeReadableStreamToLines,
-} from "./filepath-runtime";
+export const createHttpObserveResource = (
+  definition: Omit<HttpObserveResourceDefinition, "kind">
+): HttpObserveResourceDefinition => ({
+  kind: "http",
+  ...definition,
+});
 
-export type {
-  CloudflareSandboxRuntimeOptions,
-  SandboxInstance,
-  SandboxProcess,
-} from "./filepath-runtime";
-
-// ─── Authority / Governance (Phase 2) ───
-export {
-  validateAuthority,
-  mergeAuthority,
-  flattenStoryTree,
-} from "./authority";
-export type { AuthorityViolation } from "./authority";
+export const createOpenCodeAgent = (_options: OpenCodeAgentOptions): LoopAgent => {
+  return async () => undefined;
+};

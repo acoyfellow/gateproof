@@ -1,26 +1,15 @@
 {
   "name": "gateproof",
-  "version": "0.2.4",
+  "version": "0.4.0",
   "type": "module",
-  "description": "E2E testing harness. Observe logs, run actions, assert results.",
+  "description": "A tiny Effect-first runtime that runs gates from a typed plan until they pass or stop.",
   "main": "./dist/index.js",
   "types": "./dist/index.d.ts",
   "exports": {
     ".": {
       "types": "./dist/index.d.ts",
       "import": "./dist/index.js"
-    },
-    "./cloudflare": {
-      "types": "./dist/cloudflare/index.d.ts",
-      "import": "./dist/cloudflare/index.js"
-    },
-    "./prd": {
-      "types": "./dist/prd/index.d.ts",
-      "import": "./dist/prd/index.js"
     }
-  },
-  "bin": {
-    "gateproof": "./dist/cli/gateproof.js"
   },
   "files": [
     "dist",
@@ -28,31 +17,22 @@
     "LICENSE"
   ],
   "scripts": {
-    "build": "bun run build:tsc",
-    "build:tsc": "tsc -p tsconfig.build.json",
+    "lint": "bun scripts/lint.ts plan.ts src scripts test",
+    "build": "rm -rf dist && tsc -p tsconfig.build.json",
     "typecheck": "tsc --noEmit",
-    "prd:validate": "bun run scripts/prd-validate.ts",
-    "prd:loop": "bun run scripts/prd-loop.ts",
     "test": "bun test",
-    "test:demo": "bun test test/demo.test.ts",
-    "test:production": "bun test test/demo.production.test.ts",
-    "example": "bun run patterns/basic/simple-gate.ts",
-    "pattern:basic": "bun run patterns/basic/*.ts",
-    "pattern:cloudflare": "bun run patterns/cloudflare/*.ts",
-    "gate:production": "bun run gates/production/smoke.gate.ts",
-    "gate:local": "bun run gates/local/demo.gate.ts",
-    "gate:framework": "bun run gates/framework/integrity.gate.ts",
-    "gate:demo": "bun run gates/demo/development.gate.ts",
-    "gate:dev": "bun run gate:framework && bun run gate:demo && bun run gate:local",
-    "gate:all": "bun run gate:dev && bun run gate:production",
-    "demo:gate": "bun run gate:production",
-    "prepush": "bun run typecheck && bun run prd:validate && bun test && bun run gate:dev",
-    "prepublishOnly": "bun run build && bun test"
+    "readme:generate": "bun scripts/generate-readme.ts",
+    "quality:check": "bun scripts/run-quality-check.ts",
+    "turn:finalize": "bun scripts/finalize-turn.ts",
+    "turn:finalize:push": "bun scripts/finalize-turn.ts --push",
+    "pack:check": "npm pack --dry-run",
+    "prepublishOnly": "bun run readme:generate && bun run typecheck && bun run build && bun test"
   },
   "keywords": [
-    "e2e",
-    "testing",
-    "observability",
+    "gate",
+    "plan",
+    "runtime",
+    "verification",
     "effect"
   ],
   "author": "Jordan Coeyman <jordan@coey.dev>",
@@ -66,24 +46,7 @@
     "url": "https://github.com/acoyfellow/gateproof/issues"
   },
   "dependencies": {
-    "@ai-sdk/openai-compatible": "^2.0.18",
-    "@effect/schema": "^0.75.5",
-    "ai": "^6.0.49",
-    "alchemy": "^0.83.1",
-    "effect": "^3.19.14",
-    "zod": "^4.3.6"
-  },
-  "peerDependencies": {
-    "@cloudflare/sandbox": "",
-    "playwright": ""
-  },
-  "peerDependenciesMeta": {
-    "@cloudflare/sandbox": {
-      "optional": true
-    },
-    "playwright": {
-      "optional": true
-    }
+    "effect": "beta"
   },
   "devDependencies": {
     "@types/node": "^24.10.8",

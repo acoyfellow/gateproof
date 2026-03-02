@@ -1,113 +1,122 @@
 <script lang="ts">
-  import HeroSection from '$lib/components/HeroSection.svelte';
   import CodeBlock from '$lib/components/CodeBlock.svelte';
 
-  const observeCode = `import { Gate, Act, Assert } from "gateproof";
-import { CloudflareProvider } from "gateproof/cloudflare";
+  interface Props {
+    data: {
+      eyebrow: string;
+      headline: string;
+      subheadline: string;
+      steps: Array<{
+        label: string;
+        mode: "direct" | "attached";
+        title: string;
+        proves: string;
+        changed: string;
+        fileName: string;
+        code: string;
+      }>;
+    };
+  }
 
-const provider = CloudflareProvider({
-  accountId: process.env.CLOUDFLARE_ACCOUNT_ID!,
-  apiToken: process.env.CLOUDFLARE_API_TOKEN!,
-});
-
-const result = await Gate.run({
-  name: "signup-e2e",
-  observe: provider.observe({ backend: "analytics", dataset: "worker_logs" }),
-  act: [Act.browser({ url: "https://app.example.com/signup" })],
-  assert: [Assert.hasAction("user_created"), Assert.noErrors()],
-  stop: { maxMs: 15_000 },
-});
-if (result.status !== "success") process.exit(1);`;
-
-  const prdCode = `import { definePrd, runPrdLoop, createOpenCodeAgent } from "gateproof/prd";
-
-// Set OPENCODE_ZEN_API_KEY or pass apiKey
-const agent = createOpenCodeAgent({
-  apiKey: process.env.OPENCODE_ZEN_API_KEY,
-  model: "gpt-5.3-codex",
-});
-
-const prd = definePrd({
-  stories: [
-    { id: "user-signup", title: "User can sign up", gateFile: "./gates/signup.gate.ts", scope: { allowedPaths: ["src/routes/**"] } },
-    { id: "email-verify", title: "Email verification works", gateFile: "./gates/email.gate.ts", dependsOn: ["user-signup"] },
-  ],
-});
-
-await runPrdLoop(prd, { agent, maxIterations: 7 });`;
-
-  const features = [
-    {
-      title: "Agent gates",
-      description: "Spawn AI agents in isolated Cloudflare Sandbox containers. Observe their NDJSON event stream. Assert governance policies against their actual behavior — commits, tool calls, spawns.",
-      link: "/docs/how-to/run-an-agent-gate",
-      linkText: "Run an agent gate",
-    },
-    {
-      title: "PRD-driven loops",
-      description: "Define intent as stories with gates. Run them in dependency order. If a gate fails, an agent fixes the code and the loop re-runs — until all gates pass or you hit max iterations.",
-      link: "/docs/how-to/run-in-a-loop",
-      linkText: "Run in a loop",
-    },
-    {
-      title: "Authority assertions",
-      description: "Assert.authority() checks what the agent actually did against what you allowed. Did it commit when forbidden? Spawn child agents? Use a banned tool? The gate fails.",
-      link: "/docs/reference/api",
-      linkText: "API reference",
-    },
-  ];
+  let { data }: Props = $props();
+  let activeIndex = $state(0);
+  const activeStep = $derived(data.steps[activeIndex] ?? data.steps[0]);
 </script>
 
 <svelte:head>
-  <title>gateproof - Make agent work falsifiable</title>
-  <meta name="description" content="prd.ts defines intent, gates verify reality, CI ships only with evidence." />
+  <title>gateproof - Progress the same loop</title>
+  <meta
+    name="description"
+    content={data.subheadline}
+  />
 </svelte:head>
 
-<main>
-  <HeroSection />
+<main class="relative min-h-screen overflow-x-hidden">
+  <div
+    class="pointer-events-none absolute inset-0"
+    style="background:
+      radial-gradient(circle at 18% 16%, rgba(255, 138, 76, 0.16), transparent 24%),
+      radial-gradient(circle at 78% 12%, rgba(255, 214, 153, 0.08), transparent 20%),
+      linear-gradient(180deg, rgba(23, 16, 12, 0.96), rgba(8, 7, 6, 1));"
+  ></div>
 
-  <section class="max-w-4xl mx-auto px-4 sm:px-8 py-24">
-    <div class="grid grid-cols-1 sm:grid-cols-2 gap-6">
-      {#each features as feature}
-        <div class="rounded-lg border border-border bg-card p-6">
-          <h3 class="text-lg font-medium text-foreground" style="font-family: var(--font-display)">{feature.title}</h3>
-          <p class="mt-2 text-sm text-muted-foreground leading-relaxed">{feature.description}</p>
-          <a href={feature.link} class="mt-4 inline-block text-sm text-accent hover:underline">{feature.linkText}</a>
+  <section class="relative mx-auto flex min-h-screen max-w-6xl flex-col justify-center px-4 py-12 sm:px-8 sm:py-16">
+    <div class="mx-auto w-full max-w-5xl">
+      <p class="text-xs uppercase tracking-[0.24em] text-muted-foreground">{data.eyebrow}</p>
+      <h1 class="mt-4 max-w-4xl text-5xl leading-[0.96] text-foreground sm:text-7xl">
+        {data.headline}
+      </h1>
+      <p class="mt-5 max-w-2xl text-sm leading-7 text-secondary-foreground sm:text-base">
+        {data.subheadline}
+      </p>
+      <p class="mt-3 text-xs uppercase tracking-[0.22em] text-muted-foreground">
+        Each step is the same model. Only the target gets bigger.
+      </p>
+
+      <div class="mt-10 grid gap-6 lg:grid-cols-[15rem_minmax(0,1fr)]">
+        <div class="rounded-[1.75rem] border border-border/70 bg-card/50 p-3 shadow-xl shadow-black/20 backdrop-blur-sm">
+          {#each data.steps as step, index}
+            <button
+              type="button"
+              class={`group flex w-full items-start gap-3 rounded-[1.15rem] border px-3 py-3 text-left transition-all duration-200 ${
+                index === activeIndex
+                  ? 'border-border/80 bg-background/85'
+                  : 'border-transparent'
+              }`}
+              onclick={() => (activeIndex = index)}
+            >
+              <span
+                class={`mt-0.5 inline-flex h-6 min-w-6 items-center justify-center rounded-full border px-2 text-[10px] font-medium uppercase tracking-[0.18em] ${
+                  index === activeIndex
+                    ? 'border-accent/70 text-accent'
+                    : 'border-border/60 text-muted-foreground'
+                }`}
+              >
+                {index + 1}
+              </span>
+              <span class="min-w-0">
+                <span class="block text-[11px] uppercase tracking-[0.18em] text-muted-foreground">
+                  {step.label}
+                </span>
+                <span
+                  class={`mt-1 block text-sm leading-5 ${
+                    index === activeIndex ? 'text-foreground' : 'text-secondary-foreground'
+                  }`}
+                >
+                  {step.title}
+                </span>
+              </span>
+            </button>
+          {/each}
         </div>
-      {/each}
-    </div>
-  </section>
 
-  <section class="max-w-4xl mx-auto px-4 sm:px-8 pb-24">
-    <h2 class="text-2xl sm:text-3xl tracking-tight text-foreground mb-3" style="font-family: var(--font-display)">
-      Observe from production
-    </h2>
-    <p class="text-muted-foreground mb-6 max-w-2xl">
-      Point a gate at Cloudflare Analytics or Workers Logs. Run actions (browser, exec), collect logs, assert on evidence.
-    </p>
-    <div class="rounded-lg border border-border overflow-hidden">
-      <div class="flex items-center gap-2 bg-card px-4 py-2.5 border-b border-border">
-        <span class="text-xs text-muted-foreground font-mono">gate.ts</span>
-      </div>
-      <div class="bg-card/50 p-4">
-        <CodeBlock code={observeCode} language="typescript" />
-      </div>
-    </div>
-  </section>
+        <div class="overflow-hidden rounded-[1.9rem] border border-border/80 bg-card/80 shadow-2xl shadow-black/30 backdrop-blur-sm">
+          <div class="border-b border-border/70 px-5 py-4">
+            <p class="text-[11px] uppercase tracking-[0.22em] text-muted-foreground">{activeStep.label}</p>
+            <p class="mt-2 text-[11px] uppercase tracking-[0.22em] text-muted-foreground">
+              Mode: {activeStep.mode === "direct" ? "Run plan.ts directly" : "Attach an agent to plan.ts"}
+            </p>
+            <h2 class="mt-3 max-w-3xl text-2xl leading-tight text-foreground sm:text-4xl">
+              {activeStep.title}
+            </h2>
+            <p class="mt-3 max-w-3xl text-sm leading-7 text-secondary-foreground sm:text-base">
+              {activeStep.proves}
+            </p>
+            <p class="mt-3 text-xs uppercase tracking-[0.18em] text-muted-foreground">
+              What changed: {activeStep.changed}
+            </p>
+          </div>
 
-  <section class="max-w-4xl mx-auto px-4 sm:px-8 pb-24">
-    <h2 class="text-2xl sm:text-3xl tracking-tight text-foreground mb-3" style="font-family: var(--font-display)">
-      PRD loops
-    </h2>
-    <p class="text-muted-foreground mb-6 max-w-2xl">
-      Define stories with gates. An agent (OpenCode Zen, set <span class="font-mono text-foreground/80">OPENCODE_ZEN_API_KEY</span>) iterates until every gate passes.
-    </p>
-    <div class="rounded-lg border border-border overflow-hidden">
-      <div class="flex items-center gap-2 bg-card px-4 py-2.5 border-b border-border">
-        <span class="text-xs text-muted-foreground font-mono">prd.ts</span>
-      </div>
-      <div class="bg-card/50 p-4">
-        <CodeBlock code={prdCode} language="typescript" />
+          <div class="border-b border-border/60 px-5 py-3 text-[11px] uppercase tracking-[0.22em] text-muted-foreground">
+            {activeStep.fileName}
+          </div>
+          <div class="p-4 sm:p-6">
+            <CodeBlock code={activeStep.code} language="typescript" wrap={true} />
+          </div>
+          <div class="border-t border-border/60 px-5 py-3 text-[11px] uppercase tracking-[0.22em] text-muted-foreground">
+            Same loop. Bigger target.
+          </div>
+        </div>
       </div>
     </div>
   </section>
