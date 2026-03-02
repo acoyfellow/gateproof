@@ -21,11 +21,12 @@
     "LICENSE"
   ],
   "scripts": {
-    "lint": "bun scripts/lint.ts plan.ts src scripts test",
+    "lint": "bun scripts/lint.ts plan.ts src scripts test examples",
     "build": "rm -rf dist && tsc -p tsconfig.build.json",
     "typecheck": "tsc --noEmit",
     "test": "bun test",
     "readme:generate": "bun scripts/generate-readme.ts",
+    "example:hello-world": "bun scripts/run-hello-world-example.ts",
     "quality:check": "bun scripts/run-quality-check.ts",
     "turn:finalize": "bun scripts/finalize-turn.ts",
     "turn:finalize:push": "bun scripts/finalize-turn.ts --push",

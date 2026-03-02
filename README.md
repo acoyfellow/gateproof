@@ -1,53 +1,12 @@
 # Gateproof
 
-Provision infrastructure once. Then let plan.ts prove the live product.
+Gateproof proves live product behavior by rerunning one proof file until the live claim is true.
 
 ## Tutorial
 
-Goal: Prove cinder on a live deployment, not just deploy it.
+Goal: Start with one tiny gate that is small on purpose and complete on purpose.
 
-### alchemy.run.ts
-
-```ts
-import alchemy from "alchemy";
-import {
-  DurableObjectNamespace,
-  KVNamespace,
-  R2Bucket,
-  Worker,
-} from "alchemy/cloudflare";
-
-const app = await alchemy("cinder", {
-  stage: process.env.CINDER_STAGE ?? "production",
-});
-
-const cacheBucket = await R2Bucket("cinder-cache", {
-  empty: false,
-});
-const runnerState = await KVNamespace("cinder-runner-state");
-const runnerPool = await DurableObjectNamespace("RunnerPool", {
-  className: "RunnerPool",
-  sqlite: true,
-});
-const jobQueue = await DurableObjectNamespace("JobQueue", {
-  className: "JobQueue",
-  sqlite: true,
-});
-
-export const orchestrator = await Worker("cinder-orchestrator", {
-  entrypoint: "./crates/cinder-orchestrator/build/worker/shim.mjs",
-  bindings: {
-    CACHE_BUCKET: cacheBucket,
-    RUNNER_STATE: runnerState,
-    RUNNER_POOL: runnerPool,
-    JOB_QUEUE: jobQueue,
-  },
-});
-
-await app.finalize();
-```
-
-### plan.ts
+### examples/hello-world/plan.ts
 
 ```ts
 import { Effect } from "effect";
@@ -56,142 +15,49 @@ import {
   Assert,
   Gate,
   Plan,
-  Require,
+  createHttpObserveResource,
   type ScopeFile,
-} from "gateproof";
-import { Cloudflare } from "gateproof/cloudflare";
-import { orchestrator } from "./alchemy.run";
+} from "../../src/index";
+import { HELLO_WORLD_PORT } from "./server";
 
-const workerLogs = Cloudflare.observe({
-  accountId: process.env.CLOUDFLARE_ACCOUNT_ID ?? "",
-  apiToken: process.env.CLOUDFLARE_API_TOKEN ?? "",
-  workerName: orchestrator.name,
-  sinceMs: 120_000,
-});
+const baseUrl = `http://127.0.0.1:${HELLO_WORLD_PORT}`;
 
 const scope = {
   spec: {
-    title: "Cinder",
+    title: "Hello World",
     tutorial: {
-      goal: "Prove cinder on a live deployment, not just deploy it.",
-      outcome: "The live system only goes green when the speed claim holds.",
+      goal: "Prove one tiny thing.",
+      outcome: "The run only passes when the live response says hello world.",
     },
     howTo: {
-      task: "Run the proof loop against already-provisioned infrastructure.",
-      done: "Webhook, queue, runner, cache, and speed all pass.",
+      task: "Run one complete gate from one file.",
+      done: "The endpoint returns 200 and the body contains hello world.",
     },
     explanation: {
-      summary: "alchemy.run.ts provisions once. plan.ts proves the live product.",
+      summary: "Even the smallest run is still a real proof loop.",
     },
   },
   plan: Plan.define({
     goals: [
       {
-        id: "webhook",
-        title: "A GitHub webhook queues a runnable job",
+        id: "hello-world",
+        title: "GET / returns hello world",
         gate: Gate.define({
-          observe: workerLogs,
-          prerequisites: [
-            Require.env("CLOUDFLARE_ACCOUNT_ID"),
-            Require.env("CLOUDFLARE_API_TOKEN"),
-            Require.env("GITHUB_WEBHOOK_SECRET"),
-            Require.env("CINDER_INTERNAL_TOKEN"),
-          ],
-          act: [
-            Act.exec("curl -sf -X POST $BASE/webhook/github ..."),
-          ],
+          observe: createHttpObserveResource({
+            url: `${baseUrl}/`,
+          }),
+          act: [Act.exec(`curl -sf ${baseUrl}/`)],
           assert: [
+            Assert.httpResponse({ status: 200 }),
+            Assert.responseBodyIncludes("hello world"),
             Assert.noErrors(),
-            Assert.hasAction("webhook_received"),
-            Assert.hasAction("signature_verified"),
-            Assert.hasAction("job_queued"),
           ],
-          timeoutMs: 10_000,
-        }),
-      },
-      {
-        id: "queue",
-        title: "A queued job can be dequeued",
-        gate: Gate.define({
-          observe: workerLogs,
-          act: [Act.exec("curl -sf $BASE/jobs/next ...")],
-          assert: [
-            Assert.noErrors(),
-            Assert.hasAction("job_dequeued"),
-            Assert.responseBodyIncludes("run_id"),
-          ],
-        }),
-      },
-      {
-        id: "runner",
-        title: "A runner can register into the pool",
-        gate: Gate.define({
-          observe: workerLogs,
-          act: [Act.exec("curl -sf -X POST $BASE/runners/register ...")],
-          assert: [
-            Assert.noErrors(),
-            Assert.hasAction("runner_registered"),
-            Assert.hasAction("runner_pool_updated"),
-          ],
-        }),
-      },
-      {
-        id: "cache-restore",
-        title: "A missing cache key returns a clean miss",
-        gate: Gate.define({
-          observe: workerLogs,
-          act: [Act.exec("curl -sf -X POST $BASE/cache/restore/$KEY ...")],
-          assert: [
-            Assert.noErrors(),
-            Assert.hasAction("cache_miss"),
-          ],
-        }),
-      },
-      {
-        id: "cache-push",
-        title: "The cache upload path returns a usable upload URL",
-        gate: Gate.define({
-          observe: workerLogs,
-          act: [Act.exec("curl -sf -X POST $BASE/cache/upload ...")],
-          assert: [
-            Assert.noErrors(),
-            Assert.hasAction("upload_url_generated"),
-            Assert.responseBodyIncludes("http"),
-          ],
-        }),
-      },
-      {
-        id: "speed-claim",
-        title: "A warm build is materially faster than cold",
-        gate: Gate.define({
-          observe: workerLogs,
-          prerequisites: [
-            Require.env("COLD_BUILD_MS"),
-            Require.env("TEST_REPO"),
-          ],
-          act: [Act.exec("curl -sf -X POST http://localhost:9000/test/run ...")],
-          assert: [
-            Assert.noErrors(),
-            Assert.hasAction("build_complete"),
-            Assert.numericDeltaFromEnv({
-              source: "logMessage",
-              pattern: "build_duration_ms=(\\d+)",
-              baselineEnv: "COLD_BUILD_MS",
-              minimumDelta: 60_000,
-            }),
-          ],
-          timeoutMs: 120_000,
         }),
       },
     ],
     loop: {
       maxIterations: 1,
       stopOnFailure: true,
-    },
-    cleanup: {
-      actions: [
-        Act.exec("curl -sf -X DELETE $BASE/runners/plan-test-runner ..."),
-      ],
     },
   }),
 } satisfies ScopeFile;
@@ -208,7 +74,391 @@ if (import.meta.main) {
 }
 ```
 
-Outcome: Webhook intake, queueing, runner registration, cache paths, and the speed claim all go green.
+Outcome: The loop only passes when the live response says hello world.
+
+## First Case Study: Cinder
+
+### alchemy.run.ts
+
+```ts
+import alchemy from "alchemy";
+import {
+  DurableObjectNamespace,
+  KVNamespace,
+  R2Bucket,
+  Worker,
+} from "alchemy/cloudflare";
+
+export const app = await alchemy("cinder", {
+  stage: process.env.CINDER_STAGE ?? "production",
+});
+
+export const cacheBucket = await R2Bucket("cinder-cache", {
+  empty: false,
+});
+
+export const runnerState = await KVNamespace("cinder-runner-state");
+
+export const runnerPool = await DurableObjectNamespace("RunnerPool", {
+  className: "RunnerPool",
+  sqlite: true,
+});
+
+export const jobQueue = await DurableObjectNamespace("JobQueue", {
+  className: "JobQueue",
+  sqlite: true,
+});
+
+export const orchestrator = await Worker("cinder-orchestrator", {
+  entrypoint: "./crates/cinder-orchestrator/build/worker/shim.mjs",
+  bindings: {
+    CACHE_BUCKET: cacheBucket,
+    RUNNER_STATE: runnerState,
+    RUNNER_POOL: runnerPool,
+    JOB_QUEUE: jobQueue,
+    GITHUB_WEBHOOK_SECRET: alchemy.secret(process.env.GITHUB_WEBHOOK_SECRET!),
+    CINDER_INTERNAL_TOKEN: alchemy.secret(process.env.CINDER_INTERNAL_TOKEN!),
+  },
+});
+
+export const cacheWorker = await Worker("cinder-cache", {
+  entrypoint: "./crates/cinder-cache/build/worker/shim.mjs",
+  bindings: {
+    CACHE_BUCKET: cacheBucket,
+    CINDER_INTERNAL_TOKEN: alchemy.secret(process.env.CINDER_INTERNAL_TOKEN!),
+  },
+});
+
+await app.finalize();
+```
+
+### plan.ts
+
+```ts
+import { Effect } from "effect";
+import crypto from "node:crypto";
+import type { ScopeFile } from "gateproof";
+import {
+  Act,
+  Assert,
+  Gate,
+  Plan,
+  Require,
+} from "gateproof";
+import { Cloudflare } from "gateproof/cloudflare";
+import { orchestrator } from "./alchemy.run";
+
+const baseUrl = orchestrator.url;
+const internalToken = process.env.CINDER_INTERNAL_TOKEN ?? "";
+const webhookSecret = process.env.GITHUB_WEBHOOK_SECRET ?? "";
+
+const missKey = crypto.randomBytes(32).toString("hex");
+const newKey = crypto.randomBytes(32).toString("hex");
+const speedThresholdMs = Number(process.env.SPEED_THRESHOLD_MS ?? "60000");
+const testRepo = process.env.TEST_REPO ?? "";
+
+function githubSignature(payload: string, secret: string): string {
+  return (
+    "sha256=" +
+    crypto.createHmac("sha256", secret).update(payload).digest("hex")
+  );
+}
+
+const webhookPayload = JSON.stringify({
+  action: "queued",
+  workflow_job: {
+    id: 99991,
+    run_id: 99991,
+    name: "cinder-plan-test",
+    labels: ["self-hosted", "cinder"],
+  },
+  repository: {
+    full_name: "acoyfellow/cinder-prd-test",
+  },
+});
+
+const workerLogs = Cloudflare.observe({
+  accountId: process.env.CLOUDFLARE_ACCOUNT_ID ?? "",
+  apiToken: process.env.CLOUDFLARE_API_TOKEN ?? "",
+  workerName: orchestrator.name,
+  sinceMs: 120_000,
+  pollInterval: 1_000,
+});
+
+const scope = {
+  spec: {
+    title: "Cinder",
+    tutorial: {
+      goal: "Prove cinder on a live deployment, not just deploy it.",
+      outcome:
+        "Webhook intake, queueing, runner registration, cache paths, and the speed claim all go green.",
+    },
+    howTo: {
+      task: "Run the cinder proof loop against already-provisioned infrastructure.",
+      done:
+        "Cinder only exits green when the live system can do the work and the speed claim holds.",
+    },
+    explanation: {
+      summary:
+        "alchemy.run.ts creates the infrastructure once. This file is only the acceptance loop for the live product.",
+    },
+  },
+  plan: Plan.define({
+    goals: [
+      {
+        id: "webhook",
+        title: "A GitHub webhook queues a runnable job",
+        gate: Gate.define({
+          observe: workerLogs,
+          prerequisites: [
+            Require.env(
+              "CLOUDFLARE_ACCOUNT_ID",
+              "CLOUDFLARE_ACCOUNT_ID is required for Cloudflare worker log observation.",
+            ),
+            Require.env(
+              "CLOUDFLARE_API_TOKEN",
+              "CLOUDFLARE_API_TOKEN is required for Cloudflare worker log observation.",
+            ),
+            Require.env(
+              "GITHUB_WEBHOOK_SECRET",
+              "GITHUB_WEBHOOK_SECRET is required for webhook verification.",
+            ),
+            Require.env(
+              "CINDER_INTERNAL_TOKEN",
+              "CINDER_INTERNAL_TOKEN is required for internal API access.",
+            ),
+          ],
+          act: [
+            Act.exec(
+              `curl -sf -X POST ${baseUrl}/webhook/github \
+                -H "Content-Type: application/json" \
+                -H "X-Hub-Signature-256: ${githubSignature(webhookPayload, webhookSecret)}" \
+                -d '${webhookPayload}'`,
+            ),
+          ],
+          assert: [
+            Assert.noErrors(),
+            Assert.hasAction("webhook_received"),
+            Assert.hasAction("signature_verified"),
+            Assert.hasAction("job_queued"),
+          ],
+          timeoutMs: 10_000,
+        }),
+      },
+      {
+        id: "queue",
+        title: "A queued job can be dequeued",
+        gate: Gate.define({
+          observe: workerLogs,
+          prerequisites: [
+            Require.env(
+              "CLOUDFLARE_ACCOUNT_ID",
+              "CLOUDFLARE_ACCOUNT_ID is required for Cloudflare worker log observation.",
+            ),
+            Require.env(
+              "CLOUDFLARE_API_TOKEN",
+              "CLOUDFLARE_API_TOKEN is required for Cloudflare worker log observation.",
+            ),
+            Require.env(
+              "CINDER_INTERNAL_TOKEN",
+              "CINDER_INTERNAL_TOKEN is required for queue inspection.",
+            ),
+          ],
+          act: [
+            Act.exec(
+              `curl -sf ${baseUrl}/jobs/next \
+                -H "Authorization: Bearer ${internalToken}"`,
+            ),
+          ],
+          assert: [
+            Assert.noErrors(),
+            Assert.hasAction("job_dequeued"),
+            Assert.responseBodyIncludes("run_id"),
+            Assert.responseBodyIncludes("labels"),
+          ],
+          timeoutMs: 8_000,
+        }),
+      },
+      {
+        id: "runner",
+        title: "A runner can register into the pool",
+        gate: Gate.define({
+          observe: workerLogs,
+          prerequisites: [
+            Require.env(
+              "CLOUDFLARE_ACCOUNT_ID",
+              "CLOUDFLARE_ACCOUNT_ID is required for Cloudflare worker log observation.",
+            ),
+            Require.env(
+              "CLOUDFLARE_API_TOKEN",
+              "CLOUDFLARE_API_TOKEN is required for Cloudflare worker log observation.",
+            ),
+            Require.env(
+              "CINDER_INTERNAL_TOKEN",
+              "CINDER_INTERNAL_TOKEN is required for runner registration.",
+            ),
+          ],
+          act: [
+            Act.exec(
+              `curl -sf -X POST ${baseUrl}/runners/register \
+                -H "Content-Type: application/json" \
+                -H "Authorization: Bearer ${internalToken}" \
+                -d '{"runner_id":"plan-test-runner","labels":["self-hosted","cinder"],"arch":"x86_64"}'`,
+            ),
+          ],
+          assert: [
+            Assert.noErrors(),
+            Assert.hasAction("runner_registered"),
+            Assert.hasAction("runner_pool_updated"),
+          ],
+          timeoutMs: 8_000,
+        }),
+      },
+      {
+        id: "cache-restore",
+        title: "A missing cache key returns a clean miss",
+        gate: Gate.define({
+          observe: workerLogs,
+          prerequisites: [
+            Require.env(
+              "CLOUDFLARE_ACCOUNT_ID",
+              "CLOUDFLARE_ACCOUNT_ID is required for Cloudflare worker log observation.",
+            ),
+            Require.env(
+              "CLOUDFLARE_API_TOKEN",
+              "CLOUDFLARE_API_TOKEN is required for Cloudflare worker log observation.",
+            ),
+            Require.env(
+              "CINDER_INTERNAL_TOKEN",
+              "CINDER_INTERNAL_TOKEN is required for cache restore.",
+            ),
+          ],
+          act: [
+            Act.exec(
+              `curl -sf -X POST ${baseUrl}/cache/restore/${missKey} \
+                -H "Authorization: Bearer ${internalToken}"`,
+            ),
+          ],
+          assert: [
+            Assert.noErrors(),
+            Assert.hasAction("cache_miss"),
+          ],
+          timeoutMs: 5_000,
+        }),
+      },
+      {
+        id: "cache-push",
+        title: "The cache upload path returns a usable upload URL",
+        gate: Gate.define({
+          observe: workerLogs,
+          prerequisites: [
+            Require.env(
+              "CLOUDFLARE_ACCOUNT_ID",
+              "CLOUDFLARE_ACCOUNT_ID is required for Cloudflare worker log observation.",
+            ),
+            Require.env(
+              "CLOUDFLARE_API_TOKEN",
+              "CLOUDFLARE_API_TOKEN is required for Cloudflare worker log observation.",
+            ),
+            Require.env(
+              "CINDER_INTERNAL_TOKEN",
+              "CINDER_INTERNAL_TOKEN is required for cache upload.",
+            ),
+          ],
+          act: [
+            Act.exec(
+              `curl -sf -X POST ${baseUrl}/cache/upload \
+                -H "Content-Type: application/json" \
+                -H "Authorization: Bearer ${internalToken}" \
+                -d '{"key":"${newKey}","content_type":"application/x-tar","size_bytes":1024}'`,
+            ),
+          ],
+          assert: [
+            Assert.noErrors(),
+            Assert.hasAction("upload_url_generated"),
+            Assert.responseBodyIncludes("http"),
+          ],
+          timeoutMs: 8_000,
+        }),
+      },
+      {
+        id: "speed-claim",
+        title: "A warm build is materially faster than cold",
+        gate: Gate.define({
+          observe: workerLogs,
+          prerequisites: [
+            Require.env(
+              "CLOUDFLARE_ACCOUNT_ID",
+              "CLOUDFLARE_ACCOUNT_ID is required for Cloudflare worker log observation.",
+            ),
+            Require.env(
+              "CLOUDFLARE_API_TOKEN",
+              "CLOUDFLARE_API_TOKEN is required for Cloudflare worker log observation.",
+            ),
+            Require.env(
+              "COLD_BUILD_MS",
+              "Set COLD_BUILD_MS to a real cold baseline in milliseconds.",
+            ),
+            Require.env(
+              "TEST_REPO",
+              "Set TEST_REPO to a real repository for the speed claim.",
+            ),
+          ],
+          act: [
+            Act.exec(
+              `curl -sf -X POST http://localhost:9000/test/run \
+                -H "Content-Type: application/json" \
+                -d '{"repo":"${testRepo}","with_cache":true}'`,
+            ),
+          ],
+          assert: [
+            Assert.noErrors(),
+            Assert.hasAction("build_complete"),
+            Assert.numericDeltaFromEnv({
+              source: "logMessage",
+              pattern: "build_duration_ms=(\\\\d+)",
+              baselineEnv: "COLD_BUILD_MS",
+              minimumDelta: speedThresholdMs,
+            }),
+          ],
+          timeoutMs: 120_000,
+        }),
+      },
+    ],
+    loop: {
+      maxIterations: 1,
+      stopOnFailure: true,
+    },
+    cleanup: {
+      actions: [
+        Act.exec(
+          `if [ -n "${internalToken}" ]; then curl -sf -X DELETE ${baseUrl}/runners/plan-test-runner -H "Authorization: Bearer ${internalToken}" >/dev/null; else exit 0; fi`,
+        ),
+      ],
+    },
+  }),
+} satisfies ScopeFile;
+
+export default scope;
+
+if (import.meta.main) {
+  const result = await Effect.runPromise(
+    Plan.runLoop(scope.plan, {
+      maxIterations: scope.plan.loop?.maxIterations,
+    }),
+  );
+
+  console.log(JSON.stringify(result, null, 2));
+
+  if (result.status !== "pass") {
+    process.exitCode = 1;
+  }
+}
+```
+
+Status: Structurally ready
+
+Typechecked against the local Gateproof package. Running it end-to-end still requires live Cloudflare infrastructure and the real Cinder environment variables.
 
 ## How To
 
@@ -219,6 +469,7 @@ Done when: Gateproof only goes green when the live system can do the work and th
 Run it:
 
 ```bash
+bun run example:hello-world
 bun run alchemy.run.ts
 bun run plan.ts
 ```
@@ -233,6 +484,7 @@ bun run plan.ts
 ## Reference
 
 Files:
+- `examples/hello-world/plan.ts`
 - `alchemy.run.ts`
 - `plan.ts`
 

@@ -60,7 +60,7 @@ describe("Plan runtime", () => {
     }
   });
 
-  test("skips when a required env var is missing", async () => {
+  test("fails hard when a required env var is missing", async () => {
     const result = await Effect.runPromise(
       Plan.run(
         Plan.define({
@@ -80,8 +80,9 @@ describe("Plan runtime", () => {
       )
     );
 
-    expect(result.status).toBe("skip");
-    expect(result.goals[0]?.status).toBe("skip");
+    expect(result.status).toBe("fail");
+    expect(result.goals[0]?.status).toBe("fail");
+    expect(result.goals[0]?.summary).toContain("TEST_API_KEY must be set before this gate can run");
   });
 
   test("passes when a Cloudflare log contains the required action", async () => {
@@ -131,6 +132,54 @@ describe("Plan runtime", () => {
       expect(result.status).toBe("pass");
       expect(result.goals[0]?.status).toBe("pass");
       expect(result.goals[0]?.evidence.logs?.[0]?.action).toBe("webhook_received");
+    } finally {
+      globalThis.fetch = originalFetch;
+    }
+  });
+
+  test("degrades to inconclusive when Cloudflare logs cannot be parsed", async () => {
+    const originalFetch = globalThis.fetch;
+    globalThis.fetch = (async (...args: Parameters<typeof fetch>) => {
+      const url = String(args[0]);
+      if (url.includes("/workers/")) {
+        return new Response("{", {
+          status: 200,
+          headers: {
+            "Content-Type": "application/json",
+          },
+        });
+      }
+
+      return new Response("not found", { status: 404 });
+    }) as typeof fetch;
+
+    try {
+      const result = await Effect.runPromise(
+        Plan.run(
+          Plan.define({
+            goals: [
+              {
+                id: "webhook",
+                title: "Webhook action appears in logs",
+                gate: Gate.define({
+                  observe: Cloudflare.observe({
+                    accountId: "acct",
+                    apiToken: "token",
+                    workerName: "worker",
+                    sinceMs: 60_000,
+                    pollInterval: 1,
+                  }),
+                  assert: [Assert.hasAction("webhook_received")],
+                }),
+              },
+            ],
+          }),
+        ),
+      );
+
+      expect(result.status).toBe("inconclusive");
+      expect(result.goals[0]?.status).toBe("inconclusive");
+      expect(result.goals[0]?.evidence.errors[0]).toContain("failed to observe Cloudflare worker worker");
     } finally {
       globalThis.fetch = originalFetch;
     }
@@ -256,6 +305,31 @@ describe("Plan runtime", () => {
 
     await unlink(cleanupMarker);
   });
+
+  test("includes cleanup failures in the final summary without overwriting the gate result", async () => {
+    const result = await Effect.runPromise(
+      Plan.run(
+        Plan.define({
+          goals: [
+            {
+              id: "cleanup-errors",
+              title: "Gate passes before cleanup fails",
+              gate: Gate.define({
+                assert: [Assert.noErrors()],
+              }),
+            },
+          ],
+          cleanup: {
+            actions: [Act.exec("exit 1")],
+          },
+        }),
+      ),
+    );
+
+    expect(result.status).toBe("pass");
+    expect(result.cleanupErrors).toHaveLength(1);
+    expect(result.summary).toContain("cleanup issues:");
+  });
 });
 
 describe("README generation", () => {
@@ -302,9 +376,8 @@ describe("README generation", () => {
     const readme = renderReadme(scope);
 
     expect(readme).toContain("## Tutorial");
-    expect(readme).toContain("## How To");
-    expect(readme).toContain("## Reference");
-    expect(readme).toContain("## Explanation");
+    expect(readme).toContain("## First Case Study: Cinder");
+    expect(readme).toContain("### examples/hello-world/plan.ts");
     expect(readme).toContain("### alchemy.run.ts");
     expect(readme).toContain("### plan.ts");
     expect(readme).toContain("Canonical gates:");

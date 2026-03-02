@@ -197,11 +197,6 @@ export interface LoopAgentContext {
   failedGoals: ReadonlyArray<GateRunResult>;
 }
 
-export interface OpenCodeAgentOptions {
-  apiKey?: string;
-  model?: string;
-}
-
 export type LoopAgent =
   | ((context: LoopAgentContext) => Promise<unknown> | unknown)
   | null
@@ -445,8 +440,22 @@ const fetchCloudflareLogs = async (
     throw new Error(`Cloudflare logs request failed: ${response.status}`);
   }
 
-  const payload = (await response.json()) as { result?: ReadonlyArray<unknown> };
-  const events = (payload.result ?? [])
+  const payload: unknown = await response.json();
+  let resultSource: ReadonlyArray<unknown> | null = null;
+
+  if (isRecord(payload)) {
+    if (Array.isArray(payload.result)) {
+      resultSource = payload.result;
+    } else if (isRecord(payload.result) && Array.isArray(payload.result.logs)) {
+      resultSource = payload.result.logs;
+    }
+  }
+
+  if (!resultSource) {
+    throw new Error("Cloudflare logs response was missing a result array");
+  }
+
+  const events = resultSource
     .map(toLogEvent)
     .filter((event): event is LogEvent => event !== null)
     .filter((event) => {
@@ -567,17 +576,19 @@ const evaluateGate = (goal: PlanGoal): Effect.Effect<GateRunResult, never, never
     const gate = goal.gate;
     const prerequisites = gate.prerequisites ?? [];
 
-    for (const prerequisite of prerequisites) {
-      if (prerequisite.kind === "env" && !process.env[prerequisite.name]) {
-        return {
-          id: goal.id,
-          title: goal.title,
-          status: "skip" as const,
-          proofStrength: "none" as const,
-          summary: prerequisite.reason ?? `missing required env var ${prerequisite.name}`,
-          evidence: { actions: [], errors: [] },
-        };
-      }
+    const missingRequirements = prerequisites
+      .filter((prerequisite) => prerequisite.kind === "env" && !process.env[prerequisite.name])
+      .map((prerequisite) => prerequisite.reason ?? `missing required env var ${prerequisite.name}`);
+
+    if (missingRequirements.length > 0) {
+      return {
+        id: goal.id,
+        title: goal.title,
+        status: "fail" as const,
+        proofStrength: "none" as const,
+        summary: missingRequirements.join("; "),
+        evidence: { actions: [], errors: missingRequirements },
+      };
     }
 
     const startedAt = Date.now();
@@ -930,7 +941,3 @@ export const createHttpObserveResource = (
   kind: "http",
   ...definition,
 });
-
-export const createOpenCodeAgent = (_options: OpenCodeAgentOptions): LoopAgent => {
-  return async () => undefined;
-};

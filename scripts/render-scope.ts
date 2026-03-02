@@ -1,3 +1,6 @@
+import { existsSync, readFileSync } from "node:fs";
+import path from "node:path";
+import { fileURLToPath } from "node:url";
 import type { ScopeFile } from "../src/index";
 
 export interface RenderReadmeOptions {
@@ -5,7 +8,28 @@ export interface RenderReadmeOptions {
   runCommand?: string;
 }
 
-export interface FrontdoorContent {
+export interface PrincipleCard {
+  title: string;
+  body: string;
+}
+
+export interface HomepageContent {
+  eyebrow: string;
+  headline: string;
+  subheadline: string;
+  snippetLabel: string;
+  snippetTitle: string;
+  snippetBody: string;
+  snippetCode: string;
+  principles: ReadonlyArray<PrincipleCard>;
+  ctaEyebrow: string;
+  ctaTitle: string;
+  ctaBody: string;
+  ctaHref: string;
+  ctaLabel: string;
+}
+
+export interface CinderCaseStudyContent {
   eyebrow: string;
   headline: string;
   subheadline: string;
@@ -14,201 +38,28 @@ export interface FrontdoorContent {
   planLabel: string;
   planCode: string;
   support: ReadonlyArray<string>;
+  statusLabel: string;
+  statusTitle: string;
+  statusBody: string;
 }
 
-const cinderProvisionSnippet = `import alchemy from "alchemy";
-import {
-  DurableObjectNamespace,
-  KVNamespace,
-  R2Bucket,
-  Worker,
-} from "alchemy/cloudflare";
+export interface LoadedExampleFiles {
+  helloWorldPlan: string;
+  rootPlan: string;
+  cinderProvision: string;
+  cinderPlan: string;
+  cinderAvailable: boolean;
+  missingCinderFiles: ReadonlyArray<string>;
+}
 
-const app = await alchemy("cinder", {
-  stage: process.env.CINDER_STAGE ?? "production",
-});
+const scriptsDir = path.dirname(fileURLToPath(import.meta.url));
+const repoRoot = path.resolve(scriptsDir, "..");
+const cinderRoot = path.resolve(repoRoot, "..", "cinder");
 
-const cacheBucket = await R2Bucket("cinder-cache", {
-  empty: false,
-});
-const runnerState = await KVNamespace("cinder-runner-state");
-const runnerPool = await DurableObjectNamespace("RunnerPool", {
-  className: "RunnerPool",
-  sqlite: true,
-});
-const jobQueue = await DurableObjectNamespace("JobQueue", {
-  className: "JobQueue",
-  sqlite: true,
-});
-
-export const orchestrator = await Worker("cinder-orchestrator", {
-  entrypoint: "./crates/cinder-orchestrator/build/worker/shim.mjs",
-  bindings: {
-    CACHE_BUCKET: cacheBucket,
-    RUNNER_STATE: runnerState,
-    RUNNER_POOL: runnerPool,
-    JOB_QUEUE: jobQueue,
-  },
-});
-
-await app.finalize();`;
-
-const cinderPlanSnippet = `import { Effect } from "effect";
-import {
-  Act,
-  Assert,
-  Gate,
-  Plan,
-  Require,
-  type ScopeFile,
-} from "gateproof";
-import { Cloudflare } from "gateproof/cloudflare";
-import { orchestrator } from "./alchemy.run";
-
-const workerLogs = Cloudflare.observe({
-  accountId: process.env.CLOUDFLARE_ACCOUNT_ID ?? "",
-  apiToken: process.env.CLOUDFLARE_API_TOKEN ?? "",
-  workerName: orchestrator.name,
-  sinceMs: 120_000,
-});
-
-const scope = {
-  spec: {
-    title: "Cinder",
-    tutorial: {
-      goal: "Prove cinder on a live deployment, not just deploy it.",
-      outcome: "The live system only goes green when the speed claim holds.",
-    },
-    howTo: {
-      task: "Run the proof loop against already-provisioned infrastructure.",
-      done: "Webhook, queue, runner, cache, and speed all pass.",
-    },
-    explanation: {
-      summary: "alchemy.run.ts provisions once. plan.ts proves the live product.",
-    },
-  },
-  plan: Plan.define({
-    goals: [
-      {
-        id: "webhook",
-        title: "A GitHub webhook queues a runnable job",
-        gate: Gate.define({
-          observe: workerLogs,
-          prerequisites: [
-            Require.env("CLOUDFLARE_ACCOUNT_ID"),
-            Require.env("CLOUDFLARE_API_TOKEN"),
-            Require.env("GITHUB_WEBHOOK_SECRET"),
-            Require.env("CINDER_INTERNAL_TOKEN"),
-          ],
-          act: [
-            Act.exec("curl -sf -X POST $BASE/webhook/github ..."),
-          ],
-          assert: [
-            Assert.noErrors(),
-            Assert.hasAction("webhook_received"),
-            Assert.hasAction("signature_verified"),
-            Assert.hasAction("job_queued"),
-          ],
-          timeoutMs: 10_000,
-        }),
-      },
-      {
-        id: "queue",
-        title: "A queued job can be dequeued",
-        gate: Gate.define({
-          observe: workerLogs,
-          act: [Act.exec("curl -sf $BASE/jobs/next ...")],
-          assert: [
-            Assert.noErrors(),
-            Assert.hasAction("job_dequeued"),
-            Assert.responseBodyIncludes("run_id"),
-          ],
-        }),
-      },
-      {
-        id: "runner",
-        title: "A runner can register into the pool",
-        gate: Gate.define({
-          observe: workerLogs,
-          act: [Act.exec("curl -sf -X POST $BASE/runners/register ...")],
-          assert: [
-            Assert.noErrors(),
-            Assert.hasAction("runner_registered"),
-            Assert.hasAction("runner_pool_updated"),
-          ],
-        }),
-      },
-      {
-        id: "cache-restore",
-        title: "A missing cache key returns a clean miss",
-        gate: Gate.define({
-          observe: workerLogs,
-          act: [Act.exec("curl -sf -X POST $BASE/cache/restore/$KEY ...")],
-          assert: [
-            Assert.noErrors(),
-            Assert.hasAction("cache_miss"),
-          ],
-        }),
-      },
-      {
-        id: "cache-push",
-        title: "The cache upload path returns a usable upload URL",
-        gate: Gate.define({
-          observe: workerLogs,
-          act: [Act.exec("curl -sf -X POST $BASE/cache/upload ...")],
-          assert: [
-            Assert.noErrors(),
-            Assert.hasAction("upload_url_generated"),
-            Assert.responseBodyIncludes("http"),
-          ],
-        }),
-      },
-      {
-        id: "speed-claim",
-        title: "A warm build is materially faster than cold",
-        gate: Gate.define({
-          observe: workerLogs,
-          prerequisites: [
-            Require.env("COLD_BUILD_MS"),
-            Require.env("TEST_REPO"),
-          ],
-          act: [Act.exec("curl -sf -X POST http://localhost:9000/test/run ...")],
-          assert: [
-            Assert.noErrors(),
-            Assert.hasAction("build_complete"),
-            Assert.numericDeltaFromEnv({
-              source: "logMessage",
-              pattern: "build_duration_ms=(\\\\d+)",
-              baselineEnv: "COLD_BUILD_MS",
-              minimumDelta: 60_000,
-            }),
-          ],
-          timeoutMs: 120_000,
-        }),
-      },
-    ],
-    loop: {
-      maxIterations: 1,
-      stopOnFailure: true,
-    },
-    cleanup: {
-      actions: [
-        Act.exec("curl -sf -X DELETE $BASE/runners/plan-test-runner ..."),
-      ],
-    },
-  }),
-} satisfies ScopeFile;
-
-export default scope;
-
-if (import.meta.main) {
-  const result = await Effect.runPromise(Plan.runLoop(scope.plan));
-  console.log(JSON.stringify(result, null, 2));
-
-  if (result.status !== "pass") {
-    process.exitCode = 1;
-  }
-}`;
+const helloWorldPlanPath = path.join(repoRoot, "examples", "hello-world", "plan.ts");
+const rootPlanPath = path.join(repoRoot, "plan.ts");
+const cinderProvisionPath = path.join(cinderRoot, "alchemy.run.ts");
+const cinderPlanPath = path.join(cinderRoot, "plan.ts");
 
 const apiList = [
   "`Gate.define(...)`",
@@ -221,46 +72,135 @@ const apiList = [
   "`Assert.numericDeltaFromEnv(...)`",
 ];
 
+const trimSource = (source: string): string => source.trim();
+
+const missingSnippet = (filePath: string, label: string): string =>
+  `// ${label} is not available on this machine yet.\n// Expected at: ${filePath}`;
+
+const readSourceFile = (filePath: string, label: string): { code: string; available: boolean } => {
+  if (!existsSync(filePath)) {
+    return {
+      code: missingSnippet(filePath, label),
+      available: false,
+    };
+  }
+
+  return {
+    code: trimSource(readFileSync(filePath, "utf8")),
+    available: true,
+  };
+};
+
 const getCanonicalGoals = (scope: ScopeFile): ReadonlyArray<string> =>
   scope.plan.goals.map((goal) => goal.title);
 
+export function loadExampleFiles(): LoadedExampleFiles {
+  const helloWorldPlan = readSourceFile(helloWorldPlanPath, "The hello-world example");
+  const rootPlan = readSourceFile(rootPlanPath, "The root plan");
+  const cinderProvision = readSourceFile(cinderProvisionPath, "The Cinder provision file");
+  const cinderPlan = readSourceFile(cinderPlanPath, "The Cinder proof file");
+
+  const missingCinderFiles = [
+    !cinderProvision.available ? cinderProvisionPath : null,
+    !cinderPlan.available ? cinderPlanPath : null,
+  ].filter((filePath): filePath is string => filePath !== null);
+
+  return {
+    helloWorldPlan: helloWorldPlan.code,
+    rootPlan: rootPlan.code,
+    cinderProvision: cinderProvision.code,
+    cinderPlan: cinderPlan.code,
+    cinderAvailable: missingCinderFiles.length === 0,
+    missingCinderFiles,
+  };
+}
+
+export function getHelloWorldSnippet(): string {
+  return loadExampleFiles().helloWorldPlan;
+}
+
+export function getRootPlanSnippet(): string {
+  return loadExampleFiles().rootPlan;
+}
+
+export function getCinderProvisionSnippet(): string {
+  return loadExampleFiles().cinderProvision;
+}
+
+export function getCinderPlanSnippet(): string {
+  return loadExampleFiles().cinderPlan;
+}
+
+const getCinderStatus = (
+  files: LoadedExampleFiles,
+): Pick<CinderCaseStudyContent, "statusLabel" | "statusTitle" | "statusBody"> => {
+  if (!files.cinderAvailable) {
+    return {
+      statusLabel: "Case Study Status",
+      statusTitle: "Cinder is not available locally",
+      statusBody: `This page reads live files from ${cinderRoot}. Missing: ${files.missingCinderFiles.join(", ")}`,
+    };
+  }
+
+  return {
+    statusLabel: "Current Status",
+    statusTitle: "Structurally ready",
+    statusBody:
+      "Typechecked against the local Gateproof package. Running it end-to-end still requires live Cloudflare infrastructure and the real Cinder environment variables.",
+  };
+};
+
 export function renderPlanSnippet(_scope: ScopeFile, _options: { fileName?: string } = {}): string {
-  return cinderPlanSnippet;
+  return getRootPlanSnippet();
 }
 
 export function renderScopeSnippet(_scope: ScopeFile, _options: { fileName?: string } = {}): string {
-  return cinderPlanSnippet;
+  return getRootPlanSnippet();
 }
 
 export function renderReadme(
   scope: ScopeFile,
   options: RenderReadmeOptions = {},
 ): string {
+  const files = loadExampleFiles();
   const fileName = options.fileName ?? "plan.ts";
   const runCommand = options.runCommand ?? `bun run ${fileName}`;
   const canonicalGoals = getCanonicalGoals(scope);
+  const cinderStatus = getCinderStatus(files);
 
-  return `# ${scope.spec.title}
+  return `# Gateproof
 
-${scope.spec.howTo.task}
+Gateproof proves live product behavior by rerunning one proof file until the live claim is true.
 
 ## Tutorial
 
-Goal: ${scope.spec.tutorial.goal}
+Goal: Start with one tiny gate that is small on purpose and complete on purpose.
+
+### examples/hello-world/plan.ts
+
+\`\`\`ts
+${files.helloWorldPlan}
+\`\`\`
+
+Outcome: The loop only passes when the live response says hello world.
+
+## First Case Study: Cinder
 
 ### alchemy.run.ts
 
 \`\`\`ts
-${cinderProvisionSnippet}
+${files.cinderProvision}
 \`\`\`
 
 ### plan.ts
 
 \`\`\`ts
-${cinderPlanSnippet}
+${files.cinderPlan}
 \`\`\`
 
-Outcome: ${scope.spec.tutorial.outcome}
+Status: ${cinderStatus.statusTitle}
+
+${cinderStatus.statusBody}
 
 ## How To
 
@@ -271,6 +211,7 @@ Done when: ${scope.spec.howTo.done}
 Run it:
 
 \`\`\`bash
+bun run example:hello-world
 bun run alchemy.run.ts
 ${runCommand}
 \`\`\`
@@ -285,6 +226,7 @@ ${runCommand}
 ## Reference
 
 Files:
+- \`examples/hello-world/plan.ts\`
 - \`alchemy.run.ts\`
 - \`plan.ts\`
 
@@ -305,28 +247,20 @@ ${scope.spec.explanation.summary}
 }
 
 export function renderDocsContent(scope: ScopeFile): Record<string, string> {
+  const files = loadExampleFiles();
   const canonicalGoals = getCanonicalGoals(scope);
+  const cinderStatus = getCinderStatus(files);
 
   return {
-    "tutorials/first-gate": `# Tutorial: Cinder Is The Canonical Example
+    "tutorials/first-gate": `# Tutorial: Your First Gate
 
-Goal: ${scope.spec.tutorial.goal}
-
-## alchemy.run.ts
+Start with one tiny proof file.
 
 \`\`\`ts
-${cinderProvisionSnippet}
+${files.helloWorldPlan}
 \`\`\`
 
-## plan.ts
-
-\`\`\`ts
-${cinderPlanSnippet}
-\`\`\`
-
-## Outcome
-
-${scope.spec.tutorial.outcome}`,
+This example is intentionally unimpressive. It is still a full Gateproof run: one file, one gate, one real pass condition.`,
     "how-to/run-in-a-loop": `# How To: Prove The Live System
 
 Task: ${scope.spec.howTo.task}
@@ -348,11 +282,19 @@ The Cinder proof loop only needs a small public surface.
 
 ${apiList.map((entry) => `- ${entry}`).join("\n")}
 
-## Notes
+## Cinder files
 
-- Cloudflare worker logs are the primary proof source
-- cleanup runs after the final plan result
-- attached-agent behavior stays external to Gateproof`,
+\`\`\`ts
+${files.cinderProvision}
+\`\`\`
+
+\`\`\`ts
+${files.cinderPlan}
+\`\`\`
+
+Status: ${cinderStatus.statusTitle}
+
+${cinderStatus.statusBody}`,
     "explanations/one-file-handoff": `# Explanation: One Proof File, One Provision File
 
 ${scope.spec.explanation.summary}
@@ -369,20 +311,65 @@ The core claim is not that a worker deployed. The core claim is that a warm buil
   };
 }
 
-export function getFrontdoorContent(_scope: ScopeFile): FrontdoorContent {
+export function getHomepageContent(): HomepageContent {
   return {
-    eyebrow: "Cinder-First Gateproof",
-    headline: "Provision once. Prove the live system.",
+    eyebrow: "Gateproof",
+    headline: "Start with the gate.",
     subheadline:
-      "Gateproof is for the hard claim that decides whether the product is real. For Cinder, that means the live system only goes green when the speed claim holds.",
-    provisionLabel: "alchemy.run.ts (run once)",
-    provisionCode: cinderProvisionSnippet,
-    planLabel: "plan.ts (proof loop)",
-    planCode: cinderPlanSnippet,
-    support: [
-      "alchemy.run.ts creates the infrastructure once.",
-      "plan.ts reruns only the acceptance logic against the live deployment.",
-      "The speed claim is the product, not a side check.",
+      "Define the finished behavior first. Then let one proof loop decide whether the live system actually earned it.",
+    snippetLabel: "Hello World",
+    snippetTitle: "One complete proof file",
+    snippetBody:
+      "Small on purpose. Complete on purpose. One file, one gate, one real pass condition.",
+    snippetCode: getHelloWorldSnippet(),
+    principles: [
+      {
+        title: "Start with the green state",
+        body:
+          "A gate is the finished behavior before the code deserves to exist. The loop keeps reality pinned to that target.",
+      },
+      {
+        title: "Provision once, prove often",
+        body:
+          "Provisioning and proof have different lifecycles. Rebuild the world when infra changes. Rerun the proof file when behavior changes.",
+      },
+      {
+        title: "One contract for humans and agents",
+        body:
+          "A human can run plan.ts directly. An attached agent can read the same file and use it as the contract for what must become true.",
+      },
     ],
+    ctaEyebrow: "First Case Study",
+    ctaTitle: "Cinder",
+    ctaBody:
+      "The first real case study is not another toy. Provision the world once, then keep proving the live warm-build claim until it is actually true.",
+    ctaHref: "/cinder",
+    ctaLabel: "Read the Cinder case study",
   };
+}
+
+export function getCinderCaseStudyContent(): CinderCaseStudyContent {
+  const files = loadExampleFiles();
+  const status = getCinderStatus(files);
+
+  return {
+    eyebrow: "First Case Study",
+    headline: "Read one file. Prove one claim.",
+    subheadline:
+      "Gateproof is the proof loop between a live system and the one claim that makes the product real. In Cinder, the run only ends when the live warm-build speed claim is true.",
+    provisionLabel: "alchemy.run.ts (the world)",
+    provisionCode: files.cinderProvision,
+    planLabel: "plan.ts (the contract)",
+    planCode: files.cinderPlan,
+    support: [
+      "Run alchemy.run.ts only when the world itself changes.",
+      "Hand plan.ts to an agent or run it directly after every meaningful change.",
+      "The loop is not green because code deployed. It is green because the live claim held.",
+    ],
+    ...status,
+  };
+}
+
+export function getFrontdoorContent(_scope?: ScopeFile): CinderCaseStudyContent {
+  return getCinderCaseStudyContent();
 }
