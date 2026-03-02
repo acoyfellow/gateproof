@@ -17,13 +17,16 @@ const installCloudflareTailMocks = (
   messages: ReadonlyArray<unknown>,
   options?: {
     autoOpen?: boolean;
+    autoOpenSequence?: ReadonlyArray<boolean>;
     createTimeout?: boolean;
   },
 ): (() => void) => {
   const originalFetch = globalThis.fetch;
   const originalWebSocket = globalThis.WebSocket;
   const autoOpen = options?.autoOpen ?? true;
+  const autoOpenSequence = options?.autoOpenSequence;
   const createTimeout = options?.createTimeout ?? false;
+  let socketCount = 0;
 
   const materializeMessage = (message: unknown): unknown => {
     if (!message || typeof message !== "object" || Array.isArray(message)) {
@@ -65,8 +68,11 @@ const installCloudflareTailMocks = (
       this.protocol = Array.isArray(protocols)
         ? (protocols[0] ?? "")
         : (protocols ?? "");
+      const shouldAutoOpen =
+        autoOpenSequence?.[socketCount] ?? autoOpen;
+      socketCount += 1;
 
-      if (autoOpen) {
+      if (shouldAutoOpen) {
         queueMicrotask(() => {
           this.readyState = 1;
           this.dispatchEvent(new Event("open"));
@@ -395,7 +401,57 @@ describe("Plan runtime", () => {
 
       expect(result.status).toBe("inconclusive");
       expect(result.goals[0]?.status).toBe("inconclusive");
-      expect(Date.now() - startedAt).toBeLessThan(3_500);
+      expect(Date.now() - startedAt).toBeLessThan(5_000);
+    } finally {
+      restore();
+    }
+  });
+
+  test("retries Cloudflare tail setup once before giving up", async () => {
+    const restore = installCloudflareTailMocks(
+      [
+        {
+          eventTimestamp: Date.now(),
+          outcome: "ok",
+          scriptName: "worker",
+          logs: [
+            {
+              timestamp: Date.now(),
+              level: "log",
+              message: ["action=webhook_received"],
+            },
+          ],
+        },
+      ],
+      { autoOpenSequence: [false, true] },
+    );
+
+    try {
+      const result = await Effect.runPromise(
+        Plan.run(
+          Plan.define({
+            goals: [
+              {
+                id: "tail-retry",
+                title: "Cloudflare tail retries once",
+                gate: Gate.define({
+                  observe: Cloudflare.observe({
+                    accountId: "acct",
+                    apiToken: "token",
+                    workerName: "worker",
+                    sinceMs: 60_000,
+                    pollInterval: 1,
+                  }),
+                  assert: [Assert.hasAction("webhook_received")],
+                }),
+              },
+            ],
+          }),
+        ),
+      );
+
+      expect(result.status).toBe("pass");
+      expect(result.goals[0]?.status).toBe("pass");
     } finally {
       restore();
     }

@@ -233,6 +233,11 @@ interface CloudflareTailSession {
   close: () => Promise<void>;
 }
 
+interface CloudflareTailState {
+  lastSeen: number;
+  session: CloudflareTailSession;
+}
+
 const describeStatus = (status: GateStatus): string => {
   switch (status) {
     case "pass":
@@ -459,7 +464,7 @@ const createCloudflareTailSession = async (
     ? Math.max(startedAt, now - resource.sinceMs)
     : startedAt;
 
-  const createRequest = createRequestTimeout(4_000);
+  const createRequest = createRequestTimeout(2_000);
   const response = await fetch(
     `https://api.cloudflare.com/client/v4/accounts/${resource.accountId}/workers/scripts/${resource.workerName}/tails`,
     {
@@ -635,6 +640,40 @@ const createCloudflareTailSession = async (
   };
 };
 
+const createReadyCloudflareTailSession = async (
+  resource: CloudflareObserveDefinition,
+  startedAt: number,
+): Promise<CloudflareTailSession> => {
+  let lastError: Error | undefined;
+
+  for (let attempt = 0; attempt < 2; attempt += 1) {
+    let tailSession: CloudflareTailSession | undefined;
+
+    try {
+      tailSession = await createCloudflareTailSession(resource, startedAt);
+      await tailSession.ready();
+      return tailSession;
+    } catch (error) {
+      lastError = error instanceof Error ? error : new Error(String(error));
+      if (tailSession) {
+        await tailSession.close().catch(() => undefined);
+      }
+      if (attempt === 0) {
+        await delay(250);
+      }
+    }
+  }
+
+  throw lastError ?? new Error("Cloudflare tail session failed to become ready");
+};
+
+const getCloudflareTailKey = (resource: CloudflareObserveDefinition): string =>
+  [
+    resource.accountId,
+    resource.workerName,
+    resource.backend ?? "workers-logs",
+  ].join(":");
+
 const runObservation = (
   resource: HttpObserveResourceDefinition,
 ): Effect.Effect<HttpObservationResult | undefined, never, never> =>
@@ -708,7 +747,10 @@ const summarizePlan = (
   };
 };
 
-const evaluateGate = (goal: PlanGoal): Effect.Effect<GateRunResult, never, never> =>
+const evaluateGate = (
+  goal: PlanGoal,
+  cloudflareTails: Map<string, CloudflareTailState>,
+): Effect.Effect<GateRunResult, never, never> =>
   Effect.gen(function* () {
     const gate = goal.gate;
     const prerequisites = gate.prerequisites ?? [];
@@ -731,28 +773,30 @@ const evaluateGate = (goal: PlanGoal): Effect.Effect<GateRunResult, never, never
     const startedAt = Date.now();
     const actions: ActionResult[] = [];
     const errors: string[] = [];
-    let cloudflareTail: CloudflareTailSession | undefined;
+    let cloudflareTail: CloudflareTailState | undefined;
     const cloudflareResource =
       gate.observe?.kind === "cloudflare-workers-logs"
         ? gate.observe
         : undefined;
 
     if (cloudflareResource) {
-      cloudflareTail = yield* Effect.tryPromise(() =>
-        createCloudflareTailSession(cloudflareResource, startedAt),
-      ).pipe(Effect.catch(() => Effect.succeed(undefined)));
+      const tailKey = getCloudflareTailKey(cloudflareResource);
+      const existingTail = cloudflareTails.get(tailKey);
 
-      if (cloudflareTail) {
-        const tailSession = cloudflareTail;
-        cloudflareTail = yield* Effect.tryPromise(async () => {
-          try {
-            await tailSession.ready();
-            return tailSession;
-          } catch {
-            await tailSession.close().catch(() => undefined);
-            throw new Error("Cloudflare tail session failed to become ready");
-          }
-        }).pipe(Effect.catch(() => Effect.succeed(undefined)));
+      if (existingTail) {
+        cloudflareTail = existingTail;
+      } else {
+        const readyTail = yield* Effect.tryPromise(() =>
+          createReadyCloudflareTailSession(cloudflareResource, startedAt),
+        ).pipe(Effect.catch(() => Effect.succeed(undefined)));
+
+        if (readyTail) {
+          cloudflareTail = {
+            session: readyTail,
+            lastSeen: 0,
+          };
+          cloudflareTails.set(tailKey, cloudflareTail);
+        }
       }
     }
 
@@ -776,12 +820,14 @@ const evaluateGate = (goal: PlanGoal): Effect.Effect<GateRunResult, never, never
         }
       } else {
         if (cloudflareTail) {
-          logs = yield* Effect.tryPromise(() =>
-            cloudflareTail.collect(gate.timeoutMs ?? 5_000),
+          const collected = yield* Effect.tryPromise(() =>
+            cloudflareTail.session.collect(gate.timeoutMs ?? 5_000),
           ).pipe(Effect.catch(() => Effect.succeed(undefined)));
-          yield* Effect.tryPromise(() => cloudflareTail.close()).pipe(
-            Effect.catch(() => Effect.succeed(undefined)),
-          );
+
+          if (collected) {
+            logs = collected.slice(cloudflareTail.lastSeen);
+            cloudflareTail.lastSeen = collected.length;
+          }
         }
 
         if (!logs) {
@@ -910,9 +956,16 @@ const evaluateGate = (goal: PlanGoal): Effect.Effect<GateRunResult, never, never
 
 const runPlanOnce = (plan: PlanDefinition): Effect.Effect<PlanRunResult, never, never> =>
   Effect.gen(function* () {
+    const cloudflareTails = new Map<string, CloudflareTailState>();
     const goals: GateRunResult[] = [];
     for (const goal of plan.goals) {
-      goals.push(yield* evaluateGate(goal));
+      goals.push(yield* evaluateGate(goal, cloudflareTails));
+    }
+
+    for (const tail of cloudflareTails.values()) {
+      yield* Effect.tryPromise(() => tail.session.close()).pipe(
+        Effect.catch(() => Effect.succeed(undefined)),
+      );
     }
 
     const summary = summarizePlan(goals);
