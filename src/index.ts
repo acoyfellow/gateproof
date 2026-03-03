@@ -1018,9 +1018,12 @@ const createCloudflareTailSession = async (
         clearTimeout(timeout);
         openResolved = true;
         // Give the tail a brief moment to begin streaming before the first
-        // gate action fires. This avoids missing the very first request in a
-        // run while keeping the loop bounded.
-        setTimeout(() => resolve(), 150);
+        // gate action fires. The very first request in a run can arrive
+        // immediately after connect, and a too-short warm-up makes the first
+        // gate intermittently miss log evidence even when later gates see it.
+        // A slightly longer delay keeps the loop bounded while making the
+        // first gate reliable.
+        setTimeout(() => resolve(), 500);
       } catch (error) {
         settled = true;
         clearTimeout(timeout);
