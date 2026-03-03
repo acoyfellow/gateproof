@@ -170,7 +170,7 @@ export function renderReadme(
 
   return `# Gateproof
 
-Gateproof proves live product behavior by rerunning one proof file until the live claim is true.
+Gateproof runs the proof, sends in the worker, and keeps going until the live claim is true.
 
 ## Tutorial
 
@@ -211,7 +211,7 @@ Done when: ${scope.spec.howTo.done}
 Run it:
 
 \`\`\`bash
-bun run example:hello-world
+bun run example:hello-world:worker
 bun run alchemy.run.ts
 ${runCommand}
 \`\`\`
@@ -260,12 +260,20 @@ Start with one tiny proof file.
 ${files.helloWorldPlan}
 \`\`\`
 
-This example is intentionally unimpressive. It is still a full Gateproof run: one file, one gate, one real pass condition.`,
+This example is intentionally unimpressive. It is still a full Gateproof run: one file, one gate, one worker loop, one real pass condition.`,
     "how-to/run-in-a-loop": `# How To: Prove The Live System
 
 Task: ${scope.spec.howTo.task}
 
 Done when: ${scope.spec.howTo.done}
+
+## What the runtime does
+
+- runs the proof once
+- selects the first failing gate
+- sends in the worker for one bounded attempt
+- commits the attempt
+- reruns until the live claim is green or the loop stops
 
 ## Why two files
 
@@ -314,13 +322,13 @@ The core claim is not that a worker deployed. The core claim is that a warm buil
 export function getHomepageContent(): HomepageContent {
   return {
     eyebrow: "Gateproof",
-    headline: "Start with the gate.",
+    headline: "Point Gateproof at plan.ts.",
     subheadline:
-      "Define the finished behavior first. Then let one proof loop decide whether the live system actually earned it.",
+      "The loop runs the proof, sends in the worker, commits the attempt, and keeps going until the live system actually earns the gate.",
     snippetLabel: "Hello World",
     snippetTitle: "One complete proof file",
     snippetBody:
-      "Small on purpose. Complete on purpose. One file, one gate, one real pass condition.",
+      "Small on purpose. Complete on purpose. One file, one gate, one worker loop, one real pass condition.",
     snippetCode: getHelloWorldSnippet(),
     principles: [
       {
@@ -334,9 +342,9 @@ export function getHomepageContent(): HomepageContent {
           "Provisioning and proof have different lifecycles. Rebuild the world when infra changes. Rerun the proof file when behavior changes.",
       },
       {
-        title: "One contract for humans and agents",
+        title: "One contract for the worker",
         body:
-          "A human can run plan.ts directly. An attached agent can read the same file and use it as the contract for what must become true.",
+          "The same file the human reads is the file the loop hands to the worker. The worker gets one failing gate, one bounded attempt, and the loop reruns.",
       },
     ],
     ctaEyebrow: "First Case Study",
@@ -356,14 +364,14 @@ export function getCinderCaseStudyContent(): CinderCaseStudyContent {
     eyebrow: "First Case Study",
     headline: "Read one file. Prove one claim.",
     subheadline:
-      "Gateproof is the proof loop between a live system and the one claim that makes the product real. In Cinder, the run only ends when the live warm-build speed claim is true.",
+      "Gateproof is the proof loop between a live system and the one claim that makes the product real. In Cinder, the loop can keep sending in the worker until the live warm-build speed claim is true.",
     provisionLabel: "alchemy.run.ts (the world)",
     provisionCode: files.cinderProvision,
     planLabel: "plan.ts (the contract)",
     planCode: files.cinderPlan,
     support: [
       "Run alchemy.run.ts only when the world itself changes.",
-      "Hand plan.ts to an agent or run it directly after every meaningful change.",
+      "Run plan.ts directly or let Gateproof keep handing the same contract to the worker after every failed proof.",
       "The loop is not green because code deployed. It is green because the live claim held.",
     ],
     ...status,

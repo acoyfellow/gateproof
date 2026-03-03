@@ -1,6 +1,6 @@
 # Gateproof
 
-Gateproof proves live product behavior by rerunning one proof file until the live claim is true.
+Gateproof runs the proof, sends in the worker, and keeps going until the live claim is true.
 
 ## Tutorial
 
@@ -82,6 +82,7 @@ Outcome: The loop only passes when the live response says hello world.
 
 ```ts
 import alchemy from "alchemy";
+import { mkdir } from "node:fs/promises";
 import {
   DurableObjectNamespace,
   KVNamespace,
@@ -121,7 +122,7 @@ export const orchestrator = await Worker("cinder-orchestrator", {
   },
 });
 
-export const cacheWorker = await Worker("cinder-cache", {
+export const cacheWorker = await Worker("cinder-cache-worker", {
   entrypoint: "./crates/cinder-cache/build/worker/shim.mjs",
   bindings: {
     CACHE_BUCKET: cacheBucket,
@@ -130,6 +131,29 @@ export const cacheWorker = await Worker("cinder-cache", {
 });
 
 await app.finalize();
+
+const runtimeDirectory = new URL("./.gateproof/", import.meta.url);
+const runtimeFile = new URL("./.gateproof/runtime.json", import.meta.url);
+
+await mkdir(runtimeDirectory, { recursive: true });
+
+await Bun.write(
+  runtimeFile,
+  `${JSON.stringify(
+    {
+      generatedAt: new Date().toISOString(),
+      stage: process.env.CINDER_STAGE ?? "production",
+      orchestratorName: orchestrator.name,
+      orchestratorUrl: orchestrator.url,
+      cacheWorkerName: cacheWorker.name,
+      cacheWorkerUrl: cacheWorker.url,
+    },
+    null,
+    2,
+  )}\n`,
+);
+
+console.log(`Wrote runtime outputs to ${runtimeFile.pathname}`);
 ```
 
 ### plan.ts
@@ -137,6 +161,7 @@ await app.finalize();
 ```ts
 import { Effect } from "effect";
 import crypto from "node:crypto";
+import { existsSync, readFileSync } from "node:fs";
 import type { ScopeFile } from "gateproof";
 import {
   Act,
@@ -146,11 +171,56 @@ import {
   Require,
 } from "gateproof";
 import { Cloudflare } from "gateproof/cloudflare";
-import { orchestrator } from "./alchemy.run";
 
-const baseUrl = orchestrator.url;
-const internalToken = process.env.CINDER_INTERNAL_TOKEN ?? "";
-const webhookSecret = process.env.GITHUB_WEBHOOK_SECRET ?? "";
+type RuntimeState = {
+  orchestratorName?: string;
+  orchestratorUrl?: string;
+};
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null;
+}
+
+function readOptionalEnv(name: string): string | undefined {
+  const value = process.env[name];
+  if (typeof value !== "string") {
+    return undefined;
+  }
+
+  const trimmed = value.trim();
+  return trimmed.length > 0 ? trimmed : undefined;
+}
+
+function loadRuntimeState(): RuntimeState | null {
+  const runtimeFile = new URL("./.gateproof/runtime.json", import.meta.url);
+
+  if (!existsSync(runtimeFile)) {
+    return null;
+  }
+
+  try {
+    const parsed: unknown = JSON.parse(readFileSync(runtimeFile, "utf8"));
+    if (!isRecord(parsed)) {
+      return null;
+    }
+
+    return {
+      orchestratorName:
+        typeof parsed.orchestratorName === "string" ? parsed.orchestratorName : undefined,
+      orchestratorUrl:
+        typeof parsed.orchestratorUrl === "string" ? parsed.orchestratorUrl : undefined,
+    };
+  } catch {
+    return null;
+  }
+}
+
+const runtimeState = loadRuntimeState();
+const baseUrl = readOptionalEnv("CINDER_BASE_URL") ?? runtimeState?.orchestratorUrl ?? "";
+const workerName =
+  readOptionalEnv("CINDER_WORKER_NAME") ?? runtimeState?.orchestratorName ?? "cinder-orchestrator";
+const internalToken = readOptionalEnv("CINDER_INTERNAL_TOKEN") ?? "";
+const webhookSecret = readOptionalEnv("GITHUB_WEBHOOK_SECRET") ?? "";
 
 const missKey = crypto.randomBytes(32).toString("hex");
 const newKey = crypto.randomBytes(32).toString("hex");
@@ -178,12 +248,20 @@ const webhookPayload = JSON.stringify({
 });
 
 const workerLogs = Cloudflare.observe({
-  accountId: process.env.CLOUDFLARE_ACCOUNT_ID ?? "",
-  apiToken: process.env.CLOUDFLARE_API_TOKEN ?? "",
-  workerName: orchestrator.name,
+  accountId: readOptionalEnv("CLOUDFLARE_ACCOUNT_ID") ?? "",
+  apiToken: readOptionalEnv("CLOUDFLARE_API_TOKEN") ?? "",
+  workerName,
   sinceMs: 120_000,
   pollInterval: 1_000,
 });
+
+if (!process.env.CINDER_BASE_URL && baseUrl) {
+  process.env.CINDER_BASE_URL = baseUrl;
+}
+
+if (!process.env.CINDER_WORKER_NAME && workerName) {
+  process.env.CINDER_WORKER_NAME = workerName;
+}
 
 const scope = {
   spec: {
@@ -200,7 +278,7 @@ const scope = {
     },
     explanation: {
       summary:
-        "alchemy.run.ts creates the infrastructure once. This file is only the acceptance loop for the live product.",
+        "alchemy.run.ts creates the infrastructure once and writes .gateproof/runtime.json. This file is only the acceptance loop for the live product.",
     },
   },
   plan: Plan.define({
@@ -226,6 +304,10 @@ const scope = {
             Require.env(
               "CINDER_INTERNAL_TOKEN",
               "CINDER_INTERNAL_TOKEN is required for internal API access.",
+            ),
+            Require.env(
+              "CINDER_BASE_URL",
+              "Run bun run provision first or set CINDER_BASE_URL to the live orchestrator URL.",
             ),
           ],
           act: [
@@ -263,6 +345,10 @@ const scope = {
               "CINDER_INTERNAL_TOKEN",
               "CINDER_INTERNAL_TOKEN is required for queue inspection.",
             ),
+            Require.env(
+              "CINDER_BASE_URL",
+              "Run bun run provision first or set CINDER_BASE_URL to the live orchestrator URL.",
+            ),
           ],
           act: [
             Act.exec(
@@ -296,6 +382,10 @@ const scope = {
             Require.env(
               "CINDER_INTERNAL_TOKEN",
               "CINDER_INTERNAL_TOKEN is required for runner registration.",
+            ),
+            Require.env(
+              "CINDER_BASE_URL",
+              "Run bun run provision first or set CINDER_BASE_URL to the live orchestrator URL.",
             ),
           ],
           act: [
@@ -332,6 +422,10 @@ const scope = {
               "CINDER_INTERNAL_TOKEN",
               "CINDER_INTERNAL_TOKEN is required for cache restore.",
             ),
+            Require.env(
+              "CINDER_BASE_URL",
+              "Run bun run provision first or set CINDER_BASE_URL to the live orchestrator URL.",
+            ),
           ],
           act: [
             Act.exec(
@@ -363,6 +457,10 @@ const scope = {
             Require.env(
               "CINDER_INTERNAL_TOKEN",
               "CINDER_INTERNAL_TOKEN is required for cache upload.",
+            ),
+            Require.env(
+              "CINDER_BASE_URL",
+              "Run bun run provision first or set CINDER_BASE_URL to the live orchestrator URL.",
             ),
           ],
           act: [
@@ -416,7 +514,7 @@ const scope = {
             Assert.hasAction("build_complete"),
             Assert.numericDeltaFromEnv({
               source: "logMessage",
-              pattern: "build_duration_ms=(\\\\d+)",
+              pattern: "build_duration_ms=(\\d+)",
               baselineEnv: "COLD_BUILD_MS",
               minimumDelta: speedThresholdMs,
             }),
@@ -432,7 +530,7 @@ const scope = {
     cleanup: {
       actions: [
         Act.exec(
-          `if [ -n "${internalToken}" ]; then curl -sf -X DELETE ${baseUrl}/runners/plan-test-runner -H "Authorization: Bearer ${internalToken}" >/dev/null; else exit 0; fi`,
+          `if [ -n "${internalToken}" ] && [ -n "${baseUrl}" ]; then curl -sf -X DELETE ${baseUrl}/runners/plan-test-runner -H "Authorization: Bearer ${internalToken}" >/dev/null; else exit 0; fi`,
         ),
       ],
     },
@@ -469,7 +567,7 @@ Done when: Gateproof only goes green when the live system can do the work and th
 Run it:
 
 ```bash
-bun run example:hello-world
+bun run example:hello-world:worker
 bun run alchemy.run.ts
 bun run plan.ts
 ```
