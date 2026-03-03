@@ -1,4 +1,6 @@
+import { readFile, mkdir, stat, writeFile } from "node:fs/promises";
 import { spawn } from "node:child_process";
+import { dirname, relative, resolve } from "node:path";
 import { setTimeout as delay } from "node:timers/promises";
 import { Effect } from "effect";
 
@@ -12,6 +14,28 @@ const createRequestTimeout = (
     signal: controller.signal,
     clear: () => clearTimeout(timer),
   };
+};
+
+const DEFAULT_ALLOWED_PATHS = ["src/", "app/", "components/", "pages/", "lib/"] as const;
+const DEFAULT_FORBIDDEN_PATHS = ["node_modules/", ".git/", "dist/", "build/", ".env"] as const;
+
+const normalizePath = (value: string): string => value.replaceAll("\\", "/");
+
+const isPathInside = (cwd: string, candidate: string): boolean => {
+  const resolved = resolve(cwd, candidate);
+  const rel = normalizePath(relative(cwd, resolved));
+  return rel === "" || (!rel.startsWith("../") && rel !== "..");
+};
+
+const ensureTrailingSlash = (value: string): string =>
+  value.endsWith("/") ? value : `${value}/`;
+
+const countLines = (value: string): number => {
+  if (value.length === 0) {
+    return 0;
+  }
+
+  return value.split(/\r?\n/).length;
 };
 
 export type GateStatus = "pass" | "fail" | "skip" | "inconclusive";
@@ -123,10 +147,18 @@ export interface GateDefinition {
   timeoutMs?: number;
 }
 
+export interface PlanScope {
+  allowedPaths?: ReadonlyArray<string>;
+  forbiddenPaths?: ReadonlyArray<string>;
+  maxChangedFiles?: number;
+  maxChangedLines?: number;
+}
+
 export interface PlanGoal {
   id: string;
   title: string;
   gate: GateDefinition;
+  scope?: PlanScope;
 }
 
 export interface PlanLoop {
@@ -202,22 +234,192 @@ export interface PlanRunResult {
   cleanupErrors: ReadonlyArray<string>;
 }
 
-export interface LoopAgentContext {
+export interface WorkerContext {
   iteration: number;
   plan: PlanDefinition;
   result: PlanRunResult;
   failedGoals: ReadonlyArray<GateRunResult>;
+  firstFailedGoal: GateRunResult | null;
+  cwd: string;
+  planPath?: string;
 }
 
-export type LoopAgent =
-  | ((context: LoopAgentContext) => Promise<unknown> | unknown)
+export interface WorkerChange {
+  kind: "write" | "replace" | "create" | "delete" | "exec";
+  path?: string;
+  summary: string;
+}
+
+export interface WorkerResult {
+  changes: ReadonlyArray<WorkerChange>;
+  summary: string;
+  commitMessage?: string;
+  stop?: boolean;
+}
+
+export interface WorkerRuntime {
+  runWorker(context: WorkerContext): Effect.Effect<WorkerResult, never, never>;
+}
+
+export interface MemoryEntry {
+  iteration: number;
+  timestamp: string;
+  firstFailedGoal: {
+    id: string;
+    title: string;
+    summary: string;
+  } | null;
+  result: PlanRunResult;
+  worker?: {
+    summary?: string;
+    changes: ReadonlyArray<WorkerChange>;
+    timedOut?: boolean;
+    stopped?: boolean;
+    scopeViolation?: string;
+  };
+  commit?: {
+    sha?: string;
+    message?: string;
+    empty?: boolean;
+  };
+}
+
+export interface MemoryRuntime {
+  writeIteration(entry: MemoryEntry): Effect.Effect<void, never, never>;
+}
+
+export type LoopWorker =
+  | ((context: WorkerContext) => Effect.Effect<WorkerResult, never, never>)
   | null
   | undefined;
 
+export interface LoopCommitOptions {
+  enabled?: boolean;
+  allowEmpty?: boolean;
+}
+
+export interface LoopIterationStatus {
+  iteration: number;
+  result: PlanRunResult;
+  firstFailedGoal: GateRunResult | null;
+  workerCalled: boolean;
+  workerSummary?: string;
+  committed: boolean;
+  commitSha?: string;
+  reportPath?: string;
+}
+
 export interface PlanRunLoopOptions {
   maxIterations?: number;
-  agent?: LoopAgent;
+  worker?: LoopWorker;
+  cwd?: string;
+  planPath?: string;
+  workerTimeoutMs?: number;
+  commit?: LoopCommitOptions;
+  onIteration?: (status: LoopIterationStatus) => void;
+  memory?: MemoryRuntime;
 }
+
+export interface OpenCodeWorkerOptions {
+  apiKey?: string;
+  endpoint?: string;
+  model?: string;
+  maxSteps?: number;
+  timeoutMs?: number;
+}
+
+interface CommandResult {
+  ok: boolean;
+  stdout: string;
+  stderr: string;
+  exitCode: number | null;
+}
+
+interface WorkingTreeChangeSet {
+  files: ReadonlyArray<string>;
+  totalLines: number;
+}
+
+interface ScopeValidationResult {
+  ok: boolean;
+  changes: WorkingTreeChangeSet;
+  violation?: string;
+}
+
+interface CommitResult {
+  created: boolean;
+  sha?: string;
+  message?: string;
+  empty?: boolean;
+}
+
+interface IterationReport {
+  iteration: number;
+  timestamp: string;
+  firstFailedGoal: {
+    id: string;
+    title: string;
+    summary: string;
+  } | null;
+  result: PlanRunResult;
+  worker?: {
+    called: boolean;
+    summary?: string;
+    changes: ReadonlyArray<WorkerChange>;
+    timedOut?: boolean;
+    stopped?: boolean;
+    scopeViolation?: string;
+  };
+  commit?: CommitResult;
+}
+
+interface WorkerLoopState {
+  result: PlanRunResult;
+  status: LoopIterationStatus;
+  shouldStop: boolean;
+}
+
+interface WorkerInvocationResult {
+  result: WorkerResult;
+  timedOut: boolean;
+}
+
+interface OpenCodeChatCompletionChoice {
+  message?: {
+    content?: string | null;
+  };
+}
+
+interface OpenCodeChatCompletionResponse {
+  choices?: ReadonlyArray<OpenCodeChatCompletionChoice>;
+}
+
+type OpenCodeInstruction =
+  | {
+    action: "read";
+    path: string;
+  }
+  | {
+    action: "write";
+    path: string;
+    content: string;
+  }
+  | {
+    action: "replace";
+    path: string;
+    find: string;
+    replace: string;
+  }
+  | {
+    action: "exec";
+    command: string;
+  }
+  | {
+    action: "done";
+    summary: string;
+    commitMessage?: string;
+    stop?: boolean;
+  };
 
 interface CloudflareTailCreateResponse {
   result: {
@@ -237,6 +439,278 @@ interface CloudflareTailState {
   lastSeen: number;
   session: CloudflareTailSession;
 }
+
+const runCommand = (
+  command: string,
+  args: ReadonlyArray<string>,
+  cwd: string,
+): Effect.Effect<CommandResult, never, never> =>
+  Effect.tryPromise(() =>
+    new Promise<CommandResult>((resolveCommand) => {
+      const child = spawn(command, [...args], {
+        cwd,
+        env: process.env,
+      });
+
+      let stdout = "";
+      let stderr = "";
+
+      child.stdout?.on("data", (chunk) => {
+        stdout += String(chunk);
+      });
+
+      child.stderr?.on("data", (chunk) => {
+        stderr += String(chunk);
+      });
+
+      child.on("error", (error) => {
+        resolveCommand({
+          ok: false,
+          stdout,
+          stderr: error instanceof Error ? error.message : String(error),
+          exitCode: null,
+        });
+      });
+
+      child.on("close", (code) => {
+        resolveCommand({
+          ok: code === 0,
+          stdout,
+          stderr,
+          exitCode: code,
+        });
+      });
+    }),
+  ).pipe(
+    Effect.catch(() =>
+      Effect.succeed({
+        ok: false,
+        stdout: "",
+        stderr: "command failed unexpectedly",
+        exitCode: null,
+      }),
+    ),
+  );
+
+const isGitRepository = (cwd: string): Effect.Effect<boolean, never, never> =>
+  runCommand("git", ["rev-parse", "--is-inside-work-tree"], cwd).pipe(
+    Effect.map((result) => result.ok && result.stdout.trim() === "true"),
+  );
+
+const collectWorkingTreeChanges = (
+  cwd: string,
+): Effect.Effect<WorkingTreeChangeSet, never, never> =>
+  Effect.gen(function* () {
+    const insideGit = yield* isGitRepository(cwd);
+    if (!insideGit) {
+      return {
+        files: [],
+        totalLines: 0,
+      };
+    }
+
+    const statusResult = yield* runCommand(
+      "git",
+      ["status", "--porcelain", "--untracked-files=all"],
+      cwd,
+    );
+    if (!statusResult.ok) {
+      return {
+        files: [],
+        totalLines: 0,
+      };
+    }
+
+    const files = statusResult.stdout
+      .split(/\r?\n/)
+      .map((line) => line.trimEnd())
+      .filter((line) => line.length >= 4)
+      .map((line) => {
+        const rawPath = line.slice(3);
+        const renameIndex = rawPath.indexOf(" -> ");
+        return normalizePath(renameIndex === -1 ? rawPath : rawPath.slice(renameIndex + 4));
+      });
+
+    if (files.length === 0) {
+      return {
+        files: [],
+        totalLines: 0,
+      };
+    }
+
+    const numstatResult = yield* runCommand(
+      "git",
+      ["diff", "--numstat", "--relative", "HEAD", "--"],
+      cwd,
+    );
+
+    const trackedLineCounts = new Map<string, number>();
+
+    if (numstatResult.ok) {
+      for (const line of numstatResult.stdout.split(/\r?\n/)) {
+        if (!line) {
+          continue;
+        }
+        const [added, removed, path] = line.split("\t");
+        if (!path) {
+          continue;
+        }
+        const addedCount = added === "-" ? 0 : Number(added);
+        const removedCount = removed === "-" ? 0 : Number(removed);
+        trackedLineCounts.set(
+          normalizePath(path),
+          (Number.isFinite(addedCount) ? addedCount : 0) + (Number.isFinite(removedCount) ? removedCount : 0),
+        );
+      }
+    }
+
+    let totalLines = 0;
+
+    for (const file of files) {
+      if (trackedLineCounts.has(file)) {
+        totalLines += trackedLineCounts.get(file) ?? 0;
+        continue;
+      }
+
+      const absolutePath = resolve(cwd, file);
+      const existing = yield* Effect.tryPromise(() => stat(absolutePath)).pipe(
+        Effect.map(() => true),
+        Effect.catch(() => Effect.succeed(false)),
+      );
+
+      if (!existing) {
+        continue;
+      }
+
+      const contents = yield* Effect.tryPromise(() => readFile(absolutePath, "utf8")).pipe(
+        Effect.catch(() => Effect.succeed("")),
+      );
+
+      totalLines += countLines(contents);
+    }
+
+    return {
+      files,
+      totalLines,
+    };
+  });
+
+const validateScope = (
+  goal: PlanGoal | undefined,
+  cwd: string,
+): Effect.Effect<ScopeValidationResult, never, never> =>
+  collectWorkingTreeChanges(cwd).pipe(
+    Effect.map((changes) => {
+      const scope = goal?.scope;
+      const allowedPaths = (scope?.allowedPaths ?? DEFAULT_ALLOWED_PATHS).map(ensureTrailingSlash);
+      const forbiddenPaths = (scope?.forbiddenPaths ?? DEFAULT_FORBIDDEN_PATHS).map(ensureTrailingSlash);
+      const maxChangedFiles = scope?.maxChangedFiles;
+      const maxChangedLines = scope?.maxChangedLines;
+
+      for (const file of changes.files) {
+        const normalized = normalizePath(file);
+
+        if (forbiddenPaths.some((entry) => normalized === entry.slice(0, -1) || normalized.startsWith(entry))) {
+          return {
+            ok: false,
+            changes,
+            violation: `scope violation: changed forbidden path ${JSON.stringify(normalized)}`,
+          };
+        }
+
+        if (allowedPaths.length > 0 && !allowedPaths.some((entry) => normalized === entry.slice(0, -1) || normalized.startsWith(entry))) {
+          return {
+            ok: false,
+            changes,
+            violation: `scope violation: changed path outside allowed scope ${JSON.stringify(normalized)}`,
+          };
+        }
+      }
+
+      if (typeof maxChangedFiles === "number" && changes.files.length > maxChangedFiles) {
+        return {
+          ok: false,
+          changes,
+          violation: `scope violation: changed ${changes.files.length} files (max ${maxChangedFiles})`,
+        };
+      }
+
+      if (typeof maxChangedLines === "number" && changes.totalLines > maxChangedLines) {
+        return {
+          ok: false,
+          changes,
+          violation: `scope violation: changed ${changes.totalLines} lines (max ${maxChangedLines})`,
+        };
+      }
+
+      return {
+        ok: true,
+        changes,
+      };
+    }),
+  );
+
+const writeIterationReport = (
+  cwd: string,
+  iteration: number,
+  entry: IterationReport,
+): Effect.Effect<string, never, never> =>
+  Effect.gen(function* () {
+    const reportDirectory = resolve(cwd, ".gateproof", "iterations");
+    const reportPath = resolve(reportDirectory, `${iteration}.json`);
+    const latestPath = resolve(cwd, ".gateproof", "latest.json");
+    const payload = `${JSON.stringify(entry, null, 2)}\n`;
+
+    yield* Effect.tryPromise(() => mkdir(reportDirectory, { recursive: true })).pipe(
+      Effect.catch(() => Effect.void),
+    );
+    yield* Effect.tryPromise(() => writeFile(reportPath, payload, "utf8")).pipe(
+      Effect.catch(() => Effect.void),
+    );
+    yield* Effect.tryPromise(() => writeFile(latestPath, payload, "utf8")).pipe(
+      Effect.catch(() => Effect.void),
+    );
+
+    return reportPath;
+  });
+
+const createCommit = (
+  cwd: string,
+  message: string,
+  options: LoopCommitOptions | undefined,
+): Effect.Effect<CommitResult, never, never> =>
+  Effect.gen(function* () {
+    const insideGit = yield* isGitRepository(cwd);
+    if (!insideGit || options?.enabled === false) {
+      return { created: false };
+    }
+
+    yield* runCommand("git", ["add", "-A"], cwd);
+
+    const cachedDiff = yield* runCommand("git", ["diff", "--cached", "--quiet"], cwd);
+    const empty = cachedDiff.exitCode === 0;
+    const commitArgs = ["commit", "-m", message];
+
+    if (options?.allowEmpty !== false) {
+      commitArgs.splice(1, 0, "--allow-empty");
+    } else if (empty) {
+      return { created: false };
+    }
+
+    const commitResult = yield* runCommand("git", commitArgs, cwd);
+    if (!commitResult.ok) {
+      return { created: false };
+    }
+
+    const shaResult = yield* runCommand("git", ["rev-parse", "HEAD"], cwd);
+
+    return {
+      created: true,
+      sha: shaResult.ok ? shaResult.stdout.trim() : undefined,
+      message,
+      empty,
+    };
+  });
 
 const describeStatus = (status: GateStatus): string => {
   switch (status) {
@@ -1011,18 +1485,85 @@ const withCleanup = (
     };
   });
 
-const runAgent = (
-  agent: LoopAgent,
-  context: LoopAgentContext,
+const invokeIterationCallback = (
+  callback: PlanRunLoopOptions["onIteration"],
+  status: LoopIterationStatus,
 ): Effect.Effect<void, never, never> => {
-  if (!agent) {
+  if (!callback) {
     return Effect.void;
   }
 
-  return Effect.tryPromise(async () => {
-    await Promise.resolve(agent(context));
+  return Effect.sync(() => {
+    callback(status);
   }).pipe(Effect.catch(() => Effect.void));
 };
+
+const invokeWorker = (
+  worker: LoopWorker,
+  context: WorkerContext,
+  timeoutMs: number,
+): Effect.Effect<WorkerInvocationResult, never, never> => {
+  if (!worker) {
+    return Effect.succeed({
+      result: {
+        changes: [],
+        summary: "no worker configured",
+      },
+      timedOut: false,
+    });
+  }
+
+  return worker(context).pipe(
+    Effect.timeout(`${timeoutMs} millis`),
+    Effect.map((result) => ({
+      result,
+      timedOut: false,
+    })),
+    Effect.catch(() =>
+      Effect.succeed({
+        result: {
+          changes: [],
+          summary: `worker timed out after ${timeoutMs}ms`,
+          stop: true,
+        },
+        timedOut: true,
+      }),
+    ),
+  );
+};
+
+const createDefaultCommitMessage = (
+  firstFailedGoal: GateRunResult | null,
+  iteration: number,
+): string => {
+  if (!firstFailedGoal) {
+    return `chore: loop iteration ${iteration}`;
+  }
+
+  return `fix: attempt ${firstFailedGoal.id} gate`;
+};
+
+const createIterationReport = (
+  iteration: number,
+  result: PlanRunResult,
+  firstFailedGoal: GateRunResult | null,
+  workerEntry: IterationReport["worker"],
+  commit: CommitResult,
+): IterationReport => ({
+  iteration,
+  timestamp: new Date().toISOString(),
+  firstFailedGoal:
+    firstFailedGoal
+      ? {
+        id: firstFailedGoal.id,
+        title: firstFailedGoal.title,
+        summary: firstFailedGoal.summary,
+      }
+      : null,
+  result,
+  worker: workerEntry,
+  commit,
+});
 
 const runPlanLoop = (
   plan: PlanDefinition,
@@ -1030,6 +1571,8 @@ const runPlanLoop = (
 ): Effect.Effect<PlanRunResult, never, never> =>
   Effect.gen(function* () {
     const maxIterations = options.maxIterations ?? plan.loop?.maxIterations ?? 1;
+    const cwd = resolve(options.cwd ?? process.cwd());
+    const workerTimeoutMs = options.workerTimeoutMs ?? 10 * 60 * 1000;
     let iteration = 0;
     let latest: PlanRunResult = {
       status: "inconclusive",
@@ -1047,28 +1590,346 @@ const runPlanLoop = (
         ...result,
         iterations: iteration,
       };
+      const firstFailedGoal = latest.goals.find((goal) => goal.status !== "pass") ?? null;
 
       if (latest.status === "pass" || latest.status === "skip") {
         return yield* withCleanup(plan, latest);
       }
 
-      if (plan.loop?.stopOnFailure && latest.status === "fail") {
+      if (!options.worker && plan.loop?.stopOnFailure && latest.status === "fail") {
         return yield* withCleanup(plan, latest);
       }
 
-      if (iteration < maxIterations) {
-        const failedGoals = latest.goals.filter((goal) => goal.status !== "pass");
-        yield* runAgent(options.agent, {
+      if (iteration >= maxIterations || !options.worker) {
+        return yield* withCleanup(plan, latest);
+      }
+
+      const failedGoals = latest.goals.filter((goal) => goal.status !== "pass");
+      const workerContext: WorkerContext = {
+        iteration,
+        plan,
+        result: latest,
+        failedGoals,
+        firstFailedGoal,
+        cwd,
+        planPath: options.planPath,
+      };
+      const workerInvocation = yield* invokeWorker(
+        options.worker,
+        workerContext,
+        workerTimeoutMs,
+      );
+      const targetGoal = firstFailedGoal
+        ? plan.goals.find((goal) => goal.id === firstFailedGoal.id)
+        : undefined;
+      const scopeValidation = yield* validateScope(targetGoal, cwd);
+      const scopeViolation = scopeValidation.ok ? undefined : scopeValidation.violation;
+      const workerEntry: IterationReport["worker"] = {
+        called: true,
+        summary: workerInvocation.result.summary,
+        changes: workerInvocation.result.changes,
+        timedOut: workerInvocation.timedOut || undefined,
+        stopped: workerInvocation.result.stop || undefined,
+        scopeViolation,
+      };
+      const commitMessage =
+        workerInvocation.result.commitMessage ??
+        createDefaultCommitMessage(firstFailedGoal, iteration);
+      const commit = yield* createCommit(cwd, commitMessage, options.commit);
+      const report = createIterationReport(
+        iteration,
+        latest,
+        firstFailedGoal,
+        workerEntry,
+        commit,
+      );
+      const reportPath = yield* writeIterationReport(cwd, iteration, report);
+      if (options.memory) {
+        yield* options.memory.writeIteration({
           iteration,
-          plan,
+          timestamp: report.timestamp,
+          firstFailedGoal: report.firstFailedGoal,
           result: latest,
-          failedGoals,
+          worker: workerEntry,
+          commit,
+        }).pipe(Effect.catch(() => Effect.void));
+      }
+
+      const iterationStatus: LoopIterationStatus = {
+        iteration,
+        result: latest,
+        firstFailedGoal,
+        workerCalled: true,
+        workerSummary: workerInvocation.result.summary,
+        committed: commit.created,
+        commitSha: commit.sha,
+        reportPath,
+      };
+      yield* invokeIterationCallback(options.onIteration, iterationStatus);
+
+      if (!scopeValidation.ok) {
+        return yield* withCleanup(plan, {
+          ...latest,
+          status: "fail",
+          summary: scopeViolation ?? latest.summary,
         });
+      }
+
+      if (workerInvocation.result.stop) {
+        return yield* withCleanup(plan, latest);
       }
     }
 
     return yield* withCleanup(plan, latest);
   });
+
+const parseOpenCodeInstruction = (content: string): OpenCodeInstruction | null => {
+  try {
+    const parsed: unknown = JSON.parse(content);
+    if (!isRecord(parsed) || typeof parsed.action !== "string") {
+      return null;
+    }
+
+    switch (parsed.action) {
+      case "read":
+        return typeof parsed.path === "string"
+          ? { action: "read", path: parsed.path }
+          : null;
+      case "write":
+        return typeof parsed.path === "string" && typeof parsed.content === "string"
+          ? { action: "write", path: parsed.path, content: parsed.content }
+          : null;
+      case "replace":
+        return typeof parsed.path === "string" &&
+          typeof parsed.find === "string" &&
+          typeof parsed.replace === "string"
+          ? {
+            action: "replace",
+            path: parsed.path,
+            find: parsed.find,
+            replace: parsed.replace,
+          }
+          : null;
+      case "exec":
+        return typeof parsed.command === "string"
+          ? { action: "exec", command: parsed.command }
+          : null;
+      case "done":
+        return typeof parsed.summary === "string"
+          ? {
+            action: "done",
+            summary: parsed.summary,
+            commitMessage: typeof parsed.commitMessage === "string" ? parsed.commitMessage : undefined,
+            stop: parsed.stop === true,
+          }
+          : null;
+      default:
+        return null;
+    }
+  } catch {
+    return null;
+  }
+};
+
+const callOpenCodeModel = (
+  options: OpenCodeWorkerOptions,
+  messages: ReadonlyArray<{ role: "system" | "user" | "assistant"; content: string }>,
+): Effect.Effect<OpenCodeInstruction | null, never, never> => {
+  const endpoint = options.endpoint;
+  if (!endpoint) {
+    return Effect.succeed(null);
+  }
+
+  return Effect.tryPromise(async () => {
+    const response = await fetch(endpoint, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        ...(options.apiKey ? { Authorization: `Bearer ${options.apiKey}` } : {}),
+      },
+      body: JSON.stringify({
+        model: options.model ?? "gpt-5.3-codex",
+        messages,
+      }),
+    });
+
+    if (!response.ok) {
+      return null;
+    }
+
+    const payload = (await response.json()) as OpenCodeChatCompletionResponse;
+    const content = payload.choices?.[0]?.message?.content;
+    return typeof content === "string" ? parseOpenCodeInstruction(content) : null;
+  }).pipe(Effect.catch(() => Effect.succeed(null)));
+};
+
+const executeOpenCodeInstruction = (
+  instruction: OpenCodeInstruction,
+  context: WorkerContext,
+): Effect.Effect<{ response: string; changes: ReadonlyArray<WorkerChange>; done?: WorkerResult }, never, never> =>
+  Effect.gen(function* () {
+    if (instruction.action === "done") {
+      return {
+        response: "completed",
+        changes: [],
+        done: {
+          changes: [],
+          summary: instruction.summary,
+          commitMessage: instruction.commitMessage,
+          stop: instruction.stop,
+        },
+      };
+    }
+
+    if (instruction.action === "exec") {
+      const result = yield* runCommand("zsh", ["-lc", instruction.command], context.cwd);
+      return {
+        response: JSON.stringify({
+          ok: result.ok,
+          stdout: result.stdout,
+          stderr: result.stderr,
+          exitCode: result.exitCode,
+        }),
+        changes: [{
+          kind: "exec",
+          summary: instruction.command,
+        }],
+      };
+    }
+
+    const targetPath = normalizePath(instruction.path);
+    if (!isPathInside(context.cwd, targetPath)) {
+      return {
+        response: JSON.stringify({ error: "path is outside cwd" }),
+        changes: [],
+      };
+    }
+
+    const absolutePath = resolve(context.cwd, targetPath);
+
+    if (instruction.action === "read") {
+      const contents = yield* Effect.tryPromise(() => readFile(absolutePath, "utf8")).pipe(
+        Effect.catch(() => Effect.succeed("")),
+      );
+      return {
+        response: contents,
+        changes: [],
+      };
+    }
+
+    if (instruction.action === "write") {
+      yield* Effect.tryPromise(() => mkdir(dirname(absolutePath), { recursive: true })).pipe(
+        Effect.catch(() => Effect.void),
+      );
+      yield* Effect.tryPromise(() => writeFile(absolutePath, instruction.content, "utf8")).pipe(
+        Effect.catch(() => Effect.void),
+      );
+      return {
+        response: "ok",
+        changes: [{
+          kind: "write",
+          path: targetPath,
+          summary: `wrote ${targetPath}`,
+        }],
+      };
+    }
+
+    const existing = yield* Effect.tryPromise(() => readFile(absolutePath, "utf8")).pipe(
+      Effect.catch(() => Effect.succeed("")),
+    );
+    if (!existing.includes(instruction.find)) {
+      return {
+        response: JSON.stringify({ error: "target text not found" }),
+        changes: [],
+      };
+    }
+
+    const updated = existing.replace(instruction.find, instruction.replace);
+    yield* Effect.tryPromise(() => writeFile(absolutePath, updated, "utf8")).pipe(
+      Effect.catch(() => Effect.void),
+    );
+    return {
+      response: "ok",
+      changes: [{
+        kind: "replace",
+        path: targetPath,
+        summary: `updated ${targetPath}`,
+      }],
+    };
+  });
+
+export const createOpenCodeWorker = (
+  options: OpenCodeWorkerOptions,
+): LoopWorker =>
+  (context) =>
+    Effect.gen(function* () {
+      const maxSteps = Math.max(1, options.maxSteps ?? 4);
+      const systemPrompt =
+        "You are Gateproof's built-in worker. Fix only the first failing gate. " +
+        "Return exactly one JSON object with an action: read, write, replace, exec, or done. " +
+        "Keep changes minimal and stay inside the repository scope.";
+      const initialContext = JSON.stringify({
+        planPath: context.planPath,
+        firstFailedGoal: context.firstFailedGoal,
+        failedGoals: context.failedGoals.map((goal) => ({
+          id: goal.id,
+          title: goal.title,
+          status: goal.status,
+          summary: goal.summary,
+        })),
+      }, null, 2);
+
+      const messages: Array<{ role: "system" | "user" | "assistant"; content: string }> = [
+        { role: "system", content: systemPrompt },
+        { role: "user", content: initialContext },
+      ];
+      const changes: WorkerChange[] = [];
+
+      for (let step = 0; step < maxSteps; step += 1) {
+        const instruction = yield* callOpenCodeModel(options, messages);
+        if (!instruction) {
+          return {
+            changes,
+            summary: "worker did not return a usable instruction",
+            stop: true,
+          };
+        }
+
+        messages.push({
+          role: "assistant",
+          content: JSON.stringify(instruction),
+        });
+
+        const execution = yield* executeOpenCodeInstruction(instruction, context);
+        changes.push(...execution.changes);
+
+        if (execution.done) {
+          return {
+            ...execution.done,
+            changes: [...changes, ...execution.done.changes],
+          };
+        }
+
+        messages.push({
+          role: "user",
+          content: execution.response,
+        });
+      }
+
+      return {
+        changes,
+        summary: "worker hit the step limit without completing",
+        stop: true,
+      };
+    }).pipe(Effect.timeout(`${options.timeoutMs ?? 10 * 60 * 1000} millis`)).pipe(
+      Effect.catch(() =>
+        Effect.succeed({
+          changes: [],
+          summary: `worker timed out after ${options.timeoutMs ?? 10 * 60 * 1000}ms`,
+          stop: true,
+        }),
+      ),
+    );
 
 export const Gate = {
   define(definition: GateDefinition): GateDefinition {

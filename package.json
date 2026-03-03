@@ -27,6 +27,7 @@
     "test": "bun test",
     "readme:generate": "bun scripts/generate-readme.ts",
     "example:hello-world": "bun scripts/run-hello-world-example.ts",
+    "example:hello-world:worker": "bun scripts/run-hello-world-worker-loop.ts",
     "quality:check": "bun scripts/run-quality-check.ts",
     "turn:finalize": "bun scripts/finalize-turn.ts",
     "turn:finalize:push": "bun scripts/finalize-turn.ts --push",

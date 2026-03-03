@@ -11,6 +11,7 @@ import {
   getHomepageContent,
   loadExampleFiles,
 } from "../scripts/render-scope";
+import { runHelloWorldWorkerLoopSmoke } from "../scripts/run-hello-world-worker-loop";
 import helloWorldScope from "../examples/hello-world/plan";
 import { startHelloWorldServer } from "../examples/hello-world/server";
 
@@ -53,5 +54,13 @@ describe("front-door artifacts", () => {
     } finally {
       server.stop(true);
     }
+  });
+
+  test("smoke-runs the built-in worker loop on hello world", async () => {
+    const result = await runHelloWorldWorkerLoopSmoke();
+
+    expect(result.status).toBe("pass");
+    expect(result.commits).toBe(2);
+    expect(result.finalBody).toBe("hello world");
   });
 });

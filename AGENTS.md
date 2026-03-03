@@ -120,14 +120,16 @@ When integrated with `Plan.runLoop`, you'll receive context about failures:
 
 ```typescript
 const result = await Effect.runPromise(Plan.runLoop(scope.plan, {
-  agent: async (ctx) => {
+  worker: (ctx) => Effect.succeed({
     // ctx.plan        - The executable plan
     // ctx.result      - The latest plan result
     // ctx.failedGoals - The Goal objects that failed
+    // ctx.firstFailedGoal - The first failing goal to target
 
     // Make targeted fixes...
-    return { changes: ["Fixed validation in signup.ts"] };
-  },
+    changes: [{ kind: "replace", path: "src/signup.ts", summary: "Fixed validation in signup.ts" }],
+    summary: "Applied one targeted fix",
+  }),
 }));
 ```
 
