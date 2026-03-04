@@ -142,6 +142,72 @@ describe("Worker loop", () => {
     }
   });
 
+  test("writes .gateproof/latest.json on an immediate pass without a worker", async () => {
+    const cwd = await createTempRepo();
+
+    try {
+      const result = await Effect.runPromise(
+        Plan.runLoop(
+          Plan.define({
+            goals: [
+              {
+                id: "ok",
+                title: "true command succeeds",
+                gate: Gate.define({
+                  act: [Act.exec("true")],
+                  assert: [Assert.noErrors()],
+                }),
+              },
+            ],
+          }),
+          {
+            cwd,
+          },
+        ),
+      );
+
+      expect(result.status).toBe("pass");
+      const latestText = await readFile(join(cwd, ".gateproof", "latest.json"), "utf8");
+      const latest = JSON.parse(latestText) as Record<string, unknown>;
+      expect(latest.result).toBeDefined();
+      expect((latest.result as Record<string, unknown>).status).toBe("pass");
+      expect(latest.worker).toBeUndefined();
+      expect(latest.commit).toBeUndefined();
+      expect((latest.snapshot as Record<string, unknown>).cwd).toBe(cwd);
+    } finally {
+      await rm(cwd, { recursive: true, force: true });
+    }
+  });
+
+  test("writes .gateproof/latest.json on an immediate fail without a worker", async () => {
+    const cwd = await createTempRepo();
+
+    try {
+      const result = await Effect.runPromise(
+        Plan.runLoop(
+          Plan.define({
+            goals: [createFailingGoal("alpha", "Alpha gate")],
+            loop: {
+              stopOnFailure: true,
+            },
+          }),
+          {
+            cwd,
+          },
+        ),
+      );
+
+      expect(result.status).toBe("fail");
+      const latestText = await readFile(join(cwd, ".gateproof", "latest.json"), "utf8");
+      const latest = JSON.parse(latestText) as Record<string, unknown>;
+      expect((latest.result as Record<string, unknown>).status).toBe("fail");
+      expect((latest.firstFailedGoal as Record<string, unknown>).id).toBe("alpha");
+      expect(latest.worker).toBeUndefined();
+    } finally {
+      await rm(cwd, { recursive: true, force: true });
+    }
+  });
+
   test("stops on a scope violation, writes a report, and still commits the attempt", async () => {
     const cwd = await createTempRepo();
     let iterationStatus: LoopIterationStatus | undefined;
@@ -323,6 +389,46 @@ describe("Worker loop", () => {
       const latestText = await readFile(latestPath, "utf8");
       expect(latestText).toContain("\"iteration\": 1");
       expect(latestText).toContain("report check");
+    } finally {
+      await rm(cwd, { recursive: true, force: true });
+    }
+  });
+
+  test("captures git head and tracked diff hash in the latest report", async () => {
+    const cwd = await createTempRepo();
+
+    try {
+      await writeFile(join(cwd, "README.md"), "# changed\n", "utf8");
+
+      await Effect.runPromise(
+        Plan.runLoop(
+          Plan.define({
+            goals: [
+              {
+                id: "ok",
+                title: "true command succeeds",
+                gate: Gate.define({
+                  act: [Act.exec("true")],
+                  assert: [Assert.noErrors()],
+                }),
+              },
+            ],
+          }),
+          {
+            cwd,
+            planPath: "plan.ts",
+          },
+        ),
+      );
+
+      const latestText = await readFile(join(cwd, ".gateproof", "latest.json"), "utf8");
+      const latest = JSON.parse(latestText) as Record<string, unknown>;
+      const snapshot = latest.snapshot as Record<string, unknown>;
+      expect(typeof snapshot.gitHead).toBe("string");
+      expect((snapshot.gitHead as string).length).toBeGreaterThan(0);
+      expect(typeof snapshot.worktreeDiffHash).toBe("string");
+      expect((snapshot.worktreeDiffHash as string).length).toBe(64);
+      expect(snapshot.planPath).toBe("plan.ts");
     } finally {
       await rm(cwd, { recursive: true, force: true });
     }

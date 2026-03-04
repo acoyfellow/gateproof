@@ -1,3 +1,4 @@
+import { validateSavedProof } from "./finalize-turn-lib";
 import { runQualityCheck } from "./run-quality-check";
 
 const defaultCommitMessage = "chore(turn): finalize agent turn";
@@ -47,26 +48,33 @@ function parseArgs(argv: string[]) {
   };
 }
 
-const options = parseArgs(process.argv.slice(2));
+export async function finalizeTurn(argv: string[] = process.argv.slice(2)): Promise<void> {
+  const options = parseArgs(argv);
 
-await runQualityCheck();
+  await runQualityCheck();
+  await validateSavedProof(process.cwd());
 
-const hadChanges = (await getGitOutput(["git", "status", "--short"])) !== "";
+  const hadChanges = (await getGitOutput(["git", "status", "--short"])) !== "";
 
-await runGit(["git", "add", "-A"]);
-await runGit(["git", "commit", "--allow-empty", "-m", options.commitMessage]);
+  await runGit(["git", "add", "-A"]);
+  await runGit(["git", "commit", "--allow-empty", "-m", options.commitMessage]);
 
-if (options.push) {
-  await runGit(["git", "push"]);
+  if (options.push) {
+    await runGit(["git", "push"]);
+  }
+
+  const remainingChanges = await getGitOutput(["git", "status", "--short"]);
+  if (remainingChanges !== "") {
+    throw new Error("Working tree is not clean after turn finalization");
+  }
+
+  console.log(
+    hadChanges
+      ? "turn:finalize completed with a commit"
+      : "turn:finalize completed with an empty commit",
+  );
 }
 
-const remainingChanges = await getGitOutput(["git", "status", "--short"]);
-if (remainingChanges !== "") {
-  throw new Error("Working tree is not clean after turn finalization");
+if (import.meta.main) {
+  await finalizeTurn();
 }
-
-console.log(
-  hadChanges
-    ? "turn:finalize completed with a commit"
-    : "turn:finalize completed with an empty commit",
-);

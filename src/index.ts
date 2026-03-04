@@ -1,3 +1,4 @@
+import { createHash } from "node:crypto";
 import { readFile, mkdir, stat, writeFile } from "node:fs/promises";
 import { spawn } from "node:child_process";
 import { dirname, relative, resolve } from "node:path";
@@ -353,6 +354,13 @@ interface CommitResult {
   empty?: boolean;
 }
 
+interface ProofSnapshot {
+  cwd: string;
+  planPath?: string;
+  gitHead?: string;
+  worktreeDiffHash?: string;
+}
+
 interface IterationReport {
   iteration: number;
   timestamp: string;
@@ -371,6 +379,7 @@ interface IterationReport {
     scopeViolation?: string;
   };
   commit?: CommitResult;
+  snapshot?: ProofSnapshot;
 }
 
 interface WorkerLoopState {
@@ -486,6 +495,58 @@ const runCommand = (
       Effect.succeed({
         ok: false,
         stdout: "",
+        stderr: "command failed unexpectedly",
+        exitCode: null,
+      }),
+    ),
+  );
+
+const runCommandBytes = (
+  command: string,
+  args: ReadonlyArray<string>,
+  cwd: string,
+): Effect.Effect<{ ok: boolean; stdout: Uint8Array; stderr: string; exitCode: number | null }, never, never> =>
+  Effect.tryPromise(() =>
+    new Promise<{ ok: boolean; stdout: Uint8Array; stderr: string; exitCode: number | null }>((resolveCommand) => {
+      const child = spawn(command, [...args], {
+        cwd,
+        env: process.env,
+      });
+
+      const stdoutChunks: Buffer[] = [];
+      let stderr = "";
+
+      child.stdout?.on("data", (chunk) => {
+        stdoutChunks.push(Buffer.from(chunk));
+      });
+
+      child.stderr?.on("data", (chunk) => {
+        stderr += String(chunk);
+      });
+
+      child.on("error", (error) => {
+        resolveCommand({
+          ok: false,
+          stdout: new Uint8Array(),
+          stderr: error instanceof Error ? error.message : String(error),
+          exitCode: null,
+        });
+      });
+
+      child.on("close", (code) => {
+        resolveCommand({
+          ok: code === 0,
+          stdout: Buffer.concat(stdoutChunks),
+          stderr,
+          exitCode: code,
+        });
+      });
+    }),
+  ).pipe(
+    Effect.catch(() =>
+      Effect.succeed({
+        ok: false,
+        stdout: new Uint8Array(),
         stderr: "command failed unexpectedly",
         exitCode: null,
       }),
@@ -672,6 +733,36 @@ const writeIterationReport = (
     );
 
     return reportPath;
+  });
+
+const captureProofSnapshot = (
+  cwd: string,
+  planPath?: string,
+): Effect.Effect<ProofSnapshot, never, never> =>
+  Effect.gen(function* () {
+    const snapshot: ProofSnapshot = {
+      cwd,
+      planPath,
+    };
+    const insideGit = yield* isGitRepository(cwd);
+
+    if (!insideGit) {
+      return snapshot;
+    }
+
+    const headResult = yield* runCommand("git", ["rev-parse", "HEAD"], cwd);
+    if (headResult.ok) {
+      snapshot.gitHead = headResult.stdout.trim();
+    }
+
+    const diffResult = yield* runCommandBytes("git", ["diff", "--binary", "HEAD"], cwd);
+    if (diffResult.ok) {
+      snapshot.worktreeDiffHash = createHash("sha256")
+        .update(diffResult.stdout)
+        .digest("hex");
+    }
+
+    return snapshot;
   });
 
 const createCommit = (
@@ -1553,8 +1644,9 @@ const createIterationReport = (
   iteration: number,
   result: PlanRunResult,
   firstFailedGoal: GateRunResult | null,
-  workerEntry: IterationReport["worker"],
-  commit: CommitResult,
+  workerEntry: IterationReport["worker"] | undefined,
+  commit: CommitResult | undefined,
+  snapshot: ProofSnapshot,
 ): IterationReport => ({
   iteration,
   timestamp: new Date().toISOString(),
@@ -1569,6 +1661,7 @@ const createIterationReport = (
   result,
   worker: workerEntry,
   commit,
+  snapshot,
 });
 
 const runPlanLoop = (
@@ -1597,17 +1690,36 @@ const runPlanLoop = (
         iterations: iteration,
       };
       const firstFailedGoal = latest.goals.find((goal) => goal.status !== "pass") ?? null;
+      const finalizeWithoutWorker = (
+        resultToFinalize: PlanRunResult,
+        workerEntry?: IterationReport["worker"],
+        commit?: CommitResult,
+      ): Effect.Effect<PlanRunResult, never, never> =>
+        Effect.gen(function* () {
+          const finalizedResult = yield* withCleanup(plan, resultToFinalize);
+          const snapshot = yield* captureProofSnapshot(cwd, options.planPath);
+          const report = createIterationReport(
+            iteration,
+            finalizedResult,
+            firstFailedGoal,
+            workerEntry,
+            commit,
+            snapshot,
+          );
+          yield* writeIterationReport(cwd, iteration, report);
+          return finalizedResult;
+        });
 
       if (latest.status === "pass" || latest.status === "skip") {
-        return yield* withCleanup(plan, latest);
+        return yield* finalizeWithoutWorker(latest);
       }
 
       if (!options.worker && plan.loop?.stopOnFailure && latest.status === "fail") {
-        return yield* withCleanup(plan, latest);
+        return yield* finalizeWithoutWorker(latest);
       }
 
       if (iteration >= maxIterations || !options.worker) {
-        return yield* withCleanup(plan, latest);
+        return yield* finalizeWithoutWorker(latest);
       }
 
       const failedGoals = latest.goals.filter((goal) => goal.status !== "pass");
@@ -1648,6 +1760,7 @@ const runPlanLoop = (
         firstFailedGoal,
         workerEntry,
         commit,
+        yield* captureProofSnapshot(cwd, options.planPath),
       );
       const reportPath = yield* writeIterationReport(cwd, iteration, report);
       if (options.memory) {
@@ -1674,19 +1787,31 @@ const runPlanLoop = (
       yield* invokeIterationCallback(options.onIteration, iterationStatus);
 
       if (!scopeValidation.ok) {
-        return yield* withCleanup(plan, {
+        return yield* finalizeWithoutWorker({
           ...latest,
           status: "fail",
           summary: scopeViolation ?? latest.summary,
-        });
+        }, workerEntry, commit);
       }
 
       if (workerInvocation.result.stop) {
-        return yield* withCleanup(plan, latest);
+        return yield* finalizeWithoutWorker(latest, workerEntry, commit);
       }
     }
 
-    return yield* withCleanup(plan, latest);
+    const finalizedResult = yield* withCleanup(plan, latest);
+    const finalFailedGoal = finalizedResult.goals.find((goal) => goal.status !== "pass") ?? null;
+    const snapshot = yield* captureProofSnapshot(cwd, options.planPath);
+    const report = createIterationReport(
+      iteration,
+      finalizedResult,
+      finalFailedGoal,
+      undefined,
+      undefined,
+      snapshot,
+    );
+    yield* writeIterationReport(cwd, iteration, report);
+    return finalizedResult;
   });
 
 const parseOpenCodeInstruction = (content: string): OpenCodeInstruction | null => {
