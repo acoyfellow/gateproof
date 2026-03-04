@@ -202,6 +202,16 @@ Status: ${cinderStatus.statusTitle}
 
 ${cinderStatus.statusBody}
 
+## Roadmap
+
+Gateproof is not ready to fully dogfood itself on a case study like Cinder yet. The next phase is about tightening the guardrails, not adding another rewrite.
+
+- Save the latest real proof result to disk so the loop always has a concrete last-known truth.
+- Make finalize refuse to ship unless the saved real proof result is fully green.
+- Separate the real proof path from side experiments so exploration can happen without polluting the proof story.
+- Let plans choose direct evidence when log tailing is flaky, so a valid live pass does not fail on observation noise alone.
+- Dogfood Gateproof on Cinder again only after those guardrails are in place.
+
 ## How To
 
 Task: ${scope.spec.howTo.task}
