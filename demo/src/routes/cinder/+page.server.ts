@@ -1,6 +1,6 @@
+import { redirect } from "@sveltejs/kit";
 import type { PageServerLoad } from "./$types";
-import { getCinderCaseStudyContent, type CinderCaseStudyContent } from "../../../../scripts/render-scope";
 
-export const load: PageServerLoad<CinderCaseStudyContent> = async () => {
-  return getCinderCaseStudyContent();
+export const load: PageServerLoad = async () => {
+  redirect(302, "/case-studies/cinder");
 };

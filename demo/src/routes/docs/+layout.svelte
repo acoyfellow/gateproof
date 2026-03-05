@@ -1,7 +1,6 @@
 <script lang="ts">
 	import { page } from '$app/state';
-	import type { DocCategory, DocEntry } from '$lib/docs-manifest';
-	import type { TocEntry } from '$lib/markdown';
+	import type { DocCategory } from '$lib/docs-manifest';
 	import type { Snippet } from 'svelte';
 
 	interface Props {
@@ -14,8 +13,9 @@
 
 	function currentSlug(): string {
 		const path = page.url.pathname;
+		if (path === '/docs' || path === '/docs/') return 'index';
 		const prefix = '/docs/';
-		return path.startsWith(prefix) ? path.slice(prefix.length) : '';
+		return path.startsWith(prefix) ? path.slice(prefix.length).replace(/\/$/, '') : '';
 	}
 
 	function isActive(slug: string): boolean {
@@ -23,17 +23,31 @@
 		if (!current && slug === 'index') return true;
 		return current === slug;
 	}
+
+	function currentTitle(): string {
+		const slug = currentSlug();
+		if (!slug || slug === 'index') return 'Documentation';
+		for (const cat of data.nav) {
+			const entry = cat.entries.find((e) => e.slug === slug);
+			if (entry) return entry.title;
+		}
+		return slug.split('/').pop()?.replace(/-/g, ' ') ?? 'Docs';
+	}
 </script>
 
-<div class="docs-layout">
-	<!-- Mobile header -->
-	<div class="docs-mobile-header">
+<div class="flex min-h-screen flex-col bg-background">
+	<nav class="flex h-11 shrink-0 items-center justify-between gap-3 border-b border-border bg-card px-4 pl-6">
+		<div class="flex items-center gap-2 font-(family-name:--font-body) text-[0.8125rem]">
+			<a href="/docs" class="text-muted-foreground no-underline hover:text-foreground">Docs</a>
+			<span class="text-muted-foreground opacity-60" aria-hidden="true">/</span>
+			<span class="font-medium text-foreground">{currentTitle()}</span>
+		</div>
 		<button
-			class="docs-hamburger"
+			class="cursor-pointer border-none bg-transparent p-1 text-secondary-foreground hover:text-foreground md:hidden"
 			onclick={() => (sidebarOpen = !sidebarOpen)}
-			aria-label="Toggle navigation"
+			aria-label="Toggle sidebar"
 		>
-			<svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+			<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
 				{#if sidebarOpen}
 					<line x1="18" y1="6" x2="6" y2="18" />
 					<line x1="6" y1="6" x2="18" y2="18" />
@@ -44,40 +58,11 @@
 				{/if}
 			</svg>
 		</button>
-		<a href="/docs" class="docs-mobile-title">Docs</a>
-		<a href="/" class="docs-home-link">gateproof</a>
-	</div>
+	</nav>
 
-	<!-- Sidebar -->
-	<aside class="docs-sidebar" class:open={sidebarOpen}>
-		<div class="docs-sidebar-inner">
-			<a href="/" class="docs-logo">
-				<span class="docs-logo-accent">gate</span>proof
-			</a>
-			<nav class="docs-nav">
-				{#each data.nav as category}
-					<div class="docs-nav-category">
-						<div class="docs-nav-category-label">{category.label}</div>
-						{#each category.entries as entry}
-							<a
-								href="/docs/{entry.slug}"
-								class="docs-nav-link"
-								class:active={isActive(entry.slug)}
-								onclick={() => (sidebarOpen = false)}
-							>
-								{entry.title}
-							</a>
-						{/each}
-					</div>
-				{/each}
-			</nav>
-		</div>
-	</aside>
-
-	<!-- Backdrop for mobile -->
 	{#if sidebarOpen}
 		<div
-			class="docs-backdrop"
+			class="fixed inset-0 z-40 bg-black/50 md:hidden"
 			onclick={() => (sidebarOpen = false)}
 			role="button"
 			tabindex="-1"
@@ -85,175 +70,40 @@
 		></div>
 	{/if}
 
-	<!-- Content area -->
-	<main class="docs-main">
-		{@render children()}
-	</main>
+	<div class="relative flex min-h-0 flex-1 md:relative">
+		<aside
+			class="fixed left-0 top-0 bottom-0 z-50 w-60 -translate-x-full shrink-0 overflow-y-auto border-r border-sidebar-border bg-sidebar py-5 px-3 pb-8 transition-transform duration-200 md:static md:translate-x-0 {sidebarOpen ? 'translate-x-0' : ''}"
+		>
+			<a href="/" class="mb-6 block px-2 opacity-95 hover:opacity-100">
+				<img src="/logo.svg" alt="Gateproof" width="46" height="15" class="block h-3.5 w-auto" />
+			</a>
+			<nav class="flex flex-col gap-5 font-(family-name:--font-body)" aria-label="Docs">
+				{#each data.nav as category}
+					<div>
+						<div class="mb-2 px-2 text-[0.625rem] font-medium uppercase tracking-[0.12em] text-muted-foreground">
+							{category.label}
+						</div>
+						<ul class="m-0 list-none p-0">
+							{#each category.entries as entry}
+								<li>
+									<a
+										href="/docs/{entry.slug}"
+										class="block px-2 py-1.5 text-[0.8125rem] no-underline transition-colors {isActive(entry.slug)
+											? 'rounded-sm bg-accent/10 text-sidebar-primary'
+											: 'text-sidebar-foreground hover:bg-sidebar-accent hover:text-sidebar-foreground'}"
+										onclick={() => (sidebarOpen = false)}
+									>
+										{entry.title}
+									</a>
+								</li>
+							{/each}
+						</ul>
+					</div>
+				{/each}
+			</nav>
+		</aside>
+		<main class="min-w-0 flex-1 overflow-y-auto">
+			{@render children()}
+		</main>
+	</div>
 </div>
-
-<style>
-	.docs-layout {
-		display: flex;
-		min-height: 100vh;
-		background: var(--color-background);
-	}
-
-	/* Mobile header */
-	.docs-mobile-header {
-		display: none;
-		position: fixed;
-		top: 0;
-		left: 0;
-		right: 0;
-		height: 3rem;
-		background: var(--card);
-		border-bottom: 1px solid var(--border);
-		align-items: center;
-		padding: 0 1rem;
-		z-index: 40;
-		gap: 0.75rem;
-	}
-
-	.docs-hamburger {
-		color: var(--secondary-foreground);
-		background: none;
-		border: none;
-		cursor: pointer;
-		padding: 0.25rem;
-	}
-
-	.docs-hamburger:hover {
-		color: var(--foreground);
-	}
-
-	.docs-mobile-title {
-		font-family: var(--font-body);
-		font-size: 0.875rem;
-		font-weight: 500;
-		color: var(--foreground);
-		text-decoration: none;
-	}
-
-	.docs-home-link {
-		margin-left: auto;
-		font-family: var(--font-body);
-		font-size: 0.75rem;
-		color: var(--muted-foreground);
-		text-decoration: none;
-	}
-
-	.docs-home-link:hover {
-		color: var(--accent);
-	}
-
-	/* Sidebar */
-	.docs-sidebar {
-		position: fixed;
-		top: 0;
-		left: 0;
-		bottom: 0;
-		width: 16rem;
-		background: var(--card);
-		border-right: 1px solid var(--border);
-		overflow-y: auto;
-		z-index: 30;
-	}
-
-	.docs-sidebar-inner {
-		padding: 1.5rem 1rem 2rem;
-	}
-
-	.docs-logo {
-		display: block;
-		font-family: var(--font-body);
-		font-size: 1rem;
-		font-weight: 500;
-		color: var(--foreground);
-		text-decoration: none;
-		margin-bottom: 2rem;
-		padding: 0 0.5rem;
-	}
-
-	.docs-logo-accent {
-		color: var(--accent);
-	}
-
-	.docs-nav {
-		display: flex;
-		flex-direction: column;
-		gap: 1.5rem;
-	}
-
-	.docs-nav-category-label {
-		font-family: var(--font-body);
-		font-size: 0.6875rem;
-		font-weight: 500;
-		text-transform: uppercase;
-		letter-spacing: 0.1em;
-		color: var(--muted-foreground);
-		padding: 0 0.5rem;
-		margin-bottom: 0.375rem;
-	}
-
-	.docs-nav-link {
-		display: block;
-		font-family: var(--font-body);
-		font-size: 0.8125rem;
-		color: var(--secondary-foreground);
-		text-decoration: none;
-		padding: 0.3rem 0.5rem;
-		border-radius: 0.25rem;
-		transition: color 0.15s, background 0.15s;
-	}
-
-	.docs-nav-link:hover {
-		color: var(--foreground);
-		background: var(--muted);
-	}
-
-	.docs-nav-link.active {
-		color: var(--accent);
-		background: oklch(0.75 0.22 38 / 0.1);
-	}
-
-	.docs-backdrop {
-		display: none;
-	}
-
-	/* Content */
-	.docs-main {
-		flex: 1;
-		margin-left: 16rem;
-		min-width: 0;
-	}
-
-	/* Mobile */
-	@media (max-width: 768px) {
-		.docs-mobile-header {
-			display: flex;
-		}
-
-		.docs-sidebar {
-			transform: translateX(-100%);
-			transition: transform 0.25s ease;
-			z-index: 50;
-		}
-
-		.docs-sidebar.open {
-			transform: translateX(0);
-		}
-
-		.docs-backdrop {
-			display: block;
-			position: fixed;
-			inset: 0;
-			background: black/60;
-			z-index: 45;
-		}
-
-		.docs-main {
-			margin-left: 0;
-			padding-top: 3rem;
-		}
-	}
-</style>

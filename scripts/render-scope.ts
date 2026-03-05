@@ -59,6 +59,29 @@ export interface CinderCaseStudyContent {
   runConditions: ReadonlyArray<string>;
 }
 
+export interface CaseStudyEntry {
+  id: string;
+  number: number;
+  title: string;
+  description: string;
+  href: string;
+  iteration: string;
+}
+
+export function getCaseStudiesList(): ReadonlyArray<CaseStudyEntry> {
+  return [
+    {
+      id: "cinder",
+      number: 1,
+      title: "Cinder",
+      description:
+        "CI runner acceleration on Cloudflare. One unsupervised proof loop; input and output repos frozen.",
+      href: "/case-studies/cinder",
+      iteration: "Round one",
+    },
+  ];
+}
+
 export interface LoadedExampleFiles {
   helloWorldPlan: string;
   rootPlan: string;
@@ -479,7 +502,7 @@ Proof loops run against real systems. Here we list case studies that use Gatepro
 
 CI runner acceleration on Cloudflare: webhook intake, job queue, runner pool, cache restore/push, and a warm-build speed claim. Provisioning lives in \`alchemy.run.ts\`; the proof contract is \`plan.ts\`. The loop ran unsupervised (no mid-loop review or edits) until all gates passed.
 
-- [Cinder case study](/cinder) — inputs, outputs, and artifacts.
+- [Cinder case study](/case-studies/cinder) — inputs, outputs, and artifacts.
 - [alchemy.run.ts](${cinderProvisionUrl}) — provisioning.
 - [plan.ts](${cinderPlanUrl}) — proof contract.
 
@@ -522,12 +545,12 @@ export function getHomepageContent(): HomepageContent {
           "The same file the human reads is the file the loop hands to the worker.",
       },
     ],
-    ctaEyebrow: "Case Study",
-    ctaTitle: "Cinder",
+    ctaEyebrow: "Case Studies",
+    ctaTitle: "Proof loops in the wild.",
     ctaBody:
-      "Provision the world once. Keep proving the live warm-build claim until it is actually true.",
-    ctaHref: "/cinder",
-    ctaLabel: "Read the Cinder case study",
+      "Real systems, one plan, one loop. Cinder is the first; more to come.",
+    ctaHref: "/case-studies",
+    ctaLabel: "See case studies",
     githubHref: "https://github.com/acoyfellow/gateproof",
     npmHref: "https://www.npmjs.com/package/gateproof",
   };
@@ -539,7 +562,7 @@ export function getCinderCaseStudyContent(): CinderCaseStudyContent {
 
   return {
     eyebrow: "Cinder Round One",
-    headline: "Inputs and outputs.",
+    headline: "A full product, built in reverse.",
     subheadline:
       "One proof loop was executed. Input and output repositories were frozen. Read-only.",
     provisionLabel: "alchemy.run.ts",
