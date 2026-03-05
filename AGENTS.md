@@ -178,6 +178,17 @@ If you break something:
 2. Revert problematic changes with `git checkout <file>`.
 3. Start fresh from a known good state.
 
+## Northstar: Cloudflare Install Blueprint
+
+`plan.ts` is not just a proof harness—it is a **declarative install specification**. The northstar: a Cloudflare "Install" button that deploys a Gateproof-described system to Workers/infra in one click.
+
+**Mental model**:
+- plan.ts describes: workers, routes, KV/R2/DOs, bindings, and **what must be true** (assertions)
+- A compiler reads plan.ts and emits: Cloudflare config (wrangler, resources) + gate definitions
+- Deploy via Cloudflare API → run gates → proof and evidence
+
+**Anti-pattern (learned from Cinder case study)**: Do not encode app logic or long inline scripts in plan.ts. The plan specifies behavior and resources; implementation lives in app code. Keep plan.ts focused on *what exists* and *what must be true*, not *how to provision*.
+
 ## Getting Help
 
 - Gate keeps timing out? Check observe resource configuration.
