@@ -2,7 +2,7 @@
   import CodeBlock from '$lib/components/CodeBlock.svelte';
   import { Button } from '$lib/components/ui/button';
   import { Github, Package } from '@lucide/svelte';
-  import type { HomepageContent } from '../../../scripts/render-scope';
+  import type { HomepageContent } from '$scripts/render-scope';
 
   interface Props {
     data: HomepageContent;
@@ -20,6 +20,10 @@
 </svelte:head>
 
 <main class="relative min-h-screen overflow-x-hidden">
+  <div
+    class="pointer-events-none absolute inset-0 bg-cover bg-center opacity-[0.22]"
+    style="background-image: url('/hero.jpg');"
+  ></div>
   <div
     class="pointer-events-none absolute inset-0"
     style="background:

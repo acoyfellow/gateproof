@@ -8,6 +8,9 @@ const config = {
   preprocess: vitePreprocess(),
   kit: {
     adapter: dev ? alchemy() : adapter(),
+    alias: {
+      $scripts: '../scripts'
+    },
     experimental: {
       remoteFunctions: true
     }
