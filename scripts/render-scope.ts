@@ -31,32 +31,45 @@ export interface HomepageContent {
   npmHref: string;
 }
 
+export interface CaseStudyArtifact {
+  label: string;
+  url: string;
+  note: string;
+  code?: string;
+}
+
+export interface CaseStudyEvidenceSection {
+  title: string;
+  summary: string;
+  items: ReadonlyArray<string>;
+  code?: string;
+}
+
+export interface CurrentRepoStatus {
+  label: string;
+  title: string;
+  body: string;
+}
+
 export interface CinderCaseStudyContent {
-  eyebrow: string;
-  headline: string;
-  subheadline: string;
-  provisionLabel: string;
-  provisionCode: string;
-  provisionUrl: string;
-  planLabel: string;
-  planCode: string;
-  planUrl: string;
-  planPseudocode: string;
-  support: ReadonlyArray<string>;
-  statusLabel: string;
-  statusTitle: string;
-  statusBody: string;
-  startedWith: string;
-  methodStatement: string;
-  roundTwoTeaser: string;
-  historyTitle: string;
-  historyBody: string;
-  startRepoLabel: string;
-  startRepoUrl: string;
-  endRepoLabel: string;
-  endRepoUrl: string;
-  /** Run conditions: agent, model, and discipline (e.g. no mid-loop review). */
-  runConditions: ReadonlyArray<string>;
+  title: string;
+  description: string;
+  caseId: string;
+  studyLabel: string;
+  studyType: string;
+  temporalStatus: string;
+  primaryClaim: string;
+  methodSummary: string;
+  observedOutcome: string;
+  abstract: string;
+  historicalStatus: string;
+  caseBoundary: ReadonlyArray<string>;
+  procedure: ReadonlyArray<string>;
+  findings: ReadonlyArray<string>;
+  limitations: ReadonlyArray<string>;
+  artifacts: ReadonlyArray<CaseStudyArtifact>;
+  evidenceSections: ReadonlyArray<CaseStudyEvidenceSection>;
+  currentRepoStatus: CurrentRepoStatus;
 }
 
 export interface CaseStudyEntry {
@@ -75,7 +88,7 @@ export function getCaseStudiesList(): ReadonlyArray<CaseStudyEntry> {
       number: 1,
       title: "Cinder",
       description:
-        "CI runner acceleration on Cloudflare. One unsupervised proof loop; input and output repos frozen.",
+        "Historical validation record for a Cinder proof loop on Cloudflare. Preserved claim, method, and artifacts.",
       href: "/case-studies/cinder",
       iteration: "Round one",
     },
@@ -276,22 +289,22 @@ export function getCinderPlanSnippet(): string {
   return loadExampleFiles().cinderPlan;
 }
 
-const getCinderStatus = (
+const getCinderCurrentRepoStatus = (
   files: LoadedExampleFiles,
-): Pick<CinderCaseStudyContent, "statusLabel" | "statusTitle" | "statusBody"> => {
+): CurrentRepoStatus => {
   if (!files.cinderAvailable) {
     return {
-      statusLabel: "Case Study Status",
-      statusTitle: "Cinder is not available locally",
-      statusBody: `This page reads live files from ${cinderRoot}. Missing: ${files.missingCinderFiles.join(", ")}`,
+      label: "Current repo status",
+      title: "Historical artifacts are not available in the local sibling workspace",
+      body: `This page expects preserved Cinder files in ${cinderRoot}. Missing: ${files.missingCinderFiles.join(", ")}`,
     };
   }
 
   return {
-    statusLabel: "Current Status",
-    statusTitle: "Structurally ready",
-    statusBody:
-      "Typechecked against the local Gateproof package. Running it end-to-end still requires live Cloudflare infrastructure and the real Cinder environment variables.",
+    label: "Current repo status",
+    title: "Historical artifacts are available locally",
+    body:
+      "The preserved Cinder files are present and typechecked against the local Gateproof package. Reproducing the live result still requires Cloudflare infrastructure and Cinder environment variables.",
   };
 };
 
@@ -311,7 +324,7 @@ export function renderReadme(
   const fileName = options.fileName ?? "plan.ts";
   const runCommand = options.runCommand ?? `bun run ${fileName}`;
   const canonicalGoals = getCanonicalGoals(scope);
-  const cinderStatus = getCinderStatus(files);
+  const cinderStatus = getCinderCurrentRepoStatus(files);
 
   return `# Gateproof
 
@@ -343,9 +356,9 @@ ${files.cinderProvision}
 ${files.cinderPlan}
 \`\`\`
 
-Status: ${cinderStatus.statusTitle}
+Status: ${cinderStatus.title}
 
-${cinderStatus.statusBody}
+${cinderStatus.body}
 
 ## Roadmap
 
@@ -432,7 +445,7 @@ export function renderDocsContent(scope?: ScopeFile): Record<string, string> {
   const resolvedScope = scope ?? getDefaultScope();
   const files = loadExampleFiles();
   const canonicalGoals = getCanonicalGoals(resolvedScope);
-  const cinderStatus = getCinderStatus(files);
+  const cinderStatus = getCinderCurrentRepoStatus(files);
 
   const cinderPlanUrl = `${CINDER_END_REPO_URL}/blob/main/plan.ts`;
   const cinderProvisionUrl = `${CINDER_END_REPO_URL}/blob/main/alchemy.run.ts`;
@@ -493,20 +506,20 @@ ${apiList.map((entry) => `- ${entry}`).join("\n")}
 - [alchemy.run.ts](${cinderProvisionUrl}) — provisioning
 - [plan.ts](${cinderPlanUrl}) — proof contract
 
-Status: ${cinderStatus.statusTitle}. ${cinderStatus.statusBody}`,
+Status: ${cinderStatus.title}. ${cinderStatus.body}`,
     "explanations/case-studies": `# Case Studies
 
-Proof loops run against real systems. Here we list case studies that use Gateproof to drive and verify behavior.
+Historical case records for Gateproof deployments. Each entry states the claim, method, preserved artifacts, and current reproducibility limits.
 
 ## 1. Cinder
 
-CI runner acceleration on Cloudflare: webhook intake, job queue, runner pool, cache restore/push, and a warm-build speed claim. Provisioning lives in \`alchemy.run.ts\`; the proof contract is \`plan.ts\`. The loop ran unsupervised (no mid-loop review or edits) until all gates passed.
+Historical record of a Gateproof-driven Cinder run on Cloudflare. Provisioning lives in \`alchemy.run.ts\`; the proof contract is \`plan.ts\`. The page documents the preserved artifacts and does not claim a fresh live rerun.
 
 - [Cinder case study](/case-studies/cinder) — inputs, outputs, and artifacts.
 - [alchemy.run.ts](${cinderProvisionUrl}) — provisioning.
 - [plan.ts](${cinderPlanUrl}) — proof contract.
 
-Status: ${cinderStatus.statusTitle}. ${cinderStatus.statusBody}
+Status: ${cinderStatus.title}. ${cinderStatus.body}
 
 ### What went wrong
 
@@ -520,7 +533,7 @@ See the [Tutorial](/docs/tutorials/first-gate) to run a minimal loop. See [How-T
 
 export function getHomepageContent(): HomepageContent {
   return {
-    eyebrow: "Gateproof",
+    eyebrow: "steer the loop",
     headline: "Build software in reverse.",
     subheadline:
       "Start from the spec; let the loop make reality match.",
@@ -558,44 +571,114 @@ export function getHomepageContent(): HomepageContent {
 
 export function getCinderCaseStudyContent(): CinderCaseStudyContent {
   const files = loadExampleFiles();
-  const status = getCinderStatus(files);
+  const currentRepoStatus = getCinderCurrentRepoStatus(files);
+  const artifacts: ReadonlyArray<CaseStudyArtifact> = [
+    {
+      label: "Input repository",
+      url: CINDER_START_REPO_URL,
+      note: "Preserved pre-loop repository state for the historical run.",
+    },
+    {
+      label: "Output repository",
+      url: CINDER_END_REPO_URL,
+      note: "Preserved post-loop repository state for the historical run.",
+    },
+    {
+      label: "Proof contract",
+      url: `${CINDER_END_REPO_URL}/blob/main/plan.ts`,
+      note: "Historical plan.ts preserved as the proof contract for the run record.",
+      code: files.cinderPlan,
+    },
+    {
+      label: "Provisioning",
+      url: `${CINDER_END_REPO_URL}/blob/main/alchemy.run.ts`,
+      note: "Historical alchemy.run.ts preserved as the provisioning artifact for the run record.",
+      code: files.cinderProvision,
+    },
+  ];
 
   return {
-    eyebrow: "Cinder Round One",
-    headline: "A full product, built in reverse.",
-    subheadline:
-      "One proof loop was executed. Input and output repositories were frozen. Read-only.",
-    provisionLabel: "alchemy.run.ts",
-    provisionCode: files.cinderProvision,
-    provisionUrl: `${CINDER_END_REPO_URL}/blob/main/alchemy.run.ts`,
-    planLabel: "plan.ts",
-    planCode: files.cinderPlan,
-    planUrl: `${CINDER_END_REPO_URL}/blob/main/plan.ts`,
-    planPseudocode: `Plan.define({
-  goals: [{ gate: { observe, act, assert } }],
-})`,
-    support: [
+    title: "Cinder Round One",
+    description:
+      "Historical validation record for a Gateproof-driven Cinder run on Cloudflare. This page summarizes the preserved claim, method, artifacts, and current reproducibility limits.",
+    caseId: "cinder-round-one",
+    studyLabel: "Historical case record",
+    studyType: "Single-case historical validation record",
+    temporalStatus: "Historical completed study",
+    primaryClaim:
+      "A gate-defined proof loop was used to drive Cinder toward a state where the intended live checks passed.",
+    methodSummary:
+      "One historical run with preserved input and output repositories, fixed artifacts, and no mid-run human edits.",
+    observedOutcome:
+      "The historical record preserves a post-run repository, proof contract, and provisioning artifacts; this page reports that record rather than rerunning the live system.",
+    abstract:
+      "Cinder Round One is presented as a historical case record. The unit of analysis is one preserved proof-loop run on Cloudflare. The case record exposes the claim, the operating method, the bounded procedure, the preserved artifacts, and the current reproducibility limits. It does not assert a fresh live validation in the current session.",
+    historicalStatus:
+      "The page documents a completed historical study with preserved artifacts. It does not perform a live rerun.",
+    caseBoundary: [
+      "System under study: Cinder on Cloudflare.",
+      "Unit of analysis: one historical round-one proof-loop run.",
+      "Inputs treated as fixed artifacts: input repository, proof contract, and provisioning file.",
+      "Outputs treated as fixed artifacts: output repository and preserved run artifacts.",
+      "Out of scope for this page: a fresh live rerun against current infrastructure.",
+    ],
+    procedure: [
       "Input repository cloned.",
-      "plan.ts authored with gates. Gates assert against the live system.",
-      "Loop executed. Agent iterated on failing gates until pass.",
-      "Final state committed. Repository locked.",
-      "Output repository preserved for inspection.",
+      "Provisioning artifact prepared the Cloudflare environment.",
+      "Proof contract defined the observe, act, and assert conditions.",
+      "A single unsupervised loop executed without mid-run human edits.",
+      "The post-run repository and supporting artifacts were preserved for inspection.",
     ],
-    startedWith: "a repo and a live claim.",
-    methodStatement: "We ran a disciplined, slow loop. Spec to Reality.",
-    roundTwoTeaser: "Hypothesis proven. Round two: something soon.",
-    historyTitle: "Artifacts",
-    historyBody:
-      "Two repositories. Read-only. Input is the pre-loop state. Output is the post-loop state. Diff between them shows gates added, files modified, structure that emerged.",
-    startRepoLabel: "Input repository",
-    startRepoUrl: CINDER_START_REPO_URL,
-    endRepoLabel: "Output repository",
-    endRepoUrl: CINDER_END_REPO_URL,
-    runConditions: [
-      "Agent: Codex desktop, GPT-5.3.",
-      "No human edits, review, or audit during the loop. Hit run once and let the agent iterate until all gates passed.",
+    findings: [
+      "The case record preserves both the pre-loop and post-loop repositories.",
+      "The proof contract and provisioning file remain inspectable as historical artifacts.",
+      "The recorded study is bounded to one historical run rather than an active benchmark stream.",
+      "Current local validation can confirm artifact availability, but not the original live result without external infrastructure.",
     ],
-    ...status,
+    limitations: [
+      "This page does not execute a fresh live proof loop.",
+      "The recorded outcome is interpreted from preserved artifacts and accompanying project notes.",
+      "Reproduction still depends on external Cloudflare resources and environment secrets.",
+      "The record concerns one system and one bounded historical study.",
+    ],
+    artifacts,
+    evidenceSections: [
+      {
+        title: "Run conditions",
+        summary: "Operating constraints recorded for the historical run.",
+        items: [
+          "Agent: Codex desktop, GPT-5.3.",
+          "No human edits, review, or audit during the loop.",
+          "The historical description states that the loop was started once and allowed to iterate to completion.",
+        ],
+      },
+      {
+        title: "Artifact notes",
+        summary: "Preserved repositories and what each artifact represents.",
+        items: artifacts.map((artifact) => `${artifact.label}: ${artifact.note}`),
+      },
+      {
+        title: "Proof contract notes",
+        summary: "How the proof contract is framed in the historical record.",
+        items: [
+          "The proof contract is stored in plan.ts.",
+          "The contract is described as defining observe, act, and assert conditions against the live system.",
+          "The artifact is preserved for inspection and linked directly from this page.",
+        ],
+        code: files.cinderPlan,
+      },
+      {
+        title: "Provisioning notes",
+        summary: "How the environment was provisioned for the historical run.",
+        items: [
+          "Provisioning is stored in alchemy.run.ts.",
+          "The provisioning artifact is treated as a fixed historical input rather than a live deployment action on this page.",
+          "The artifact is preserved for inspection and linked directly from this page.",
+        ],
+        code: files.cinderProvision,
+      },
+    ],
+    currentRepoStatus,
   };
 }
 

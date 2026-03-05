@@ -36,13 +36,21 @@ describe("front-door artifacts", () => {
     const expectedPlan = readFileSync(path.join(cinderRoot, "plan.ts"), "utf8").trim();
     const files = loadExampleFiles();
     const caseStudy = getCinderCaseStudyContent();
+    const record = caseStudy as unknown as Record<string, unknown>;
+    const proofContract = caseStudy.artifacts.find((artifact) => artifact.label === "Proof contract");
+    const provisioning = caseStudy.artifacts.find((artifact) => artifact.label === "Provisioning");
 
     expect(files.cinderAvailable).toBe(true);
     expect(getCinderProvisionSnippet()).toBe(expectedProvision);
     expect(getCinderPlanSnippet()).toBe(expectedPlan);
-    expect(caseStudy.provisionCode).toBe(expectedProvision);
-    expect(caseStudy.planCode).toBe(expectedPlan);
-    expect(caseStudy.statusTitle).toBe("Structurally ready");
+    expect(caseStudy.temporalStatus).toBe("Historical completed study");
+    expect(caseStudy.historicalStatus).toContain("does not perform a live rerun");
+    expect(caseStudy.primaryClaim).toContain("gate-defined proof loop");
+    expect(caseStudy.currentRepoStatus.title).toBe("Historical artifacts are available locally");
+    expect(proofContract?.code).toBe(expectedPlan);
+    expect(provisioning?.code).toBe(expectedProvision);
+    expect(caseStudy.artifacts.length).toBeGreaterThanOrEqual(4);
+    expect("roundTwoTeaser" in record).toBe(false);
   });
 
   test("smoke-runs the checked-in hello-world example", async () => {

@@ -29,10 +29,11 @@
     "example:hello-world": "bun scripts/run-hello-world-example.ts",
     "example:hello-world:worker": "bun scripts/run-hello-world-worker-loop.ts",
     "quality:check": "bun scripts/run-quality-check.ts",
+    "plan:validate": "bun scripts/validate-plan.ts",
     "turn:finalize": "bun scripts/finalize-turn.ts",
     "turn:finalize:push": "bun scripts/finalize-turn.ts --push",
     "pack:check": "npm pack --dry-run",
-    "prepublishOnly": "bun run readme:generate && bun run typecheck && bun run build && bun test"
+    "prepublishOnly": "bun run plan:validate && bun run readme:generate && bun run typecheck && bun run build && bun test"
   },
   "keywords": [
     "gate",
