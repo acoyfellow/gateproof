@@ -19,14 +19,16 @@ const repoRoot = path.resolve(import.meta.dir, "..");
 const cinderRoot = path.resolve(repoRoot, "..", "cinder");
 
 describe("front-door artifacts", () => {
-  test("loads the homepage snippet from the checked-in hello-world example", () => {
-    const expected = readFileSync(
-      path.join(repoRoot, "examples", "hello-world", "plan.ts"),
-      "utf8",
-    ).trim();
-
-    expect(getHelloWorldSnippet()).toBe(expected);
-    expect(getHomepageContent().snippetCode).toBe(expected);
+  test("loads the homepage snippet as a minimal runnable example", () => {
+    const snippet = getHelloWorldSnippet();
+    expect(getHomepageContent().snippetCode).toBe(snippet);
+    expect(snippet).toContain('from "gateproof"');
+    expect(snippet).toContain("Plan.define");
+    expect(snippet).toContain("hello-world");
+    expect(snippet).toContain("createHttpObserveResource");
+    expect(snippet).toContain("Assert.httpResponse");
+    expect(snippet).toContain("import.meta.main");
+    expect(snippet).toContain("Effect.runPromise(Plan.run(plan))");
   });
 
   test("loads the cinder case study from the sibling workspace", () => {

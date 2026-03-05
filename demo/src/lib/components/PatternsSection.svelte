@@ -1,263 +1,30 @@
 <script lang="ts">
   import CodeBlock from './CodeBlock.svelte';
-  
-  type PatternId = 'e2e' | 'agent' | 'prd' | 'cloudflare' | 'ci-cd' | 'advanced';
+  import { patternsContent } from '$lib/demo-content';
 
-  type Pattern = {
-    id: PatternId;
-    tab: string;
-    title: string;
-    description: string;
-    language?: string;
-    code: string;
-  };
+  type PatternId = (typeof patternsContent)[number]['id'];
 
-  const helloWorldAgentUrl = "https://github.com/acoyfellow/gateproof/tree/main/examples/hello-world-agent";
-  const agentFirstUrl = "https://github.com/acoyfellow/gateproof/tree/main/patterns/agent-first";
-
-  const patterns: readonly Pattern[] = [
-    {
-      id: 'e2e',
-      tab: 'E2E (Story → Gate)',
-      title: 'One file: define a Story, run its Gate',
-      description: 'Minimal end-to-end: story metadata + gate execution in one file.',
-      language: 'typescript',
-      code: `// patterns/e2e.story-and-gate.ts
-import { Gate, Act, Assert, type Story } from "gateproof";
-import { CloudflareProvider } from "gateproof/cloudflare";
-
-// 1) The Story (your PRD can be a list of these)
-const story: Story = {
-  id: "user-signup",
-  title: "User can sign up",
-  gateFile: "./gates/user-signup.gate.ts"
-};
-
-// 2) The Gate (executable proof for that story)
-const provider = CloudflareProvider({
-  accountId: process.env.CLOUDFLARE_ACCOUNT_ID!,
-  apiToken: process.env.CLOUDFLARE_API_TOKEN!
-});
-
-const result = await Gate.run({
-  name: story.id,
-  observe: provider.observe({ backend: "analytics", dataset: "worker_logs" }),
-  act: [Act.browser({ url: "https://app.example.com/signup" })],
-  assert: [Assert.noErrors(), Assert.hasAction("user_created")],
-  stop: { idleMs: 3000, maxMs: 15000 }
-});
-
-if (result.status !== "success") process.exit(1);`
-    },
-    {
-      id: 'agent',
-      tab: 'Agent Gate',
-      title: 'Agent gate: observe, govern, assert',
-      description: 'Spawn an AI agent in a container, watch its NDJSON event stream, and enforce authority policies.',
-      language: 'typescript',
-      code: `// patterns/agent-first/agent-gate.ts
-import { Gate, Act, Assert } from "gateproof";
-import { createFilepathObserveResource, setFilepathRuntime, CloudflareSandboxRuntime } from "gateproof";
-import { getSandbox } from "@cloudflare/sandbox";
-
-// Wire up the container runtime
-setFilepathRuntime(new CloudflareSandboxRuntime({
-  getSandbox: (config) => getSandbox(env.Sandbox, \`agent-\${config.name}\`),
-}));
-
-// Spawn the agent container
-const container = await runtime.spawn({
-  name: "fix-auth",
-  agent: "claude-code",
-  model: "claude-sonnet-4-20250514",
-  task: "Fix the null pointer in src/auth.ts",
-});
-
-// Observe its NDJSON stdout → structured logs
-const observe = createFilepathObserveResource(container, "fix-auth");
-
-const result = await Gate.run({
-  name: "fix-auth-bug",
-  observe,
-  act: [Act.wait(300_000)],
-  assert: [
-    Assert.noErrors(),
-    Assert.hasAction("commit"),
-    Assert.hasAction("done"),
-    // Governance: what is the agent allowed to do?
-    Assert.authority({
-      canCommit: true,
-      canSpawn: false,
-      forbiddenTools: ["delete_file"],
-    }),
-  ],
-  stop: { idleMs: 5000, maxMs: 300_000 },
-});`
-    },
-    {
-      id: 'prd',
-      tab: 'PRD.ts',
-      title: 'PRD.ts: executable stories with dependencies',
-      description: 'Define your PRD. Make it executable. Run it with `bun run prd.ts`.',
-      language: 'typescript',
-      code: `// prd.ts
-import { definePrd, runPrd } from "gateproof/prd";
-
-export const prd = definePrd({
-  stories: [
-    {
-      id: "user-signup",
-      title: "User can sign up",
-      gateFile: "./gates/user-signup.gate.ts"
-    },
-    {
-      id: "email-verification",
-      title: "Email verification works",
-      gateFile: "./gates/email-verification.gate.ts",
-      dependsOn: ["user-signup"]
-    }
-  ]
-});
-
-// Make it executable
-if (import.meta.main) {
-  const result = await runPrd(prd);
-  if (!result.success) {
-    if (result.failedStory) console.error(\`Failed at: \${result.failedStory.id}\`);
-    process.exit(1);
-  }
-  process.exit(0);
-}`
-    },
-    {
-      id: 'cloudflare',
-      tab: 'Cloudflare Backends',
-      title: 'Cloudflare: choose an observe backend',
-      description: 'Same gate API; swap the observe backend based on environment.',
-      language: 'typescript',
-      code: `// patterns/cloudflare/choose-backend.ts
-import { Gate, Act, Assert } from "gateproof";
-import { CloudflareProvider } from "gateproof/cloudflare";
-
-const provider = CloudflareProvider({
-  accountId: process.env.CLOUDFLARE_ACCOUNT_ID!,
-  apiToken: process.env.CLOUDFLARE_API_TOKEN!
-});
-
-const observe = provider.observe({
-  backend: "analytics",
-  dataset: "worker_logs",
-  pollInterval: 1000
-});
-
-await Gate.run({
-  name: "post-deploy-check",
-  observe,
-  act: [Act.exec("curl https://my-worker.workers.dev")],
-  assert: [Assert.noErrors(), Assert.hasAction("request_received")],
-  stop: { idleMs: 3000, maxMs: 15000 }
-});`
-    },
-    {
-      id: 'ci-cd',
-      tab: 'CI/CD Integration',
-      title: 'CI: fail the deploy if the PRD fails',
-      description: 'Run your PRD in CI; non-zero exits block the workflow. All stories execute in dependency order.',
-      language: 'yaml',
-      code: `# .github/workflows/deploy.yml
-- name: Deploy
-  run: wrangler deploy
-
-- name: Run PRD
-  run: bun run prd.ts
-  env:
-    CLOUDFLARE_ACCOUNT_ID: \${{ secrets.CF_ACCOUNT_ID }}
-    CLOUDFLARE_API_TOKEN: \${{ secrets.CF_API_TOKEN }}
-    PRODUCTION_URL: \${{ secrets.PRODUCTION_URL }}`
-    },
-    {
-      id: 'advanced',
-      tab: 'Advanced Use Cases',
-      title: 'Custom backend: bring your own observability',
-      description: 'Implement `Backend` once; keep the Gate/Act/Assert contract.',
-      language: 'typescript',
-      code: `// patterns/advanced/custom-backend.ts
-import { createObserveResource, type Backend } from "gateproof";
-import { Effect } from "effect";
-
-function createBackend(): Backend {
-  return {
-    start: () =>
-      Effect.gen(function* () {
-        return {
-          async *[Symbol.asyncIterator]() {
-            const response = await fetch("https://example.com/logs");
-            const logs = await response.json();
-            for (const log of logs) yield log;
-          }
-        };
-      }),
-    stop: () => Effect.void
-  };
-}
-
-export const observe = createObserveResource(createBackend());`
-    }
-  ];
-
-  let selected = $state<PatternId>('e2e');
-  let current = $derived.by(() => patterns.find((p) => p.id === selected)!);
+  let selected = $state<PatternId>(patternsContent[0]?.id ?? 'minimal');
+  let current = $derived.by(() => patternsContent.find((p) => p.id === selected)!);
 </script>
 
 <section class="relative min-h-screen flex items-center justify-center overflow-hidden bg-[#0b0a07] py-20 text-balance">
   <div class="relative z-10 max-w-7xl mx-auto px-4 sm:px-8">
-    <!-- Header -->
     <div class="text-center mb-12">
       <h2 class="text-4xl sm:text-5xl md:text-6xl font-semibold mb-4 text-white">
         Patterns you can steal
       </h2>
       <p class="text-lg sm:text-xl max-w-3xl mx-auto text-white/70">
-        Drop‑in examples. Minimal ceremony. Real evidence.
+        Drop-in examples from real files. Change the source, the demo updates.
       </p>
     </div>
 
-    <div class="mx-auto mb-10 max-w-3xl rounded-xl border border-white/10 bg-black/60 px-6 py-4 text-center shadow-sm">
-      <p class="text-base sm:text-lg text-white/85">
-        Try the hello‑world agent: a tiny loop with read/list/bash/edit/search + gates.
-      </p>
-      <p class="mt-1 text-xs sm:text-sm text-white/55">
-        Requires <span class="font-mono">OPENCODE_ZEN_API_KEY</span> and network access to <span class="font-mono">opencode.ai</span>.
-      </p>
-      <p class="mt-2 text-xs sm:text-sm text-white/65">
-        CLI: <span class="font-mono">npx gateproof prdts</span> — paste a prompt, get <span class="font-mono">prd.ts</span>.
-      </p>
-      <div class="mt-3 flex flex-wrap items-center justify-center gap-3">
-        <a
-          class="inline-flex items-center justify-center rounded-full border border-amber-300 bg-amber-400 px-4 py-2 text-sm font-semibold text-black shadow-md transition hover:bg-amber-300"
-          href={helloWorldAgentUrl}
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          Open the example
-        </a>
-        <a
-          class="inline-flex items-center justify-center rounded-full border border-white/20 bg-transparent px-4 py-2 text-sm font-semibold text-white/80 shadow-sm transition hover:border-white/50"
-          href={agentFirstUrl}
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          Spec interview pattern
-        </a>
-      </div>
-    </div>
-    
-    <!-- Category Tabs -->
     <div class="flex flex-wrap justify-center gap-3 mb-8 px-6">
-      {#each patterns as pattern (pattern.id)}
+      {#each patternsContent as pattern (pattern.id)}
         <button
           onclick={() => selected = pattern.id}
           class="px-6 py-3 rounded-lg font-medium transition-all {selected === pattern.id
-            ? 'bg-amber-400 text-black shadow-lg' 
+            ? 'bg-amber-400 text-black shadow-lg'
             : 'bg-white/10 text-white/80 hover:bg-white/20'}"
         >
           {pattern.tab}
@@ -265,7 +32,6 @@ export const observe = createObserveResource(createBackend());`
       {/each}
     </div>
 
-    <!-- Pattern -->
     <div class="max-w-2xl mx-auto">
       <div class="bg-black/60 rounded-lg shadow-lg border border-white/10 overflow-hidden">
         <div class="p-6 border-b border-white/10 bg-black/70">
@@ -279,11 +45,10 @@ export const observe = createObserveResource(createBackend());`
         </div>
       </div>
     </div>
-    
-    <!-- Footer CTA -->
+
     <div class="text-center mt-12">
       <a
-        href="https://github.com/acoyfellow/gateproof/tree/main/patterns"
+        href="https://github.com/acoyfellow/gateproof/tree/main/examples"
         target="_blank"
         rel="noopener noreferrer"
         class="inline-flex items-center gap-2 px-6 py-3 bg-amber-400 hover:bg-amber-300 text-black font-medium rounded-lg transition-colors"
@@ -292,7 +57,7 @@ export const observe = createObserveResource(createBackend());`
           <path d="M15 22v-4a4.8 4.8 0 0 0-1-3.5c3 0 6-2 6-5.5.08-1.25-.27-2.48-1-3.5.28-1.15.28-2.35 0-3.5 0 0-1 0-3 1.5-2.64-.5-5.36-.5-8 0C6 2 5 2 5 2c-.3 1.15-.3 2.35 0 3.5A5.403 5.403 0 0 0 4 9c0 3.5 3 5.5 6 5.5-.39.49-.68 1.05-.85 1.65-.17.6-.22 1.23-.15 1.85v4"/>
           <path d="M9 18c-4.51 2-5-2-7-2"/>
         </svg>
-        <span>View all patterns on GitHub</span>
+        <span>View examples on GitHub</span>
       </a>
     </div>
   </div>

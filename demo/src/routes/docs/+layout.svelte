@@ -20,8 +20,7 @@
 
 	function isActive(slug: string): boolean {
 		const current = currentSlug();
-		// Index page: slug is empty, match 'explanations/overview' or empty
-		if (!current && slug === 'explanations/overview') return true;
+		if (!current && slug === 'index') return true;
 		return current === slug;
 	}
 </script>

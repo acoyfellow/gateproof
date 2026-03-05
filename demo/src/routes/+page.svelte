@@ -1,5 +1,7 @@
 <script lang="ts">
   import CodeBlock from '$lib/components/CodeBlock.svelte';
+  import { Button } from '$lib/components/ui/button';
+  import { Github, Package } from '@lucide/svelte';
   import type { HomepageContent } from '../../../scripts/render-scope';
 
   interface Props {
@@ -37,6 +39,22 @@
         <p class="mt-5 max-w-2xl text-sm leading-7 text-secondary-foreground sm:text-base">
           {data.subheadline}
         </p>
+        <div class="mt-6 flex flex-wrap gap-3 text-sm text-secondary-foreground">
+          <a
+            href={data.githubHref}
+            class="inline-flex items-center gap-2 rounded-full border border-border/70 bg-card/70 px-3 py-1.5 text-xs font-medium text-foreground hover:border-border hover:bg-card"
+          >
+            <Github class="h-3.5 w-3.5" aria-hidden="true" />
+            <span>GitHub</span>
+          </a>
+          <a
+            href={data.npmHref}
+            class="inline-flex items-center gap-2 rounded-full border border-border/70 bg-card/70 px-3 py-1.5 text-xs font-medium text-foreground hover:border-border hover:bg-card"
+          >
+            <Package class="h-3.5 w-3.5" aria-hidden="true" />
+            <span>npm</span>
+          </a>
+        </div>
       </section>
 
       <section class="mt-10 overflow-hidden rounded-[2rem] border border-border/80 bg-card/75 shadow-2xl shadow-black/30 backdrop-blur-sm">
@@ -66,10 +84,7 @@
       </section>
 
       <section class="mt-12">
-        <a
-          href={data.ctaHref}
-          class="group block overflow-hidden rounded-[2rem] border border-border/80 bg-card/70 p-6 shadow-2xl shadow-black/20 backdrop-blur-sm transition hover:border-border"
-        >
+        <div class="overflow-hidden rounded-[2rem] border border-border/80 bg-card/70 p-6 shadow-2xl shadow-black/20 backdrop-blur-sm">
           <p class="text-[11px] uppercase tracking-[0.22em] text-muted-foreground">{data.ctaEyebrow}</p>
           <div class="mt-3 flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
             <div>
@@ -78,12 +93,11 @@
                 {data.ctaBody}
               </p>
             </div>
-            <p class="text-sm font-medium text-foreground sm:text-base">
+            <Button href={data.ctaHref} variant="default" size="lg" class="shrink-0">
               {data.ctaLabel}
-              <span class="inline-block transition group-hover:translate-x-1"> →</span>
-            </p>
+            </Button>
           </div>
-        </a>
+        </div>
       </section>
     </div>
   </section>

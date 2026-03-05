@@ -13,3 +13,4 @@ coverage/
 .gateproof/iterations/
 !.gateproof/scope.defaults.json
 .alchemy/
+.tmp

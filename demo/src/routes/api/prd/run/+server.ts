@@ -28,17 +28,14 @@ export const POST = async ({ request, platform }: RequestEvent) => {
       return Response.json({ message: "Missing prdFile" }, { status: 400 });
     }
 
-    // Use static sandbox ID like the official example
-    const sandbox = getSandbox(env.Sandbox, "prd-sandbox");
+    const sandbox = getSandbox(env.Sandbox, "plan-sandbox");
 
-    // Write the PRD file
-    await sandbox.writeFile("/workspace/prd.ts", body.prdFile);
+    await sandbox.writeFile("/workspace/plan.ts", body.prdFile);
 
-    // Run the PRD
     const apiUrl = body.apiUrl ?? "https://your-api.com";
     const testUrl = body.testUrl ?? "http://localhost:3000";
 
-    const process = await sandbox.startProcess("cd /workspace && ./node_modules/.bin/tsx prd.ts", {
+    const process = await sandbox.startProcess("cd /workspace && ./node_modules/.bin/tsx plan.ts", {
       env: { API_URL: apiUrl, TEST_URL: testUrl },
     });
 
@@ -54,7 +51,7 @@ export const POST = async ({ request, platform }: RequestEvent) => {
     };
 
     const runLogs = (async () => {
-      await writeEvent("meta", { sandboxId: "prd-sandbox", processId: process.id });
+      await writeEvent("meta", { sandboxId: "plan-sandbox", processId: process.id });
       for await (const event of parseSSEStream<{ data: string; timestamp?: string }>(logStream)) {
         await writeEvent("stdout", { data: event.data, timestamp: event.timestamp });
       }

@@ -4,8 +4,8 @@ FROM docker.io/cloudflare/sandbox:0.7.0
 
 WORKDIR /workspace
 
-# Prebundle runtime dependencies for PRD execution
-RUN printf '{\n  "name": "gateproof-prd-sandbox",\n  "type": "module",\n  "private": true,\n  "dependencies": {\n    "gateproof": "^0.2.0",\n    "tsx": "^4.20.5"\n  }\n}\n' > /workspace/package.json
+# Prebundle runtime dependencies for plan execution
+RUN printf '{\n  "name": "gateproof-plan-sandbox",\n  "type": "module",\n  "private": true,\n  "dependencies": {\n    "gateproof": "^0.4.0",\n    "effect": "beta",\n    "tsx": "^4.20.5"\n  }\n}\n' > /workspace/package.json
 
 RUN npm install
 

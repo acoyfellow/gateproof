@@ -1,5 +1,11 @@
-import scope from "../plan";
-import { renderReadme } from "./render-scope";
+import { getDefaultScope, renderReadme } from "./render-scope";
+
+let scope;
+try {
+  scope = (await import("../plan")).default;
+} catch {
+  scope = getDefaultScope();
+}
 
 const readme = renderReadme(scope, {
   fileName: "plan.ts",
@@ -7,4 +13,4 @@ const readme = renderReadme(scope, {
 });
 
 await Bun.write(new URL("../README.md", import.meta.url), readme);
-console.log("README.md regenerated from plan.ts");
+console.log("README.md regenerated");
