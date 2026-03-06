@@ -45,7 +45,9 @@ describe("front-door artifacts", () => {
     expect(files.cinderAvailable).toBe(true);
     expect(getCinderProvisionSnippet()).toBe(expectedProvision);
     expect(getCinderPlanSnippet()).toBe(expectedPlan);
-    expect(caseStudy.temporalStatus).toBe("Historical chapter preserved; current chapter green");
+    expect(caseStudy.temporalStatus).toBe(
+      "Historical chapter preserved; dogfood and hardening chapters green",
+    );
     expect(caseStudy.historicalStatus).toContain("historical fixture chapter remains preserved");
     expect(caseStudy.primaryClaim).toContain("preserve an original historical proof chapter");
     expect(caseStudy.currentRepoStatus.title).toBe(
@@ -54,7 +56,7 @@ describe("front-door artifacts", () => {
     expect(proofContract?.code).toBe(expectedPlan);
     expect(provisioning?.code).toBe(expectedProvision);
     expect(caseStudy.artifacts.length).toBeGreaterThanOrEqual(4);
-    expect(caseStudy.chapters.length).toBe(2);
+    expect(caseStudy.chapters.length).toBe(3);
     expect("roundTwoTeaser" in record).toBe(false);
   });
 
