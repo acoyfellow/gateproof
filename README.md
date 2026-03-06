@@ -1452,9 +1452,9 @@ if (import.meta.main) {
 }
 ```
 
-Status: Structurally ready
+Status: Historical artifacts are available locally
 
-Typechecked against the local Gateproof package. Running it end-to-end still requires live Cloudflare infrastructure and the real Cinder environment variables.
+The preserved Cinder files are present and typechecked against the local Gateproof package. Reproducing the live result still requires Cloudflare infrastructure and Cinder environment variables.
 
 ## Roadmap
 
@@ -1468,9 +1468,9 @@ Gateproof is not ready to fully dogfood itself on a case study like Cinder yet. 
 
 ## How To
 
-Task: Provision infrastructure once. Then let plan.ts prove the live product.
+Task: Run one complete gate from one file.
 
-Done when: Gateproof only goes green when the live system can do the work and the product claim holds.
+Done when: The endpoint returns 200 and the body contains hello world.
 
 Run it:
 
@@ -1495,12 +1495,7 @@ Files:
 - `plan.ts`
 
 Canonical gates:
-- A GitHub webhook queues a runnable job
-- A queued job can be dequeued
-- A runner can register into the pool
-- A missing cache key returns a clean miss
-- The cache upload path returns a usable upload URL
-- A warm build is materially faster than cold
+- GET / returns hello world
 
 Loop:
 - `maxIterations: 1`
@@ -1518,4 +1513,4 @@ Core API:
 
 ## Explanation
 
-alchemy.run.ts provisions once. plan.ts reruns the proof loop against the live deployment.
+Root plan.ts stays small. Gateproof itself is built forward.
