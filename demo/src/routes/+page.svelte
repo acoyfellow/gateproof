@@ -2,7 +2,7 @@
   import CodeBlock from '$lib/components/CodeBlock.svelte';
   import { Button } from '$lib/components/ui/button';
   import { Github, Package } from '@lucide/svelte';
-  import type { HomepageContent } from '$scripts/render-scope';
+  import type { HomepageContent } from '$lib/homepage-content';
 
   interface Props {
     data: HomepageContent;

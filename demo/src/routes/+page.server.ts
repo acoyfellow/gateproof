@@ -1,6 +1,4 @@
 import type { PageServerLoad } from "./$types";
-import { getHomepageContent, type HomepageContent } from '$scripts/render-scope';
+import { homepageContent, type HomepageContent } from "$lib/homepage-content";
 
-export const load: PageServerLoad<HomepageContent> = async () => {
-  return getHomepageContent();
-};
+export const load: PageServerLoad<HomepageContent> = async () => homepageContent;
