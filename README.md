@@ -1241,9 +1241,9 @@ if (import.meta.main) {
 }
 ```
 
-Status: Historical and current proof artifacts are available locally
+Status: Public proof artifacts are available; local sibling artifacts are optional
 
-The sibling Cinder workspace is present locally, including the preserved historical artifacts and the current dogfood proof contract. Reproducing the live result still requires Cloudflare infrastructure and the Cinder/GitHub environment variables.
+The canonical witnesses for this page are the public repositories and workflow artifacts linked above. A local sibling Cinder workspace is useful for embedding raw snippets during local generation, but it is not required to validate the public case-study record.
 
 ## Roadmap
 

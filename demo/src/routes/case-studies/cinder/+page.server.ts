@@ -4,6 +4,8 @@ import {
   type CinderCaseStudyContent,
 } from '$scripts/render-scope';
 
+export const prerender = true;
+
 export const load: PageServerLoad<CinderCaseStudyContent> = async () => {
   return getCinderCaseStudyContent();
 };

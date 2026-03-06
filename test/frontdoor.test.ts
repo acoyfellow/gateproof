@@ -49,7 +49,7 @@ describe("front-door artifacts", () => {
     expect(caseStudy.historicalStatus).toContain("historical fixture chapter remains preserved");
     expect(caseStudy.primaryClaim).toContain("preserve an original historical proof chapter");
     expect(caseStudy.currentRepoStatus.title).toBe(
-      "Historical and current proof artifacts are available locally",
+      "Public proof artifacts are available; local sibling artifacts are optional",
     );
     expect(proofContract?.code).toBe(expectedPlan);
     expect(provisioning?.code).toBe(expectedProvision);

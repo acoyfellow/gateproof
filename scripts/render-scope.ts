@@ -149,7 +149,29 @@ export interface DocsCategory {
 }
 
 const scriptsDir = path.dirname(fileURLToPath(import.meta.url));
-const repoRoot = path.resolve(scriptsDir, "..");
+
+const resolveRepoRoot = (): string => {
+  const candidates = [
+    process.cwd(),
+    path.resolve(process.cwd(), ".."),
+    path.resolve(scriptsDir, ".."),
+    path.resolve(scriptsDir, "..", ".."),
+  ];
+
+  for (const candidate of candidates) {
+    if (
+      existsSync(path.join(candidate, "plan.ts")) &&
+      existsSync(path.join(candidate, "src", "index.ts")) &&
+      existsSync(path.join(candidate, "demo"))
+    ) {
+      return candidate;
+    }
+  }
+
+  return path.resolve(scriptsDir, "..");
+};
+
+const repoRoot = resolveRepoRoot();
 const cinderRoot = path.resolve(repoRoot, "..", "cinder");
 
 const helloWorldPlanPath = path.join(repoRoot, "examples", "hello-world", "plan.ts");
@@ -303,21 +325,13 @@ export function getCinderPlanSnippet(): string {
 }
 
 const getCinderCurrentRepoStatus = (
-  files: LoadedExampleFiles,
+  _files: LoadedExampleFiles,
 ): CurrentRepoStatus => {
-  if (!files.cinderAvailable) {
-    return {
-      label: "Current repo status",
-      title: "Historical artifacts are not available in the local sibling workspace",
-      body: `This page expects preserved Cinder files in ${cinderRoot}. Missing: ${files.missingCinderFiles.join(", ")}`,
-    };
-  }
-
   return {
     label: "Current repo status",
-    title: "Historical and current proof artifacts are available locally",
+    title: "Public proof artifacts are available; local sibling artifacts are optional",
     body:
-      "The sibling Cinder workspace is present locally, including the preserved historical artifacts and the current dogfood proof contract. Reproducing the live result still requires Cloudflare infrastructure and the Cinder/GitHub environment variables.",
+      "The canonical witnesses for this page are the public repositories and workflow artifacts linked above. A local sibling Cinder workspace is useful for embedding raw snippets during local generation, but it is not required to validate the public case-study record.",
   };
 };
 
