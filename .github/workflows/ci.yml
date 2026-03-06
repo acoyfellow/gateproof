@@ -73,11 +73,28 @@ jobs:
     if: github.ref == 'refs/heads/main' || github.ref == 'refs/heads/master'
     steps:
       - uses: actions/checkout@v4
+        with:
+          clean: true
 
       - name: Setup Bun
         uses: oven-sh/setup-bun@v1
         with:
           bun-version: latest
+
+      - name: Verify checked-out commit
+        run: |
+          ACTUAL_SHA="$(git rev-parse HEAD)"
+          echo "GITHUB_SHA=${GITHUB_SHA}"
+          echo "ACTUAL_SHA=${ACTUAL_SHA}"
+          test "${ACTUAL_SHA}" = "${GITHUB_SHA}"
+
+      - name: Report sibling cinder workspace
+        run: |
+          if [ -d ../cinder ]; then
+            echo "sibling_cinder=present"
+          else
+            echo "sibling_cinder=absent"
+          fi
 
       - name: Install dependencies
         run: bun install

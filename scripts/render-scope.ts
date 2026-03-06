@@ -101,7 +101,7 @@ export function getCaseStudiesList(): ReadonlyArray<CaseStudyEntry> {
       number: 1,
       title: "Cinder",
       description:
-        "One ongoing case study with a frozen historical fixture proof and a current Gateproof dogfood proof.",
+        "One ongoing case study with a historical fixture proof, a live Gateproof dogfood proof, and a hardening chapter.",
       href: "/case-studies/cinder",
       iteration: "Ongoing",
     },
@@ -113,10 +113,6 @@ export interface LoadedExampleFiles {
   rootPlan: string;
   cloudflareMinimalPlan: string;
   runloopWorkerPlan: string;
-  cinderProvision: string;
-  cinderPlan: string;
-  cinderAvailable: boolean;
-  missingCinderFiles: ReadonlyArray<string>;
 }
 
 export interface PatternContent {
@@ -172,17 +168,19 @@ const resolveRepoRoot = (): string => {
 };
 
 const repoRoot = resolveRepoRoot();
-const cinderRoot = path.resolve(repoRoot, "..", "cinder");
 
 const helloWorldPlanPath = path.join(repoRoot, "examples", "hello-world", "plan.ts");
 const rootPlanPath = path.join(repoRoot, "plan.ts");
 const cloudflareMinimalPlanPath = path.join(repoRoot, "examples", "cloudflare-minimal", "plan.ts");
 const runloopWorkerPlanPath = path.join(repoRoot, "examples", "runloop-worker", "plan.ts");
-const cinderProvisionPath = path.join(cinderRoot, "alchemy.run.ts");
-const cinderPlanPath = path.join(cinderRoot, "plan.ts");
 
 const CINDER_START_REPO_URL = "https://github.com/acoyfellow/cinder-round-one-start";
 const CINDER_END_REPO_URL = "https://github.com/acoyfellow/cinder-round-one-end";
+const CINDER_DOGFOOD_COMMIT_URL = "https://github.com/acoyfellow/cinder/commit/1cd5460";
+const CINDER_DOGFOOD_PLAN_URL = "https://github.com/acoyfellow/cinder/blob/1cd5460/plan.ts";
+const CINDER_DOGFOOD_PROVISION_URL = "https://github.com/acoyfellow/cinder/blob/1cd5460/alchemy.run.ts";
+const CINDER_HARDENING_COMMIT_URL = "https://github.com/acoyfellow/cinder/commit/36568ec";
+const CINDER_HARDENING_PLAN_URL = "https://github.com/acoyfellow/cinder/blob/36568ec/plan.ts";
 
 const apiList = [
   "`Gate.define(...)`",
@@ -258,23 +256,12 @@ export function loadExampleFiles(): LoadedExampleFiles {
     runloopWorkerPlanPath,
     "The runloop-worker example",
   );
-  const cinderProvision = readSourceFile(cinderProvisionPath, "The Cinder provision file");
-  const cinderPlan = readSourceFile(cinderPlanPath, "The Cinder proof file");
-
-  const missingCinderFiles = [
-    !cinderProvision.available ? cinderProvisionPath : null,
-    !cinderPlan.available ? cinderPlanPath : null,
-  ].filter((filePath): filePath is string => filePath !== null);
 
   return {
     helloWorldPlan: helloWorldPlan.code,
     rootPlan: rootPlan.code,
     cloudflareMinimalPlan: cloudflareMinimalPlan.code,
     runloopWorkerPlan: runloopWorkerPlan.code,
-    cinderProvision: cinderProvision.code,
-    cinderPlan: cinderPlan.code,
-    cinderAvailable: missingCinderFiles.length === 0,
-    missingCinderFiles,
   };
 }
 
@@ -316,22 +303,14 @@ export function getRootPlanSnippet(): string {
   return loadExampleFiles().rootPlan;
 }
 
-export function getCinderProvisionSnippet(): string {
-  return loadExampleFiles().cinderProvision;
-}
-
-export function getCinderPlanSnippet(): string {
-  return loadExampleFiles().cinderPlan;
-}
-
 const getCinderCurrentRepoStatus = (
   _files: LoadedExampleFiles,
 ): CurrentRepoStatus => {
   return {
     label: "Current repo status",
-    title: "Public proof artifacts are available; local sibling artifacts are optional",
+    title: "Public proof artifacts are canonical; sibling workspaces are not build inputs",
     body:
-      "The canonical witnesses for this page are the public repositories and workflow artifacts linked above. A local sibling Cinder workspace is useful for embedding raw snippets during local generation, but it is not required to validate the public case-study record.",
+      "The canonical witnesses for this page are the public repositories and workflow artifacts linked above. Gateproof's deployed case-study content is generated from Gateproof-owned source and public artifact links, not from a mutable sibling Cinder checkout on the runner.",
   };
 };
 
@@ -377,17 +356,13 @@ The Cinder case study is now one ongoing record with three chapters:
 - Chapter 2 proves that Cinder ran Gateproof's real docs deploy workflow on a self-hosted Cinder runner.
 - Chapter 3 hardens that dogfood loop so stale queued runs and weak deploy smoke no longer hide the wrong outcome.
 
-### alchemy.run.ts
+Public artifacts:
 
-\`\`\`ts
-${files.cinderProvision}
-\`\`\`
-
-### plan.ts
-
-\`\`\`ts
-${files.cinderPlan}
-\`\`\`
+- Historical provisioning: ${CINDER_END_REPO_URL}/blob/main/alchemy.run.ts
+- Historical proof contract: ${CINDER_END_REPO_URL}/blob/main/plan.ts
+- Dogfood provisioning: ${CINDER_DOGFOOD_PROVISION_URL}
+- Dogfood proof contract: ${CINDER_DOGFOOD_PLAN_URL}
+- Hardening proof contract: ${CINDER_HARDENING_PLAN_URL}
 
 Status: ${cinderStatus.title}
 
@@ -541,11 +516,11 @@ ${apiList.map((entry) => `- ${entry}`).join("\n")}
 Status: ${cinderStatus.title}. ${cinderStatus.body}`,
     "explanations/case-studies": `# Case Studies
 
-Historical case records for Gateproof deployments. Each entry states the claim, method, preserved artifacts, and current reproducibility limits.
+Case records for Gateproof deployments. Each entry states the claim, method, preserved artifacts, and current reproducibility limits.
 
 ## 1. Cinder
 
-Historical record of a Gateproof-driven Cinder run on Cloudflare. Provisioning lives in \`alchemy.run.ts\`; the proof contract is \`plan.ts\`. The page documents the preserved artifacts and does not claim a fresh live rerun.
+One ongoing Gateproof case study with a preserved historical fixture chapter, a Gateproof dogfood chapter, and a hardening chapter. Historical provisioning lives in \`alchemy.run.ts\`; the preserved proof contract lives in \`plan.ts\`.
 
 - [Cinder case study](/case-studies/cinder) — inputs, outputs, and artifacts.
 - [alchemy.run.ts](${cinderProvisionUrl}) — provisioning.
@@ -619,13 +594,11 @@ export function getCinderCaseStudyContent(): CinderCaseStudyContent {
       label: "Proof contract",
       url: `${CINDER_END_REPO_URL}/blob/main/plan.ts`,
       note: "Historical plan.ts preserved as the proof contract for the run record.",
-      code: files.cinderPlan,
     },
     {
       label: "Provisioning",
       url: `${CINDER_END_REPO_URL}/blob/main/alchemy.run.ts`,
       note: "Historical alchemy.run.ts preserved as the provisioning artifact for the run record.",
-      code: files.cinderProvision,
     },
   ];
   const historicalEvidenceSections: ReadonlyArray<CaseStudyEvidenceSection> = [
@@ -651,7 +624,6 @@ export function getCinderCaseStudyContent(): CinderCaseStudyContent {
         "The contract is described as defining observe, act, and assert conditions against the live system.",
         "The artifact is preserved for inspection and linked directly from this page.",
       ],
-      code: files.cinderPlan,
     },
     {
       title: "Provisioning notes",
@@ -661,26 +633,23 @@ export function getCinderCaseStudyContent(): CinderCaseStudyContent {
         "The provisioning artifact is treated as a fixed historical input rather than a live deployment action on this page.",
         "The artifact is preserved for inspection and linked directly from this page.",
       ],
-      code: files.cinderProvision,
     },
   ];
   const dogfoodArtifacts: ReadonlyArray<CaseStudyArtifact> = [
     {
       label: "Cinder dogfood proof",
-      url: "https://github.com/acoyfellow/cinder/commit/1cd5460",
+      url: CINDER_DOGFOOD_COMMIT_URL,
       note: "Public Cinder commit where the Gateproof dogfood proof is green from committed code.",
     },
     {
       label: "Cinder proof contract",
-      url: "https://github.com/acoyfellow/cinder/blob/1cd5460/plan.ts",
+      url: CINDER_DOGFOOD_PLAN_URL,
       note: "Canonical Gateproof dogfood contract: webhook, queue, runner, and deploy-smoke against Gateproof.",
-      code: files.cinderPlan,
     },
     {
       label: "Cinder provisioning",
-      url: "https://github.com/acoyfellow/cinder/blob/1cd5460/alchemy.run.ts",
+      url: CINDER_DOGFOOD_PROVISION_URL,
       note: "Existing-repo onboarding path that targets Gateproof without writing fixture files into the repo.",
-      code: files.cinderProvision,
     },
     {
       label: "Gateproof witness commit",
@@ -734,14 +703,13 @@ export function getCinderCaseStudyContent(): CinderCaseStudyContent {
   const hardeningArtifacts: ReadonlyArray<CaseStudyArtifact> = [
     {
       label: "Cinder hardening commit",
-      url: "https://github.com/acoyfellow/cinder/commit/36568ec",
+      url: CINDER_HARDENING_COMMIT_URL,
       note: "Public Cinder commit that makes stale queued Gateproof runs a control-plane concern instead of a manual cleanup step.",
     },
     {
       label: "Hardened Cinder proof contract",
-      url: "https://github.com/acoyfellow/cinder/blob/36568ec/plan.ts",
+      url: CINDER_HARDENING_PLAN_URL,
       note: "The hardened dogfood contract seeds a stale run, binds queue selection to the expected target run, proves exact runner/job identity, and smokes the real public routes.",
-      code: files.cinderPlan,
     },
     {
       label: "Gateproof smoke witness hardening",
