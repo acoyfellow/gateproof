@@ -208,14 +208,6 @@
           </div>
         </section>
 
-        <section>
-          <h2 class="text-2xl text-foreground sm:text-3xl">Current repo status</h2>
-          <div class="mt-4 rounded-[1.2rem] border border-border/80 bg-card/70 px-4 py-4 sm:px-6">
-            <p class="text-[11px] uppercase tracking-[0.22em] text-muted-foreground">{data.currentRepoStatus.label}</p>
-            <p class="mt-3 text-sm font-medium text-foreground">{data.currentRepoStatus.title}</p>
-            <p class="mt-3 text-sm leading-7 text-secondary-foreground">{data.currentRepoStatus.body}</p>
-          </div>
-        </section>
       </div>
     </div>
   </section>
