@@ -14,3 +14,4 @@ coverage/
 !.gateproof/scope.defaults.json
 .alchemy/
 .tmp
+.playwright-cli/
