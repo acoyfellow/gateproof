@@ -1,6 +1,6 @@
 {
   "name": "gateproof",
-  "version": "0.4.0",
+  "version": "0.5.0",
   "type": "module",
   "description": "A tiny Effect-first runtime that runs gates from a typed plan until they pass or stop.",
   "main": "./dist/index.js",
