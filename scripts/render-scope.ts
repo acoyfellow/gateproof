@@ -51,6 +51,18 @@ export interface CurrentRepoStatus {
   body: string;
 }
 
+export interface CaseStudyChapter {
+  id: string;
+  label: string;
+  status: string;
+  primaryClaim: string;
+  methodSummary: string;
+  observedOutcome: string;
+  artifacts: ReadonlyArray<CaseStudyArtifact>;
+  evidenceSections: ReadonlyArray<CaseStudyEvidenceSection>;
+  limitations: ReadonlyArray<string>;
+}
+
 export interface CinderCaseStudyContent {
   title: string;
   description: string;
@@ -69,6 +81,7 @@ export interface CinderCaseStudyContent {
   limitations: ReadonlyArray<string>;
   artifacts: ReadonlyArray<CaseStudyArtifact>;
   evidenceSections: ReadonlyArray<CaseStudyEvidenceSection>;
+  chapters: ReadonlyArray<CaseStudyChapter>;
   currentRepoStatus: CurrentRepoStatus;
 }
 
@@ -88,9 +101,9 @@ export function getCaseStudiesList(): ReadonlyArray<CaseStudyEntry> {
       number: 1,
       title: "Cinder",
       description:
-        "Historical validation record for a Cinder proof loop on Cloudflare. Preserved claim, method, and artifacts.",
+        "One ongoing case study with a frozen historical fixture proof and a current Gateproof dogfood proof.",
       href: "/case-studies/cinder",
-      iteration: "Round one",
+      iteration: "Ongoing",
     },
   ];
 }
@@ -302,9 +315,9 @@ const getCinderCurrentRepoStatus = (
 
   return {
     label: "Current repo status",
-    title: "Historical artifacts are available locally",
+    title: "Historical and current proof artifacts are available locally",
     body:
-      "The preserved Cinder files are present and typechecked against the local Gateproof package. Reproducing the live result still requires Cloudflare infrastructure and Cinder environment variables.",
+      "The sibling Cinder workspace is present locally, including the preserved historical artifacts and the current dogfood proof contract. Reproducing the live result still requires Cloudflare infrastructure and the Cinder/GitHub environment variables.",
   };
 };
 
@@ -344,6 +357,11 @@ Outcome: The loop only passes when the live response says hello world.
 
 ## First Case Study: Cinder
 
+The Cinder case study is now one ongoing record with two chapters:
+
+- Chapter 1 preserves the original historical Cargo-fixture proof.
+- Chapter 2 proves that Cinder ran Gateproof's real docs deploy workflow on a self-hosted Cinder runner.
+
 ### alchemy.run.ts
 
 \`\`\`ts
@@ -362,13 +380,12 @@ ${cinderStatus.body}
 
 ## Roadmap
 
-Gateproof is not ready to fully dogfood itself on a case study like Cinder yet. The next phase is about tightening the guardrails, not adding another rewrite.
+Gateproof is now dogfooding on Cinder in the case study. The next phase is about hardening the method and preserving the proof story, not claiming that dogfooding is still blocked.
 
-- Save the latest real proof result to disk so the loop always has a concrete last-known truth.
-- Make finalize refuse to ship unless the saved real proof result is fully green.
-- Separate the real proof path from side experiments so exploration can happen without polluting the proof story.
-- Let plans choose direct evidence when log tailing is flaky, so a valid live pass does not fail on observation noise alone.
-- Dogfood Gateproof on Cinder again only after those guardrails are in place.
+- Preserve the historical fixture chapter while keeping the current dogfood chapter public and reproducible.
+- Tighten witness selection so valid live passes prefer direct evidence when log collection is noisy.
+- Keep finalize and publication tied to the last known green proof instead of ad hoc local state.
+- Continue future dogfood chapters in the same case study instead of resetting the narrative.
 
 ## How To
 
@@ -572,7 +589,7 @@ export function getHomepageContent(): HomepageContent {
 export function getCinderCaseStudyContent(): CinderCaseStudyContent {
   const files = loadExampleFiles();
   const currentRepoStatus = getCinderCurrentRepoStatus(files);
-  const artifacts: ReadonlyArray<CaseStudyArtifact> = [
+  const historicalArtifacts: ReadonlyArray<CaseStudyArtifact> = [
     {
       label: "Input repository",
       url: CINDER_START_REPO_URL,
@@ -596,88 +613,195 @@ export function getCinderCaseStudyContent(): CinderCaseStudyContent {
       code: files.cinderProvision,
     },
   ];
+  const historicalEvidenceSections: ReadonlyArray<CaseStudyEvidenceSection> = [
+    {
+      title: "Run conditions",
+      summary: "Operating constraints recorded for the historical run.",
+      items: [
+        "Agent: Codex desktop, GPT-5.3.",
+        "No human edits, review, or audit during the loop.",
+        "The historical description states that the loop was started once and allowed to iterate to completion.",
+      ],
+    },
+    {
+      title: "Artifact notes",
+      summary: "Preserved repositories and what each artifact represents.",
+      items: historicalArtifacts.map((artifact) => `${artifact.label}: ${artifact.note}`),
+    },
+    {
+      title: "Proof contract notes",
+      summary: "How the proof contract is framed in the historical record.",
+      items: [
+        "The proof contract is stored in plan.ts.",
+        "The contract is described as defining observe, act, and assert conditions against the live system.",
+        "The artifact is preserved for inspection and linked directly from this page.",
+      ],
+      code: files.cinderPlan,
+    },
+    {
+      title: "Provisioning notes",
+      summary: "How the environment was provisioned for the historical run.",
+      items: [
+        "Provisioning is stored in alchemy.run.ts.",
+        "The provisioning artifact is treated as a fixed historical input rather than a live deployment action on this page.",
+        "The artifact is preserved for inspection and linked directly from this page.",
+      ],
+      code: files.cinderProvision,
+    },
+  ];
+  const dogfoodArtifacts: ReadonlyArray<CaseStudyArtifact> = [
+    {
+      label: "Cinder dogfood proof",
+      url: "https://github.com/acoyfellow/cinder/commit/1cd5460",
+      note: "Public Cinder commit where the Gateproof dogfood proof is green from committed code.",
+    },
+    {
+      label: "Cinder proof contract",
+      url: "https://github.com/acoyfellow/cinder/blob/1cd5460/plan.ts",
+      note: "Canonical Gateproof dogfood contract: webhook, queue, runner, and deploy-smoke against Gateproof.",
+      code: files.cinderPlan,
+    },
+    {
+      label: "Cinder provisioning",
+      url: "https://github.com/acoyfellow/cinder/blob/1cd5460/alchemy.run.ts",
+      note: "Existing-repo onboarding path that targets Gateproof without writing fixture files into the repo.",
+      code: files.cinderProvision,
+    },
+    {
+      label: "Gateproof witness commit",
+      url: "https://github.com/acoyfellow/gateproof/commit/ae39dc40f4f0dc109f6544a4d3f1dcbec715a6af",
+      note: "Gateproof commit used as the witness repo under the green dogfood proof.",
+    },
+    {
+      label: "Successful dogfood workflow run",
+      url: "https://github.com/acoyfellow/gateproof/actions/runs/22772337017",
+      note: "Real Gateproof CI run whose Deploy Demo Site job completed through Cinder.",
+    },
+  ];
+  const dogfoodEvidenceSections: ReadonlyArray<CaseStudyEvidenceSection> = [
+    {
+      title: "Webhook delivery witness",
+      summary: "GitHub's own webhook-delivery record was used as the webhook witness.",
+      items: [
+        "Gateproof CI was dispatched through workflow_dispatch on the real CI workflow.",
+        "The proof checked the real workflow_job delivery history for the Gateproof webhook that targets Cinder.",
+        "The green run recorded a successful workflow_job delivery with status_code 200 after dispatch.",
+      ],
+    },
+    {
+      title: "Execution-ready queue payload",
+      summary: "Cinder exposed the queued Gateproof deploy job as an execution-ready payload.",
+      items: [
+        "The queue payload resolved repo_full_name as acoyfellow/gateproof.",
+        "The payload included self-hosted and cinder labels.",
+        "The payload included a real repo-scoped runner registration token for the Gateproof job.",
+      ],
+    },
+    {
+      title: "Runner execution",
+      summary: "The local cinder-agent registered an ephemeral GitHub runner and executed the real deploy job.",
+      items: [
+        "The local agent logged starting github runner for the Gateproof deploy job.",
+        "The agent configured a real ephemeral runner for acoyfellow/gateproof.",
+        "The Deploy Demo Site job completed with result Succeeded on that runner.",
+      ],
+    },
+    {
+      title: "Deployed site smoke",
+      summary: "The same workflow run ended with the production docs site returning HTTP 200.",
+      items: [
+        "The proof's deploy-smoke gate requested https://gateproof.dev after the deploy job completed.",
+        "The smoke check returned HTTP 200 and captured the homepage HTML.",
+        "The public witness run for this chapter is GitHub Actions run 22772337017.",
+      ],
+    },
+  ];
+  const chapters: ReadonlyArray<CaseStudyChapter> = [
+    {
+      id: "chapter-1",
+      label: "Chapter 1: Historical fixture proof",
+      status: "Historical completed study",
+      primaryClaim:
+        "A gate-defined proof loop was used to drive Cinder toward a state where the intended live checks passed.",
+      methodSummary:
+        "One historical run with preserved input and output repositories, fixed artifacts, and no mid-run human edits.",
+      observedOutcome:
+        "The historical record preserves a post-run repository, proof contract, and provisioning artifacts; this chapter reports that record rather than rerunning the live system.",
+      artifacts: historicalArtifacts,
+      evidenceSections: historicalEvidenceSections,
+      limitations: [
+        "This chapter does not execute a fresh live proof loop.",
+        "The recorded outcome is interpreted from preserved artifacts and accompanying project notes.",
+        "Reproduction still depends on external Cloudflare resources and environment secrets.",
+        "The record concerns one system and one bounded historical study.",
+      ],
+    },
+    {
+      id: "chapter-2",
+      label: "Chapter 2: Gateproof docs dogfood proof",
+      status: "Current green proof",
+      primaryClaim:
+        "Cinder ran Gateproof's real docs deploy workflow on a self-hosted Cinder runner and the deployed site passed smoke.",
+      methodSummary:
+        "Provision Cinder against the existing Gateproof repo, dispatch the real CI workflow, observe the webhook and queue, run the deploy job through the local agent, and verify the deployed site.",
+      observedOutcome:
+        "From committed code, Cinder dispatched Gateproof CI, handled the workflow_job webhook, exposed an execution-ready queue payload, ran the real Deploy Demo Site job through the local cinder-agent, and observed a 200 smoke response from gateproof.dev.",
+      artifacts: dogfoodArtifacts,
+      evidenceSections: dogfoodEvidenceSections,
+      limitations: [
+        "This chapter proves the Gateproof docs deploy path, not every historical Cargo cache/speed claim from chapter one.",
+        "A live rerun still requires Cloudflare infrastructure, GitHub access, and the Cinder environment secrets.",
+        "The witness repo and workflow are real, but the proof is still scoped to one ongoing case study rather than a generalized benchmark suite.",
+      ],
+    },
+  ];
 
   return {
-    title: "Cinder Round One",
+    title: "Cinder",
     description:
-      "Historical validation record for a Gateproof-driven Cinder run on Cloudflare. This page summarizes the preserved claim, method, artifacts, and current reproducibility limits.",
-    caseId: "cinder-round-one",
-    studyLabel: "Historical case record",
-    studyType: "Single-case historical validation record",
-    temporalStatus: "Historical completed study",
+      "One ongoing Gateproof case study with a preserved historical fixture proof and a current Gateproof dogfood proof.",
+    caseId: "cinder",
+    studyLabel: "Ongoing case study",
+    studyType: "Single-case historical + live dogfood record",
+    temporalStatus: "Historical chapter preserved; current chapter green",
     primaryClaim:
-      "A gate-defined proof loop was used to drive Cinder toward a state where the intended live checks passed.",
+      "Gateproof can preserve an original historical proof chapter while extending the same Cinder case study into a current live dogfood proof.",
     methodSummary:
-      "One historical run with preserved input and output repositories, fixed artifacts, and no mid-run human edits.",
+      "Freeze completed chapters, then let the next truthful gate contract expose the next blocker until the live system earns a new green chapter.",
     observedOutcome:
-      "The historical record preserves a post-run repository, proof contract, and provisioning artifacts; this page reports that record rather than rerunning the live system.",
+      "This page now preserves both the original fixture proof and the newer Gateproof docs deploy proof as one continuous Cinder record.",
     abstract:
-      "Cinder Round One is presented as a historical case record. The unit of analysis is one preserved proof-loop run on Cloudflare. The case record exposes the claim, the operating method, the bounded procedure, the preserved artifacts, and the current reproducibility limits. It does not assert a fresh live validation in the current session.",
+      "Cinder is now presented as one ongoing Gateproof case study. Chapter one preserves the original historical Cargo-fixture proof. Chapter two records the current green dogfood proof in which Cinder ran Gateproof's real docs deploy workflow on a self-hosted Cinder runner. The page keeps both chapters visible without rewriting the original record.",
     historicalStatus:
-      "The page documents a completed historical study with preserved artifacts. It does not perform a live rerun.",
+      "The historical fixture chapter remains preserved, and the newer dogfood chapter is backed by a real green workflow witness.",
     caseBoundary: [
       "System under study: Cinder on Cloudflare.",
-      "Unit of analysis: one historical round-one proof-loop run.",
-      "Inputs treated as fixed artifacts: input repository, proof contract, and provisioning file.",
-      "Outputs treated as fixed artifacts: output repository and preserved run artifacts.",
-      "Out of scope for this page: a fresh live rerun against current infrastructure.",
+      "Case structure: one preserved historical fixture chapter and one current Gateproof dogfood chapter.",
+      "Historical artifacts remain fixed and inspectable rather than reinterpreted.",
+      "Current dogfood artifacts point at public repos and the successful witness workflow run.",
+      "Out of scope for this page: turning every future proof into a separate standalone case-study route.",
     ],
     procedure: [
-      "Input repository cloned.",
-      "Provisioning artifact prepared the Cloudflare environment.",
-      "Proof contract defined the observe, act, and assert conditions.",
-      "A single unsupervised loop executed without mid-run human edits.",
-      "The post-run repository and supporting artifacts were preserved for inspection.",
+      "Freeze the historical chapter and keep its artifacts public.",
+      "Promote the current proof contract to the next truthful claim rather than rewriting the old one.",
+      "Run the live loop against the new claim until the first failing gate is honestly green.",
+      "Publish the resulting proof artifacts before updating the public narrative.",
+      "Present both chapters on one page so the case study reads as one continuous story.",
     ],
     findings: [
-      "The case record preserves both the pre-loop and post-loop repositories.",
-      "The proof contract and provisioning file remain inspectable as historical artifacts.",
-      "The recorded study is bounded to one historical run rather than an active benchmark stream.",
-      "Current local validation can confirm artifact availability, but not the original live result without external infrastructure.",
+      "Chapter one remains preserved as the historical Cargo-fixture proof.",
+      "Chapter two now proves Gateproof's docs deploy through Cinder against the real Gateproof repo.",
+      "The same case study can extend forward without rewriting the original proof chapter.",
+      "Public artifact links now point at both the museum-style historical record and the current live dogfood proof.",
     ],
     limitations: [
-      "This page does not execute a fresh live proof loop.",
-      "The recorded outcome is interpreted from preserved artifacts and accompanying project notes.",
-      "Reproduction still depends on external Cloudflare resources and environment secrets.",
-      "The record concerns one system and one bounded historical study.",
+      "This page summarizes two proof chapters but does not itself execute the live loop.",
+      "The current dogfood chapter depends on public infra and secrets to reproduce live.",
+      "Future chapters still need to be earned through the same proof-loop discipline rather than added narratively.",
     ],
-    artifacts,
-    evidenceSections: [
-      {
-        title: "Run conditions",
-        summary: "Operating constraints recorded for the historical run.",
-        items: [
-          "Agent: Codex desktop, GPT-5.3.",
-          "No human edits, review, or audit during the loop.",
-          "The historical description states that the loop was started once and allowed to iterate to completion.",
-        ],
-      },
-      {
-        title: "Artifact notes",
-        summary: "Preserved repositories and what each artifact represents.",
-        items: artifacts.map((artifact) => `${artifact.label}: ${artifact.note}`),
-      },
-      {
-        title: "Proof contract notes",
-        summary: "How the proof contract is framed in the historical record.",
-        items: [
-          "The proof contract is stored in plan.ts.",
-          "The contract is described as defining observe, act, and assert conditions against the live system.",
-          "The artifact is preserved for inspection and linked directly from this page.",
-        ],
-        code: files.cinderPlan,
-      },
-      {
-        title: "Provisioning notes",
-        summary: "How the environment was provisioned for the historical run.",
-        items: [
-          "Provisioning is stored in alchemy.run.ts.",
-          "The provisioning artifact is treated as a fixed historical input rather than a live deployment action on this page.",
-          "The artifact is preserved for inspection and linked directly from this page.",
-        ],
-        code: files.cinderProvision,
-      },
-    ],
+    artifacts: [...historicalArtifacts, ...dogfoodArtifacts],
+    evidenceSections: [...historicalEvidenceSections, ...dogfoodEvidenceSections],
+    chapters,
     currentRepoStatus,
   };
 }

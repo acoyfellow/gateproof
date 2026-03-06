@@ -78,6 +78,11 @@ Outcome: The loop only passes when the live response says hello world.
 
 ## First Case Study: Cinder
 
+The Cinder case study is now one ongoing record with two chapters:
+
+- Chapter 1 preserves the original historical Cargo-fixture proof.
+- Chapter 2 proves that Cinder ran Gateproof's real docs deploy workflow on a self-hosted Cinder runner.
+
 ### alchemy.run.ts
 
 ```ts
@@ -109,13 +114,32 @@ function requireEnv(name: string): string {
 const githubPat = requireEnv("GITHUB_PAT");
 const webhookSecret = requireEnv("GITHUB_WEBHOOK_SECRET");
 const internalToken = requireEnv("CINDER_INTERNAL_TOKEN");
-const fixtureRepo = process.env.CINDER_FIXTURE_REPO?.trim() || "acoyfellow/cinder-prd-test";
-const fixtureBranch = process.env.CINDER_FIXTURE_BRANCH?.trim() || "main";
-const fixtureWorkflow =
-  process.env.CINDER_FIXTURE_WORKFLOW?.trim() || "cinder-proof.yml";
+const legacyFixtureRepo = process.env.CINDER_FIXTURE_REPO?.trim();
+const legacyFixtureBranch = process.env.CINDER_FIXTURE_BRANCH?.trim();
+const legacyFixtureWorkflow = process.env.CINDER_FIXTURE_WORKFLOW?.trim();
+const proofTargetMode =
+  process.env.CINDER_PROOF_TARGET_MODE?.trim() || "existing-repo";
+const proofTargetRepo =
+  process.env.CINDER_PROOF_TARGET_REPO?.trim() ||
+  legacyFixtureRepo ||
+  "acoyfellow/gateproof";
+const proofTargetBranch =
+  process.env.CINDER_PROOF_TARGET_BRANCH?.trim() ||
+  legacyFixtureBranch ||
+  "main";
+const proofTargetWorkflow =
+  process.env.CINDER_PROOF_TARGET_WORKFLOW?.trim() ||
+  legacyFixtureWorkflow ||
+  (proofTargetMode === "fixture" ? "cinder-proof.yml" : ".github/workflows/ci.yml");
 const githubApiBase = "https://api.github.com";
 const stateBucketName = process.env.CINDER_STATE_BUCKET?.trim();
 const stateBucketRegion = process.env.CINDER_STATE_REGION?.trim() || "auto";
+
+if (proofTargetMode !== "fixture" && proofTargetMode !== "existing-repo") {
+  throw new Error(
+    `CINDER_PROOF_TARGET_MODE must be "fixture" or "existing-repo" but received "${proofTargetMode}"`,
+  );
+}
 
 const fixtureCargoToml = `[package]
 name = "cinder-proof"
@@ -269,12 +293,12 @@ jobs:
         run: cargo run --locked
 `;
 
-function parseFixtureRepository(repoRef: string) {
+function parseTargetRepository(repoRef: string) {
   const [owner, name, ...extra] = repoRef.split("/");
 
   if (!owner || !name || extra.length > 0) {
     throw new Error(
-      `CINDER_FIXTURE_REPO must be "owner/name" but received "${repoRef}"`,
+      `CINDER_PROOF_TARGET_REPO must be "owner/name" but received "${repoRef}"`,
     );
   }
 
@@ -308,7 +332,7 @@ async function githubRequest(
 }
 
 async function ensureFixtureRepository() {
-  const { owner, name } = parseFixtureRepository(fixtureRepo);
+  const { owner, name } = parseTargetRepository(proofTargetRepo);
   const existing = await githubRequest(`/repos/${owner}/${name}`, {}, [200, 404]);
 
   if (existing.status === 200) {
@@ -321,7 +345,7 @@ async function ensureFixtureRepository() {
 
   if (viewer.login !== owner) {
     throw new Error(
-      `Fixture repo ${fixtureRepo} is missing and cannot be auto-created because PAT owner "${viewer.login}" does not match "${owner}"`,
+      `Fixture repo ${proofTargetRepo} is missing and cannot be auto-created because PAT owner "${viewer.login}" does not match "${owner}"`,
     );
   }
 
@@ -343,13 +367,13 @@ async function ensureFixtureRepository() {
 }
 
 async function ensureFixtureBranch(repo: { default_branch: string }) {
-  if (fixtureBranch === repo.default_branch) {
+  if (proofTargetBranch === repo.default_branch) {
     return;
   }
 
-  const { owner, name } = parseFixtureRepository(fixtureRepo);
+  const { owner, name } = parseTargetRepository(proofTargetRepo);
   const branchResponse = await githubRequest(
-    `/repos/${owner}/${name}/git/ref/heads/${encodeURIComponent(fixtureBranch)}`,
+    `/repos/${owner}/${name}/git/ref/heads/${encodeURIComponent(proofTargetBranch)}`,
     {},
     [200, 404],
   );
@@ -369,7 +393,7 @@ async function ensureFixtureBranch(repo: { default_branch: string }) {
     {
       method: "POST",
       body: JSON.stringify({
-        ref: `refs/heads/${fixtureBranch}`,
+        ref: `refs/heads/${proofTargetBranch}`,
         sha: defaultBranchRef.object.sha,
       }),
     },
@@ -378,13 +402,13 @@ async function ensureFixtureBranch(repo: { default_branch: string }) {
 }
 
 async function upsertFixtureFile(path: string, content: string, message: string) {
-  const { owner, name } = parseFixtureRepository(fixtureRepo);
+  const { owner, name } = parseTargetRepository(proofTargetRepo);
   const encodedPath = path
     .split("/")
     .map((segment) => encodeURIComponent(segment))
     .join("/");
   const existing = await githubRequest(
-    `/repos/${owner}/${name}/contents/${encodedPath}?ref=${encodeURIComponent(fixtureBranch)}`,
+    `/repos/${owner}/${name}/contents/${encodedPath}?ref=${encodeURIComponent(proofTargetBranch)}`,
     {},
     [200, 404],
   );
@@ -399,7 +423,7 @@ async function upsertFixtureFile(path: string, content: string, message: string)
       method: "PUT",
       body: JSON.stringify({
         message,
-        branch: fixtureBranch,
+        branch: proofTargetBranch,
         content: Buffer.from(content, "utf8").toString("base64"),
         sha,
       }),
@@ -409,7 +433,7 @@ async function upsertFixtureFile(path: string, content: string, message: string)
 }
 
 async function upsertFixtureWebhook(webhookUrl: string) {
-  const { owner, name } = parseFixtureRepository(fixtureRepo);
+  const { owner, name } = parseTargetRepository(proofTargetRepo);
   const hooks = (await (
     await githubRequest(`/repos/${owner}/${name}/hooks`)
   ).json()) as Array<{ id: number; name: string; config?: { url?: string } }>;
@@ -449,7 +473,47 @@ async function upsertFixtureWebhook(webhookUrl: string) {
   );
 }
 
-async function syncFixtureRepository(webhookUrl: string) {
+async function ensureExistingProofTarget() {
+  const { owner, name } = parseTargetRepository(proofTargetRepo);
+  const repoResponse = await githubRequest(`/repos/${owner}/${name}`, {}, [200, 404]);
+  if (repoResponse.status === 404) {
+    throw new Error(`Proof target repo ${proofTargetRepo} does not exist or is not accessible`);
+  }
+
+  const branchResponse = await githubRequest(
+    `/repos/${owner}/${name}/git/ref/heads/${encodeURIComponent(proofTargetBranch)}`,
+    {},
+    [200, 404],
+  );
+  if (branchResponse.status === 404) {
+    throw new Error(
+      `Proof target branch ${proofTargetBranch} does not exist in ${proofTargetRepo}`,
+    );
+  }
+
+  const encodedWorkflowPath = proofTargetWorkflow
+    .split("/")
+    .map((segment) => encodeURIComponent(segment))
+    .join("/");
+  const workflowResponse = await githubRequest(
+    `/repos/${owner}/${name}/contents/${encodedWorkflowPath}?ref=${encodeURIComponent(proofTargetBranch)}`,
+    {},
+    [200, 404],
+  );
+  if (workflowResponse.status === 404) {
+    throw new Error(
+      `Proof target workflow ${proofTargetWorkflow} does not exist in ${proofTargetRepo}@${proofTargetBranch}`,
+    );
+  }
+}
+
+async function prepareProofTarget(webhookUrl: string) {
+  if (proofTargetMode === "existing-repo") {
+    await ensureExistingProofTarget();
+    await upsertFixtureWebhook(webhookUrl);
+    return;
+  }
+
   const repo = await ensureFixtureRepository();
   await ensureFixtureBranch(repo);
 
@@ -457,7 +521,7 @@ async function syncFixtureRepository(webhookUrl: string) {
   await upsertFixtureFile("Cargo.lock", fixtureCargoLock, "chore: sync cinder fixture Cargo.lock");
   await upsertFixtureFile("src/main.rs", fixtureMainRs, "chore: sync cinder fixture main.rs");
   await upsertFixtureFile(
-    `.github/workflows/${fixtureWorkflow}`,
+    `.github/workflows/${proofTargetWorkflow}`,
     fixtureWorkflowContents,
     "chore: sync cinder fixture workflow",
   );
@@ -535,14 +599,14 @@ export const orchestrator = await Worker("cinder-orchestrator", {
     CINDER_INTERNAL_TOKEN: alchemy.secret(internalToken),
     GITHUB_PAT: alchemy.secret(githubPat),
     CINDER_CACHE_WORKER_URL: cacheWorker.url!,
-    CINDER_FIXTURE_REPO: fixtureRepo,
-    CINDER_FIXTURE_BRANCH: fixtureBranch,
-    CINDER_FIXTURE_WORKFLOW: fixtureWorkflow,
+    CINDER_FIXTURE_REPO: proofTargetRepo,
+    CINDER_FIXTURE_BRANCH: proofTargetBranch,
+    CINDER_FIXTURE_WORKFLOW: proofTargetWorkflow,
   },
 });
 
 await app.finalize();
-await syncFixtureRepository(`${orchestrator.url}/webhook/github`);
+await prepareProofTarget(`${orchestrator.url}/webhook/github`);
 
 const runtimeDirectory = new URL("./.gateproof/", import.meta.url);
 const runtimeFile = new URL("./.gateproof/runtime.json", import.meta.url);
@@ -559,9 +623,13 @@ await Bun.write(
       orchestratorUrl: orchestrator.url,
       cacheWorkerName: cacheWorker.name,
       cacheWorkerUrl: cacheWorker.url,
-      fixtureRepo,
-      fixtureBranch,
-      fixtureWorkflow,
+      proofTargetMode,
+      proofTargetRepo,
+      proofTargetBranch,
+      proofTargetWorkflow,
+      fixtureRepo: proofTargetMode === "fixture" ? proofTargetRepo : undefined,
+      fixtureBranch: proofTargetMode === "fixture" ? proofTargetBranch : undefined,
+      fixtureWorkflow: proofTargetMode === "fixture" ? proofTargetWorkflow : undefined,
     },
     null,
     2,
@@ -575,22 +643,18 @@ console.log(`Wrote runtime outputs to ${runtimeFile.pathname}`);
 
 ```ts
 import { Effect } from "effect";
-import crypto from "node:crypto";
-import { existsSync, readFileSync, rmSync } from "node:fs";
+import { existsSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import type { ScopeFile } from "gateproof";
-import {
-  Act,
-  Assert,
-  Gate,
-  Plan,
-  Require,
-} from "gateproof";
+import { Act, Assert, Gate, Plan, Require } from "gateproof";
 import { Cloudflare } from "gateproof/cloudflare";
 
 type RuntimeState = {
   orchestratorName?: string;
   orchestratorUrl?: string;
-  cacheWorkerUrl?: string;
+  proofTargetMode?: string;
+  proofTargetRepo?: string;
+  proofTargetBranch?: string;
+  proofTargetWorkflow?: string;
   fixtureRepo?: string;
   fixtureBranch?: string;
   fixtureWorkflow?: string;
@@ -628,8 +692,14 @@ function loadRuntimeState(): RuntimeState | null {
         typeof parsed.orchestratorName === "string" ? parsed.orchestratorName : undefined,
       orchestratorUrl:
         typeof parsed.orchestratorUrl === "string" ? parsed.orchestratorUrl : undefined,
-      cacheWorkerUrl:
-        typeof parsed.cacheWorkerUrl === "string" ? parsed.cacheWorkerUrl : undefined,
+      proofTargetMode:
+        typeof parsed.proofTargetMode === "string" ? parsed.proofTargetMode : undefined,
+      proofTargetRepo:
+        typeof parsed.proofTargetRepo === "string" ? parsed.proofTargetRepo : undefined,
+      proofTargetBranch:
+        typeof parsed.proofTargetBranch === "string" ? parsed.proofTargetBranch : undefined,
+      proofTargetWorkflow:
+        typeof parsed.proofTargetWorkflow === "string" ? parsed.proofTargetWorkflow : undefined,
       fixtureRepo: typeof parsed.fixtureRepo === "string" ? parsed.fixtureRepo : undefined,
       fixtureBranch:
         typeof parsed.fixtureBranch === "string" ? parsed.fixtureBranch : undefined,
@@ -650,76 +720,7 @@ function resolveLocalRunnerId(): string {
   }
 }
 
-const runtimeState = loadRuntimeState();
-const baseUrl = readOptionalEnv("CINDER_BASE_URL") ?? runtimeState?.orchestratorUrl ?? "";
-const cacheWorkerUrl =
-  readOptionalEnv("CINDER_CACHE_WORKER_URL") ?? runtimeState?.cacheWorkerUrl ?? "";
-const workerName =
-  readOptionalEnv("CINDER_WORKER_NAME") ?? runtimeState?.orchestratorName ?? "cinder-orchestrator";
-const fixtureRepo =
-  readOptionalEnv("CINDER_FIXTURE_REPO") ?? runtimeState?.fixtureRepo ?? "acoyfellow/cinder-prd-test";
-const fixtureBranch = readOptionalEnv("CINDER_FIXTURE_BRANCH") ?? runtimeState?.fixtureBranch ?? "";
-const fixtureWorkflow =
-  readOptionalEnv("CINDER_FIXTURE_WORKFLOW") ?? runtimeState?.fixtureWorkflow ?? "";
-const internalToken = readOptionalEnv("CINDER_INTERNAL_TOKEN") ?? "";
-
-const missKey = crypto.randomBytes(32).toString("hex");
-const newKey = crypto.randomBytes(32).toString("hex");
-const speedThresholdMs = Number(process.env.SPEED_THRESHOLD_MS ?? "60000");
-const testRepo = process.env.TEST_REPO ?? "";
-const harnessBaseUrl = "http://127.0.0.1:9000";
-const harnessRunUrl = `${harnessBaseUrl}/test/run`;
-const localRunnerId = resolveLocalRunnerId();
-const agentLogPath = "/tmp/cinder-agent-proof.log";
-const agentPidPath = "/tmp/cinder-agent-proof.pid";
-const runnerJobPath = "/tmp/cinder-proof-runner-job.json";
-const queuePayloadPath = "/tmp/cinder-proof-queue-payload.json";
-
-let managedHarness: ReturnType<typeof Bun.spawn> | null = null;
-
-async function canReachLocalHarness(): Promise<boolean> {
-  try {
-    const response = await fetch(harnessBaseUrl);
-    return response.ok || response.status === 404;
-  } catch {
-    return false;
-  }
-}
-
-async function ensureLocalHarness(): Promise<void> {
-  if (await canReachLocalHarness()) {
-    return;
-  }
-
-  managedHarness = Bun.spawn({
-    cmd: ["bun", "harness.ts"],
-    cwd: process.cwd(),
-    stdout: "inherit",
-    stderr: "inherit",
-  });
-
-  const deadline = Date.now() + 5_000;
-  while (Date.now() < deadline) {
-    if (await canReachLocalHarness()) {
-      return;
-    }
-
-    await Bun.sleep(100);
-  }
-
-  throw new Error("cinder proof harness did not start on 127.0.0.1:9000");
-}
-
-function stopManagedHarness(): void {
-  if (!managedHarness) {
-    return;
-  }
-
-  managedHarness.kill();
-  managedHarness = null;
-}
-
-function stopManagedAgent(): void {
+function stopManagedAgent(agentPidPath: string): void {
   if (!existsSync(agentPidPath)) {
     return;
   }
@@ -740,48 +741,38 @@ function stopManagedAgent(): void {
   }
 }
 
-async function ensureColdBuildBaseline(): Promise<void> {
-  if (readOptionalEnv("COLD_BUILD_MS")) {
-    return;
-  }
-
-  if (!testRepo) {
-    return;
-  }
-
-  try {
-    const response = await fetch(harnessRunUrl, {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({
-        repo: testRepo,
-        with_cache: false,
-      }),
-    });
-
-    if (!response.ok) {
-      return;
-    }
-
-    const parsed: unknown = await response.json();
-    if (!isRecord(parsed)) {
-      return;
-    }
-
-    const buildDurationMs = parsed.build_duration_ms;
-    if (typeof buildDurationMs !== "number" || !Number.isFinite(buildDurationMs)) {
-      return;
-    }
-
-    process.env.COLD_BUILD_MS = String(buildDurationMs);
-  } catch {
-    // Let the existing prerequisite fail clearly if the harness is unavailable.
-  }
-}
-
-await ensureColdBuildBaseline();
+const runtimeState = loadRuntimeState();
+const baseUrl = readOptionalEnv("CINDER_BASE_URL") ?? runtimeState?.orchestratorUrl ?? "";
+const workerName =
+  readOptionalEnv("CINDER_WORKER_NAME") ?? runtimeState?.orchestratorName ?? "cinder-orchestrator";
+const proofTargetMode =
+  readOptionalEnv("CINDER_PROOF_TARGET_MODE") ??
+  runtimeState?.proofTargetMode ??
+  "existing-repo";
+const targetRepo =
+  readOptionalEnv("CINDER_PROOF_TARGET_REPO") ??
+  runtimeState?.proofTargetRepo ??
+  readOptionalEnv("CINDER_FIXTURE_REPO") ??
+  runtimeState?.fixtureRepo ??
+  "acoyfellow/gateproof";
+const targetBranch =
+  readOptionalEnv("CINDER_PROOF_TARGET_BRANCH") ??
+  runtimeState?.proofTargetBranch ??
+  readOptionalEnv("CINDER_FIXTURE_BRANCH") ??
+  runtimeState?.fixtureBranch ??
+  "main";
+const targetWorkflow =
+  readOptionalEnv("CINDER_PROOF_TARGET_WORKFLOW") ??
+  runtimeState?.proofTargetWorkflow ??
+  readOptionalEnv("CINDER_FIXTURE_WORKFLOW") ??
+  runtimeState?.fixtureWorkflow ??
+  ".github/workflows/ci.yml";
+const internalToken = readOptionalEnv("CINDER_INTERNAL_TOKEN") ?? "";
+const demoUrl = readOptionalEnv("GATEPROOF_DEMO_URL") ?? "https://gateproof.dev";
+const localRunnerId = resolveLocalRunnerId();
+const agentLogPath = "/tmp/cinder-agent-proof.log";
+const agentPidPath = "/tmp/cinder-agent-proof.pid";
+const queuePayloadPath = "/tmp/cinder-proof-queue-payload.json";
 
 const workerLogs = Cloudflare.observe({
   accountId: readOptionalEnv("CLOUDFLARE_ACCOUNT_ID") ?? "",
@@ -799,67 +790,54 @@ if (!process.env.CINDER_WORKER_NAME && workerName) {
   process.env.CINDER_WORKER_NAME = workerName;
 }
 
-if (!process.env.CINDER_FIXTURE_REPO && fixtureRepo) {
-  process.env.CINDER_FIXTURE_REPO = fixtureRepo;
+if (!process.env.CINDER_PROOF_TARGET_MODE && proofTargetMode) {
+  process.env.CINDER_PROOF_TARGET_MODE = proofTargetMode;
 }
 
-if (!process.env.CINDER_FIXTURE_BRANCH && fixtureBranch) {
-  process.env.CINDER_FIXTURE_BRANCH = fixtureBranch;
+if (!process.env.CINDER_PROOF_TARGET_REPO && targetRepo) {
+  process.env.CINDER_PROOF_TARGET_REPO = targetRepo;
 }
 
-if (!process.env.CINDER_FIXTURE_WORKFLOW && fixtureWorkflow) {
-  process.env.CINDER_FIXTURE_WORKFLOW = fixtureWorkflow;
+if (!process.env.CINDER_PROOF_TARGET_BRANCH && targetBranch) {
+  process.env.CINDER_PROOF_TARGET_BRANCH = targetBranch;
+}
+
+if (!process.env.CINDER_PROOF_TARGET_WORKFLOW && targetWorkflow) {
+  process.env.CINDER_PROOF_TARGET_WORKFLOW = targetWorkflow;
 }
 
 const scope = {
   spec: {
     title: "Cinder",
     tutorial: {
-      goal: "Prove cinder on a live deployment, not just deploy it.",
+      goal: "Prove cinder on a live deployment, not just on a fixture repo.",
       outcome:
-        "Webhook intake, queueing, runner registration, cache paths, and the speed claim all go green.",
+        "Cinder only exits green when it can run Gateproof's real docs deploy workflow on a self-hosted Cinder runner.",
     },
     howTo: {
-      task: "Run the cinder proof loop against already-provisioned infrastructure.",
+      task: "Provision Cinder against an existing proof target, then run the live proof loop.",
       done:
-        "Cinder only exits green when the live system can do the work and the speed claim holds.",
+        "Webhook intake, queueing, runner execution, and the deployed docs smoke check all pass against the real Gateproof repo.",
     },
     explanation: {
       summary:
-        "alchemy.run.ts creates the infrastructure once and writes .gateproof/runtime.json. This file is only the acceptance loop for the live product.",
+        "alchemy.run.ts provisions Cinder and wires a proof target repo. plan.ts reruns the live dogfood proof against that target.",
     },
   },
   plan: Plan.define({
     goals: [
       {
         id: "webhook",
-        title: "A GitHub webhook queues a runnable job",
+        title: "A real Gateproof workflow_job webhook reaches Cinder",
         gate: Gate.define({
-          observe: workerLogs,
           prerequisites: [
             Require.env(
-              "CLOUDFLARE_ACCOUNT_ID",
-              "CLOUDFLARE_ACCOUNT_ID is required for Cloudflare worker log observation.",
-            ),
-            Require.env(
-              "CLOUDFLARE_API_TOKEN",
-              "CLOUDFLARE_API_TOKEN is required for Cloudflare worker log observation.",
-            ),
-            Require.env(
               "GITHUB_PAT",
-              "GITHUB_PAT is required to dispatch the GitHub proof workflow.",
-            ),
-            Require.env(
-              "CINDER_FIXTURE_BRANCH",
-              "Run bun run provision first or set CINDER_FIXTURE_BRANCH for the GitHub proof fixture.",
-            ),
-            Require.env(
-              "CINDER_FIXTURE_WORKFLOW",
-              "Run bun run provision first or set CINDER_FIXTURE_WORKFLOW for the GitHub proof fixture.",
+              "GITHUB_PAT is required to dispatch the Gateproof workflow.",
             ),
             Require.env(
               "CINDER_INTERNAL_TOKEN",
-              "CINDER_INTERNAL_TOKEN is required for internal API access.",
+              "CINDER_INTERNAL_TOKEN is required to clear stale queued jobs.",
             ),
             Require.env(
               "CINDER_BASE_URL",
@@ -868,9 +846,13 @@ const scope = {
           ],
           act: [
             Act.exec(
-              `bun -e 'const repo = ${JSON.stringify(fixtureRepo)};
-const workflow = ${JSON.stringify(fixtureWorkflow)};
-const branch = ${JSON.stringify(fixtureBranch)};
+              `curl -sf ${baseUrl}/jobs/next -H "Authorization: Bearer ${internalToken}" >/dev/null || true`,
+            ),
+            Act.exec(
+              `bun -e 'import { writeFileSync } from "node:fs";
+const repo = ${JSON.stringify(targetRepo)};
+const workflow = ${JSON.stringify(targetWorkflow)};
+const branch = ${JSON.stringify(targetBranch)};
 const token = process.env.GITHUB_PAT;
 if (!token) {
   throw new Error("GITHUB_PAT is required");
@@ -880,20 +862,26 @@ const headers = {
   Authorization: "Bearer " + token,
   "X-GitHub-Api-Version": "2022-11-28",
 };
+const encodedWorkflow = encodeURIComponent(workflow);
 const listUrl =
   "https://api.github.com/repos/" +
   repo +
   "/actions/workflows/" +
-  workflow +
+  encodedWorkflow +
   "/runs?event=workflow_dispatch&branch=" +
   encodeURIComponent(branch) +
   "&per_page=20";
-const response = await fetch(listUrl, { headers });
-if (!response.ok) {
-  throw new Error("GitHub workflow run listing failed: " + response.status);
+const listResponse = await fetch(listUrl, { headers });
+if (!listResponse.ok) {
+  throw new Error("GitHub workflow run listing failed: " + listResponse.status);
 }
-const payload = await response.json();
-const runs = Array.isArray(payload.workflow_runs) ? payload.workflow_runs : [];
+const listPayload = await listResponse.json();
+const runs = Array.isArray(listPayload.workflow_runs) ? listPayload.workflow_runs : [];
+const maxId = runs.reduce((highest, run) => {
+  return typeof run?.id === "number" && run.id > highest ? run.id : highest;
+}, 0);
+writeFileSync("/tmp/cinder-proof-gateproof-before.txt", String(maxId));
+writeFileSync("/tmp/cinder-proof-webhook-dispatch-start.txt", new Date().toISOString());
 for (const run of runs) {
   if (typeof run?.id !== "number" || run.status === "completed") {
     continue;
@@ -914,37 +902,123 @@ for (const run of runs) {
               },
             ),
             Act.exec(
-              `curl -sf -X POST https://api.github.com/repos/${fixtureRepo}/actions/workflows/${fixtureWorkflow}/dispatches \
-                -H "Accept: application/vnd.github+json" \
-                -H "Authorization: Bearer $GITHUB_PAT" \
-                -H "X-GitHub-Api-Version: 2022-11-28" \
-                -d '${JSON.stringify({ ref: fixtureBranch })}'`,
+              `bun -e 'const repo = ${JSON.stringify(targetRepo)};
+const workflow = ${JSON.stringify(targetWorkflow)};
+const branch = ${JSON.stringify(targetBranch)};
+const token = process.env.GITHUB_PAT;
+if (!token) {
+  throw new Error("GITHUB_PAT is required");
+}
+const response = await fetch(
+  "https://api.github.com/repos/" +
+    repo +
+    "/actions/workflows/" +
+    encodeURIComponent(workflow) +
+    "/dispatches",
+  {
+    method: "POST",
+    headers: {
+      Accept: "application/vnd.github+json",
+      Authorization: "Bearer " + token,
+      "X-GitHub-Api-Version": "2022-11-28",
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({ ref: branch }),
+  },
+);
+if (!response.ok) {
+  throw new Error("GitHub workflow dispatch failed: " + response.status);
+}'`,
             ),
-            Act.exec("sleep 25"),
+            Act.exec(
+              `bun -e 'const repo = ${JSON.stringify(targetRepo)};
+const token = process.env.GITHUB_PAT;
+if (!token) {
+  throw new Error("GITHUB_PAT is required");
+}
+const dispatchStartedAt = new Date(
+  await Bun.file("/tmp/cinder-proof-webhook-dispatch-start.txt").text(),
+);
+if (Number.isNaN(dispatchStartedAt.getTime())) {
+  throw new Error("missing webhook dispatch timestamp");
+}
+const headers = {
+  Accept: "application/vnd.github+json",
+  Authorization: "Bearer " + token,
+  "X-GitHub-Api-Version": "2022-11-28",
+};
+const hooksResponse = await fetch("https://api.github.com/repos/" + repo + "/hooks", {
+  headers,
+});
+if (!hooksResponse.ok) {
+  throw new Error("GitHub webhook listing failed: " + hooksResponse.status);
+}
+const hooks = await hooksResponse.json();
+if (!Array.isArray(hooks)) {
+  throw new Error("GitHub webhook listing returned a non-array payload");
+}
+const hook = hooks.find((candidate) => {
+  const events = Array.isArray(candidate?.events) ? candidate.events : [];
+  return (
+    candidate?.active === true &&
+    typeof candidate?.id === "number" &&
+    typeof candidate?.config?.url === "string" &&
+    candidate.config.url.includes("/webhook/github") &&
+    events.includes("workflow_job")
+  );
+});
+if (!hook) {
+  throw new Error("no active workflow_job webhook targeting Cinder was found");
+}
+const deadline = Date.now() + 300000;
+while (Date.now() < deadline) {
+  const deliveriesResponse = await fetch(
+    "https://api.github.com/repos/" + repo + "/hooks/" + hook.id + "/deliveries?per_page=20",
+    { headers },
+  );
+  if (!deliveriesResponse.ok) {
+    throw new Error("GitHub webhook delivery listing failed: " + deliveriesResponse.status);
+  }
+  const deliveries = await deliveriesResponse.json();
+  if (!Array.isArray(deliveries)) {
+    throw new Error("GitHub webhook deliveries returned a non-array payload");
+  }
+  const matchingDelivery = deliveries.find((delivery) => {
+    if (delivery?.event !== "workflow_job") {
+      return false;
+    }
+    if (delivery?.status_code !== 200) {
+      return false;
+    }
+    if (typeof delivery?.delivered_at !== "string") {
+      return false;
+    }
+    const deliveredAt = new Date(delivery.delivered_at);
+    return !Number.isNaN(deliveredAt.getTime()) && deliveredAt >= dispatchStartedAt;
+  });
+  if (matchingDelivery) {
+    console.log(JSON.stringify(matchingDelivery));
+    process.exit(0);
+  }
+  await Bun.sleep(2000);
+}
+throw new Error("no successful workflow_job webhook delivery was observed after dispatch");'`,
+              {
+                timeoutMs: 300_000,
+              },
+            ),
           ],
           assert: [
             Assert.noErrors(),
-            Assert.hasAction("webhook_received"),
-            Assert.hasAction("signature_verified"),
-            Assert.hasAction("job_queued"),
           ],
-          timeoutMs: 40_000,
+          timeoutMs: 600_000,
         }),
       },
       {
         id: "queue",
-        title: "A queued job can be inspected without dequeueing",
+        title: "The queued Gateproof deploy job is execution-ready",
         gate: Gate.define({
-          observe: workerLogs,
           prerequisites: [
-            Require.env(
-              "CLOUDFLARE_ACCOUNT_ID",
-              "CLOUDFLARE_ACCOUNT_ID is required for Cloudflare worker log observation.",
-            ),
-            Require.env(
-              "CLOUDFLARE_API_TOKEN",
-              "CLOUDFLARE_API_TOKEN is required for Cloudflare worker log observation.",
-            ),
             Require.env(
               "CINDER_INTERNAL_TOKEN",
               "CINDER_INTERNAL_TOKEN is required for queue inspection.",
@@ -956,25 +1030,56 @@ for (const run of runs) {
           ],
           act: [
             Act.exec(
-              `sh -c 'curl -sf ${baseUrl}/jobs/peek \
-                -H "Authorization: Bearer ${internalToken}" \
-                | tee "${queuePayloadPath}"'`,
+              `bun -e 'import { writeFileSync } from "node:fs";
+const baseUrl = ${JSON.stringify(baseUrl)};
+const token = ${JSON.stringify(internalToken)};
+const targetRepo = ${JSON.stringify(targetRepo)};
+const outputPath = ${JSON.stringify(queuePayloadPath)};
+const deadline = Date.now() + 600000;
+while (Date.now() < deadline) {
+  const response = await fetch(baseUrl + "/jobs/peek", {
+    headers: {
+      Authorization: "Bearer " + token,
+    },
+  });
+  if (!response.ok) {
+    throw new Error("queue peek failed: " + response.status);
+  }
+  const payload = await response.json();
+  const labels = Array.isArray(payload.labels) ? payload.labels : [];
+  const matchesRepo = payload.repo_full_name === targetRepo;
+  const matchesLabels = labels.includes("self-hosted") && labels.includes("cinder");
+  if (
+    matchesRepo &&
+    matchesLabels &&
+    typeof payload.job_id === "number" &&
+    typeof payload.runner_registration_token === "string" &&
+    payload.runner_registration_token.length > 0
+  ) {
+    writeFileSync(outputPath, JSON.stringify(payload, null, 2));
+    console.log(JSON.stringify(payload));
+    process.exit(0);
+  }
+  await Bun.sleep(2000);
+}
+throw new Error("no queued Gateproof deploy job became available");'`,
+              {
+                timeoutMs: 600_000,
+              },
             ),
           ],
           assert: [
             Assert.noErrors(),
-            Assert.responseBodyIncludes("repo_full_name"),
-            Assert.responseBodyIncludes("repo_clone_url"),
-            Assert.responseBodyIncludes("runner_registration_url"),
-            Assert.responseBodyIncludes("runner_registration_token"),
-            Assert.responseBodyIncludes("cache_key"),
+            Assert.responseBodyIncludes(`"repo_full_name":"${targetRepo}"`),
+            Assert.responseBodyIncludes(`"runner_registration_url":"https://github.com/${targetRepo}"`),
+            Assert.responseBodyIncludes(`"runner_registration_token":"`),
           ],
-          timeoutMs: 8_000,
+          timeoutMs: 600_000,
         }),
       },
       {
         id: "runner",
-        title: "A runner can execute a queued GitHub job",
+        title: "The local cinder-agent runs Gateproof's real deploy job",
         gate: Gate.define({
           observe: workerLogs,
           prerequisites: [
@@ -1001,70 +1106,11 @@ for (const run of runs) {
           ],
           act: [
             Act.exec(
-              `curl -sf ${baseUrl}/jobs/peek \
-                -H "Authorization: Bearer ${internalToken}" \
-                > "${runnerJobPath}"`,
-            ),
-            Act.exec(
-              `bun -e 'import crypto from "node:crypto";
-import { readFileSync } from "node:fs";
-const payload = JSON.parse(readFileSync(${JSON.stringify(runnerJobPath)}, "utf8"));
-if (typeof payload.cache_key !== "string" || payload.cache_key.length === 0) {
-  throw new Error("runner job payload missing cache_key");
-}
-const key = payload.cache_key;
-const token = ${JSON.stringify(internalToken)};
-if (!token) {
-  throw new Error("CINDER_INTERNAL_TOKEN is required for fixture cache reset");
-}
-let base = ${JSON.stringify(cacheWorkerUrl)};
-const restoreProbe = await fetch(
-  ${JSON.stringify(baseUrl)} + "/cache/restore/" + key,
-  {
-    method: "POST",
-    headers: {
-      Authorization: "Bearer " + token,
-    },
-  },
-);
-if (!restoreProbe.ok) {
-  throw new Error("fixture cache reset probe failed: " + restoreProbe.status);
-}
-const restorePayload = await restoreProbe.json();
-if (typeof restorePayload.url === "string" && restorePayload.url.length > 0) {
-  base = new URL(restorePayload.url).origin;
-}
-if (!base) {
-  throw new Error("cache worker base URL is required for fixture cache reset");
-}
-const exp = Math.floor(Date.now() / 1000) + 3600;
-const sig = crypto
-  .createHmac("sha256", token)
-  .update("delete:" + key + ":" + exp)
-  .digest("hex");
-const response = await fetch(
-  base.replace(/\\/$/, "") +
-    "/objects/" +
-    key +
-    "?op=delete&exp=" +
-    exp +
-    "&sig=" +
-    sig,
-  {
-    method: "DELETE",
-  },
-);
-if (!response.ok && response.status !== 404) {
-  throw new Error("fixture cache reset failed: " + response.status);
-}
-console.log("fixture cache reset");'`,
-            ),
-            Act.exec(
               `sh -c 'if [ -f "${agentPidPath}" ] && kill -0 "$(cat "${agentPidPath}")" 2>/dev/null; then exit 0; fi; : >"${agentLogPath}"; cargo run --quiet -p cinder-agent -- --url "${baseUrl}" --token "${internalToken}" --poll-ms 250 >"${agentLogPath}" 2>&1 & echo $! >"${agentPidPath}"; sleep 5'`,
             ),
             Act.exec(
               `bun -e 'import { existsSync, readFileSync } from "node:fs";
-const payload = JSON.parse(readFileSync(${JSON.stringify(runnerJobPath)}, "utf8"));
+const payload = JSON.parse(readFileSync(${JSON.stringify(queuePayloadPath)}, "utf8"));
 if (typeof payload.run_id !== "number") {
   throw new Error("queue payload missing run_id");
 }
@@ -1080,7 +1126,7 @@ const headers = {
   Authorization: "Bearer " + token,
   "X-GitHub-Api-Version": "2022-11-28",
 };
-const deadline = Date.now() + 600000;
+const deadline = Date.now() + 1800000;
 let run = null;
 while (Date.now() < deadline) {
   const response = await fetch(
@@ -1098,17 +1144,17 @@ while (Date.now() < deadline) {
   if (run.status === "completed") {
     break;
   }
-  await Bun.sleep(2000);
+  await Bun.sleep(5000);
 }
 if (!run || run.status !== "completed") {
   throw new Error("GitHub workflow run did not complete");
 }
-const logNeedle = "completed with exit code 0";
+const logNeedles = ["starting github runner for job", "completed with exit code 0"];
 const logDeadline = Date.now() + 30000;
 while (Date.now() < logDeadline) {
   if (existsSync(${JSON.stringify(agentLogPath)})) {
     const logContents = readFileSync(${JSON.stringify(agentLogPath)}, "utf8");
-    if (logContents.includes(logNeedle)) {
+    if (logNeedles.every((needle) => logContents.includes(needle))) {
       break;
     }
   }
@@ -1122,7 +1168,7 @@ if (run.conclusion !== "success") {
   process.exit(1);
 }'`,
               {
-                timeoutMs: 600_000,
+                timeoutMs: 1_800_000,
               },
             ),
           ],
@@ -1135,274 +1181,23 @@ if (run.conclusion !== "success") {
             Assert.responseBodyIncludes("starting github runner for job"),
             Assert.responseBodyIncludes("completed with exit code 0"),
           ],
-          timeoutMs: 600_000,
+          timeoutMs: 1_800_000,
         }),
       },
       {
-        id: "cache-restore",
-        title: "The fixture cache key currently restores as a cold miss",
+        id: "deploy-smoke",
+        title: "The deployed Gateproof docs site is healthy after the run",
         gate: Gate.define({
-          prerequisites: [
-            Require.env(
-              "CLOUDFLARE_ACCOUNT_ID",
-              "CLOUDFLARE_ACCOUNT_ID is required for Cloudflare worker log observation.",
-            ),
-            Require.env(
-              "CLOUDFLARE_API_TOKEN",
-              "CLOUDFLARE_API_TOKEN is required for Cloudflare worker log observation.",
-            ),
-            Require.env(
-              "CINDER_INTERNAL_TOKEN",
-              "CINDER_INTERNAL_TOKEN is required for cache restore.",
-            ),
-            Require.env(
-              "CINDER_BASE_URL",
-              "Run bun run provision first or set CINDER_BASE_URL to the live orchestrator URL.",
-            ),
-          ],
           act: [
             Act.exec(
-              `bun -e 'import { readFileSync } from "node:fs";
-const payload = JSON.parse(readFileSync(${JSON.stringify(runnerJobPath)}, "utf8"));
-if (typeof payload.job_id !== "number") {
-  throw new Error("runner job payload missing job_id");
-}
-const needle = "cache miss for job " + payload.job_id;
-const deadline = Date.now() + 5000;
-while (Date.now() < deadline) {
-  const log = readFileSync(${JSON.stringify(agentLogPath)}, "utf8");
-  if (log.includes(needle)) {
-    console.log(needle);
-    process.exit(0);
-  }
-  await Bun.sleep(250);
-}
-throw new Error("agent log missing cache miss marker for job " + payload.job_id);'`,
+              `sh -c 'status="$(curl -s -o /tmp/cinder-proof-gateproof-smoke.html -w "%{http_code}" -L ${demoUrl})"; test "$status" = "200" && echo "smoke ok $status" && head -n 5 /tmp/cinder-proof-gateproof-smoke.html'`,
             ),
           ],
           assert: [
             Assert.noErrors(),
-            Assert.responseBodyIncludes("cache miss for job"),
+            Assert.responseBodyIncludes("smoke ok 200"),
           ],
-          timeoutMs: 5_000,
-        }),
-      },
-      {
-        id: "cache-push",
-        title: "The cache upload path returns a real cache-worker upload URL",
-        gate: Gate.define({
-          observe: workerLogs,
-          prerequisites: [
-            Require.env(
-              "CLOUDFLARE_ACCOUNT_ID",
-              "CLOUDFLARE_ACCOUNT_ID is required for Cloudflare worker log observation.",
-            ),
-            Require.env(
-              "CLOUDFLARE_API_TOKEN",
-              "CLOUDFLARE_API_TOKEN is required for Cloudflare worker log observation.",
-            ),
-            Require.env(
-              "CINDER_INTERNAL_TOKEN",
-              "CINDER_INTERNAL_TOKEN is required for cache upload.",
-            ),
-            Require.env(
-              "CINDER_BASE_URL",
-              "Run bun run provision first or set CINDER_BASE_URL to the live orchestrator URL.",
-            ),
-          ],
-          act: [
-            Act.exec(
-              `sh -c 'rm -f /tmp/cinder-proof-cache-push.tar.xz /tmp/cinder-proof-cache-push-download.tar.xz /tmp/cinder-proof-cache-push-upload.json /tmp/cinder-proof-cache-push-restore.json /tmp/cinder-proof-cache-push-list.txt; tmpdir="$(mktemp -d)"; printf "proof\\n" > "$tmpdir/proof.txt"; tar -cJf /tmp/cinder-proof-cache-push.tar.xz -C "$tmpdir" proof.txt; rm -rf "$tmpdir"'`,
-            ),
-            Act.exec(
-              `bun -e 'import { writeFileSync } from "node:fs";
-const response = await fetch(
-  ${JSON.stringify(baseUrl)} + "/cache/upload",
-  {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-      Authorization: "Bearer " + ${JSON.stringify(internalToken)},
-    },
-    body: JSON.stringify({
-      key: ${JSON.stringify(newKey)},
-      content_type: "application/x-xz",
-      size_bytes: 1024,
-    }),
-  },
-);
-if (!response.ok) {
-  throw new Error("cache upload failed: " + response.status);
-}
-const upload = await response.json();
-if (typeof upload.url !== "string" || upload.url.length === 0) {
-  throw new Error("cache upload response missing url");
-}
-if (!upload.url.includes("/objects/")) {
-  throw new Error("cache upload returned non-worker url");
-}
-writeFileSync("/tmp/cinder-proof-cache-push-upload.json", JSON.stringify(upload));
-console.log(JSON.stringify(upload));'`,
-            ),
-            Act.exec(
-              `bun -e 'import { readFileSync } from "node:fs";
-const upload = JSON.parse(readFileSync("/tmp/cinder-proof-cache-push-upload.json", "utf8"));
-const archive = readFileSync("/tmp/cinder-proof-cache-push.tar.xz");
-const response = await fetch(upload.url, {
-  method: "PUT",
-  body: archive,
-});
-if (!response.ok) {
-  throw new Error("cache object upload failed: " + response.status);
-}
-console.log("cache object uploaded");'`,
-            ),
-            Act.exec(
-              `bun -e 'import { writeFileSync } from "node:fs";
-const response = await fetch(
-  ${JSON.stringify(baseUrl)} + "/cache/restore/" + ${JSON.stringify(newKey)},
-  {
-    method: "POST",
-    headers: {
-      Authorization: "Bearer " + ${JSON.stringify(internalToken)},
-    },
-  },
-);
-if (!response.ok) {
-  throw new Error("cache restore failed: " + response.status);
-}
-const restore = await response.json();
-if (restore.miss === true) {
-  throw new Error("cache restore returned miss after upload");
-}
-if (typeof restore.url !== "string" || restore.url.length === 0) {
-  throw new Error("cache restore response missing url");
-}
-writeFileSync("/tmp/cinder-proof-cache-push-restore.json", JSON.stringify(restore));
-console.log(JSON.stringify(restore));'`,
-            ),
-            Act.exec(
-              `bun -e 'import { readFileSync, writeFileSync } from "node:fs";
-const restore = JSON.parse(readFileSync("/tmp/cinder-proof-cache-push-restore.json", "utf8"));
-const response = await fetch(restore.url);
-if (!response.ok) {
-  throw new Error("cache object download failed: " + response.status);
-}
-const bytes = new Uint8Array(await response.arrayBuffer());
-writeFileSync("/tmp/cinder-proof-cache-push-download.tar.xz", bytes);
-console.log("cache object downloaded");'`,
-            ),
-            Act.exec(
-              `sh -c 'test -s /tmp/cinder-proof-cache-push-download.tar.xz && tar -tJf /tmp/cinder-proof-cache-push-download.tar.xz > /tmp/cinder-proof-cache-push-list.txt && cat /tmp/cinder-proof-cache-push-list.txt'`,
-            ),
-          ],
-          assert: [
-            Assert.noErrors(),
-            Assert.responseBodyIncludes("proof.txt"),
-          ],
-          timeoutMs: 8_000,
-        }),
-      },
-      {
-        id: "speed-claim",
-        title: "A warm workflow run can complete with a real cache hit",
-        gate: Gate.define({
-          observe: workerLogs,
-          prerequisites: [
-            Require.env(
-              "CLOUDFLARE_ACCOUNT_ID",
-              "CLOUDFLARE_ACCOUNT_ID is required for Cloudflare worker log observation.",
-            ),
-            Require.env(
-              "CLOUDFLARE_API_TOKEN",
-              "CLOUDFLARE_API_TOKEN is required for Cloudflare worker log observation.",
-            ),
-            Require.env(
-              "GITHUB_PAT",
-              "GITHUB_PAT is required to dispatch and confirm the warm workflow run.",
-            ),
-          ],
-          act: [
-            Act.exec(
-              `bun -e 'import { readFileSync } from "node:fs";
-const payload = JSON.parse(readFileSync(${JSON.stringify(runnerJobPath)}, "utf8"));
-if (typeof payload.run_id !== "number") {
-  throw new Error("runner job payload missing run_id");
-}
-console.log(String(payload.run_id));' > /tmp/cinder-proof-speed-before.txt`,
-            ),
-            Act.exec(
-              `curl -sf -X POST https://api.github.com/repos/${fixtureRepo}/actions/workflows/${fixtureWorkflow}/dispatches \
-                -H "Accept: application/vnd.github+json" \
-                -H "Authorization: Bearer $GITHUB_PAT" \
-                -H "X-GitHub-Api-Version: 2022-11-28" \
-                -d '${JSON.stringify({ ref: fixtureBranch })}'`,
-            ),
-            Act.exec("sleep 5"),
-            Act.exec(
-              `bun -e 'import { readFileSync } from "node:fs";
-const repo = ${JSON.stringify(fixtureRepo)};
-const workflow = ${JSON.stringify(fixtureWorkflow)};
-const branch = ${JSON.stringify(fixtureBranch)};
-const token = process.env.GITHUB_PAT;
-if (!token) {
-  throw new Error("GITHUB_PAT is required");
-}
-const previousId = readFileSync("/tmp/cinder-proof-speed-before.txt", "utf8").trim();
-const headers = {
-  Accept: "application/vnd.github+json",
-  Authorization: "Bearer " + token,
-  "X-GitHub-Api-Version": "2022-11-28",
-};
-const listUrl =
-  "https://api.github.com/repos/" +
-  repo +
-  "/actions/workflows/" +
-  workflow +
-  "/runs?event=workflow_dispatch&branch=" +
-  encodeURIComponent(branch) +
-  "&per_page=5";
-const deadline = Date.now() + 600000;
-let run = null;
-while (Date.now() < deadline) {
-  const listResponse = await fetch(listUrl, { headers });
-  if (!listResponse.ok) {
-    throw new Error("GitHub workflow run listing failed: " + listResponse.status);
-  }
-  const listPayload = await listResponse.json();
-  const runs = Array.isArray(listPayload.workflow_runs) ? listPayload.workflow_runs : [];
-  const candidate = runs.find((entry) => typeof entry?.id === "number" && String(entry.id) !== previousId);
-  if (candidate && typeof candidate.id === "number") {
-    const runResponse = await fetch(
-      "https://api.github.com/repos/" + repo + "/actions/runs/" + candidate.id,
-      { headers },
-    );
-    if (!runResponse.ok) {
-      throw new Error("GitHub workflow run fetch failed: " + runResponse.status);
-    }
-    run = await runResponse.json();
-    if (run.status === "completed") {
-      break;
-    }
-  }
-  await Bun.sleep(2000);
-}
-if (!run || run.status !== "completed") {
-  throw new Error("warm GitHub workflow run did not complete");
-}
-console.log(JSON.stringify(run));
-console.log(readFileSync(${JSON.stringify(agentLogPath)}, "utf8"));'`,
-              {
-                timeoutMs: 600_000,
-              },
-            ),
-          ],
-          assert: [
-            Assert.noErrors(),
-            Assert.responseBodyIncludes(`"conclusion":"success"`),
-            Assert.responseBodyIncludes("cache restored for job"),
-          ],
-          timeoutMs: 600_000,
+          timeoutMs: 30_000,
         }),
       },
     ],
@@ -1423,13 +1218,8 @@ console.log(readFileSync(${JSON.stringify(agentLogPath)}, "utf8"));'`,
 export default scope;
 
 if (import.meta.main) {
-  stopManagedAgent();
-
-  if (testRepo) {
-    await ensureLocalHarness();
-  }
-
-  await ensureColdBuildBaseline();
+  stopManagedAgent(agentPidPath);
+  rmSync(queuePayloadPath, { force: true });
 
   try {
     const result = await Effect.runPromise(
@@ -1444,27 +1234,25 @@ if (import.meta.main) {
       process.exitCode = 1;
     }
   } finally {
-    stopManagedAgent();
-    stopManagedHarness();
+    stopManagedAgent(agentPidPath);
   }
 
   process.exit(process.exitCode ?? 0);
 }
 ```
 
-Status: Historical artifacts are available locally
+Status: Historical and current proof artifacts are available locally
 
-The preserved Cinder files are present and typechecked against the local Gateproof package. Reproducing the live result still requires Cloudflare infrastructure and Cinder environment variables.
+The sibling Cinder workspace is present locally, including the preserved historical artifacts and the current dogfood proof contract. Reproducing the live result still requires Cloudflare infrastructure and the Cinder/GitHub environment variables.
 
 ## Roadmap
 
-Gateproof is not ready to fully dogfood itself on a case study like Cinder yet. The next phase is about tightening the guardrails, not adding another rewrite.
+Gateproof is now dogfooding on Cinder in the case study. The next phase is about hardening the method and preserving the proof story, not claiming that dogfooding is still blocked.
 
-- Save the latest real proof result to disk so the loop always has a concrete last-known truth.
-- Make finalize refuse to ship unless the saved real proof result is fully green.
-- Separate the real proof path from side experiments so exploration can happen without polluting the proof story.
-- Let plans choose direct evidence when log tailing is flaky, so a valid live pass does not fail on observation noise alone.
-- Dogfood Gateproof on Cinder again only after those guardrails are in place.
+- Preserve the historical fixture chapter while keeping the current dogfood chapter public and reproducible.
+- Tighten witness selection so valid live passes prefer direct evidence when log collection is noisy.
+- Keep finalize and publication tied to the last known green proof instead of ad hoc local state.
+- Continue future dogfood chapters in the same case study instead of resetting the narrative.
 
 ## How To
 

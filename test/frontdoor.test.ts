@@ -45,13 +45,16 @@ describe("front-door artifacts", () => {
     expect(files.cinderAvailable).toBe(true);
     expect(getCinderProvisionSnippet()).toBe(expectedProvision);
     expect(getCinderPlanSnippet()).toBe(expectedPlan);
-    expect(caseStudy.temporalStatus).toBe("Historical completed study");
-    expect(caseStudy.historicalStatus).toContain("does not perform a live rerun");
-    expect(caseStudy.primaryClaim).toContain("gate-defined proof loop");
-    expect(caseStudy.currentRepoStatus.title).toBe("Historical artifacts are available locally");
+    expect(caseStudy.temporalStatus).toBe("Historical chapter preserved; current chapter green");
+    expect(caseStudy.historicalStatus).toContain("historical fixture chapter remains preserved");
+    expect(caseStudy.primaryClaim).toContain("preserve an original historical proof chapter");
+    expect(caseStudy.currentRepoStatus.title).toBe(
+      "Historical and current proof artifacts are available locally",
+    );
     expect(proofContract?.code).toBe(expectedPlan);
     expect(provisioning?.code).toBe(expectedProvision);
     expect(caseStudy.artifacts.length).toBeGreaterThanOrEqual(4);
+    expect(caseStudy.chapters.length).toBe(2);
     expect("roundTwoTeaser" in record).toBe(false);
   });
 
