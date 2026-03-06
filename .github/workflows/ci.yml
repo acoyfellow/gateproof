@@ -67,7 +67,7 @@ jobs:
 
   deploy-demo:
     name: Deploy Demo Site
-    runs-on: ubuntu-latest
+    runs-on: [self-hosted, cinder]
     needs: [test, build]
     if: github.event_name == 'push' && (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/master')
     steps:
