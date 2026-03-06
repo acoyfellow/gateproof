@@ -1,4 +1,4 @@
-import { readFileSync } from "node:fs";
+import { existsSync, readFileSync } from "node:fs";
 import path from "node:path";
 import { describe, expect, test } from "bun:test";
 import { Effect } from "effect";
@@ -31,7 +31,9 @@ describe("front-door artifacts", () => {
     expect(snippet).toContain("Effect.runPromise(Plan.run(plan))");
   });
 
-  test("loads the cinder case study from the sibling workspace", () => {
+  test.skipIf(!existsSync(path.join(cinderRoot, "alchemy.run.ts")))(
+    "loads the cinder case study from the sibling workspace",
+    () => {
     const expectedProvision = readFileSync(path.join(cinderRoot, "alchemy.run.ts"), "utf8").trim();
     const expectedPlan = readFileSync(path.join(cinderRoot, "plan.ts"), "utf8").trim();
     const files = loadExampleFiles();
