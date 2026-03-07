@@ -14,7 +14,7 @@ const checks = [
   },
   {
     path: "/case-studies/cinder",
-    needle: "Chapter 3: Hardening the Gateproof dogfood loop",
+    needle: "Chapter 2: Gateproof docs dogfood proof",
   },
 ];
 

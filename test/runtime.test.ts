@@ -648,7 +648,7 @@ describe("README generation", () => {
     expect(readme).toContain("## First Case Study: Cinder");
     expect(readme).toContain("### examples/hello-world/plan.ts");
     expect(readme).toContain("Public artifacts:");
-    expect(readme).toContain("Hardening proof contract:");
+    expect(readme).toContain("The next chapter is planned hardening work");
     expect(readme).toContain("Canonical gates:");
   });
 });

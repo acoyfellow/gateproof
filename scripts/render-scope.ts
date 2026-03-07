@@ -101,7 +101,7 @@ export function getCaseStudiesList(): ReadonlyArray<CaseStudyEntry> {
       number: 1,
       title: "Cinder",
       description:
-        "One ongoing case study with a historical fixture proof, a live Gateproof dogfood proof, and a hardening chapter.",
+        "One ongoing case study with a historical fixture proof and a live Gateproof dogfood proof.",
       href: "/case-studies/cinder",
       iteration: "Ongoing",
     },
@@ -179,9 +179,6 @@ const CINDER_END_REPO_URL = "https://github.com/acoyfellow/cinder-round-one-end"
 const CINDER_DOGFOOD_COMMIT_URL = "https://github.com/acoyfellow/cinder/commit/1cd5460";
 const CINDER_DOGFOOD_PLAN_URL = "https://github.com/acoyfellow/cinder/blob/1cd5460/plan.ts";
 const CINDER_DOGFOOD_PROVISION_URL = "https://github.com/acoyfellow/cinder/blob/1cd5460/alchemy.run.ts";
-const CINDER_HARDENING_COMMIT_URL = "https://github.com/acoyfellow/cinder/commit/36568ec";
-const CINDER_HARDENING_PLAN_URL = "https://github.com/acoyfellow/cinder/blob/36568ec/plan.ts";
-
 const apiList = [
   "`Gate.define(...)`",
   "`Plan.define(...)`",
@@ -350,11 +347,11 @@ Outcome: The loop only passes when the live response says hello world.
 
 ## First Case Study: Cinder
 
-The Cinder case study is now one ongoing record with three chapters:
+The Cinder case study is now one ongoing record with two earned chapters:
 
 - Chapter 1 preserves the original historical Cargo-fixture proof.
 - Chapter 2 proves that Cinder ran Gateproof's real docs deploy workflow on a self-hosted Cinder runner.
-- Chapter 3 hardens that dogfood loop so stale queued runs and weak deploy smoke no longer hide the wrong outcome.
+The next chapter is planned hardening work for recurring dogfood under messy queued-run conditions.
 
 Public artifacts:
 
@@ -362,7 +359,6 @@ Public artifacts:
 - Historical proof contract: ${CINDER_END_REPO_URL}/blob/main/plan.ts
 - Dogfood provisioning: ${CINDER_DOGFOOD_PROVISION_URL}
 - Dogfood proof contract: ${CINDER_DOGFOOD_PLAN_URL}
-- Hardening proof contract: ${CINDER_HARDENING_PLAN_URL}
 
 Status: ${cinderStatus.title}
 
@@ -370,10 +366,10 @@ ${cinderStatus.body}
 
 ## Roadmap
 
-Gateproof is now dogfooding on a hardened Cinder loop in the case study. The next phase is no longer "can dogfooding work?" but "how far does the method generalize without losing proof quality?"
+Gateproof is now dogfooding on Cinder in the case study. The next phase is to harden recurring deploys under messy queue state without losing proof quality.
 
 - Preserve the historical and current chapters without rewriting their claims after publication.
-- Extend the same proof discipline to new repos only after onboarding, witnesses, and cleanup behavior stay boring on Gateproof.
+- Harden recurring Gateproof deploys before extending the same proof discipline to new repos.
 - Keep finalize and publication tied to the last known green proof instead of ad hoc local state.
 - Continue future Cinder chapters in the same case study instead of resetting the narrative.
 
@@ -520,7 +516,7 @@ Case records for Gateproof deployments. Each entry states the claim, method, pre
 
 ## 1. Cinder
 
-One ongoing Gateproof case study with a preserved historical fixture chapter, a Gateproof dogfood chapter, and a hardening chapter. Historical provisioning lives in \`alchemy.run.ts\`; the preserved proof contract lives in \`plan.ts\`.
+One ongoing Gateproof case study with a preserved historical fixture chapter and a Gateproof dogfood chapter. Historical provisioning lives in \`alchemy.run.ts\`; the preserved proof contract lives in \`plan.ts\`.
 
 - [Cinder case study](/case-studies/cinder) — inputs, outputs, and artifacts.
 - [alchemy.run.ts](${cinderProvisionUrl}) — provisioning.
@@ -700,57 +696,6 @@ export function getCinderCaseStudyContent(): CinderCaseStudyContent {
       ],
     },
   ];
-  const hardeningArtifacts: ReadonlyArray<CaseStudyArtifact> = [
-    {
-      label: "Cinder hardening commit",
-      url: CINDER_HARDENING_COMMIT_URL,
-      note: "Public Cinder commit that makes stale queued Gateproof runs a control-plane concern instead of a manual cleanup step.",
-    },
-    {
-      label: "Hardened Cinder proof contract",
-      url: CINDER_HARDENING_PLAN_URL,
-      note: "The hardened dogfood contract seeds a stale run, binds queue selection to the expected target run, proves exact runner/job identity, and smokes the real public routes.",
-    },
-    {
-      label: "Gateproof smoke witness hardening",
-      url: "https://github.com/acoyfellow/gateproof/commit/d48747b",
-      note: "Gateproof's production smoke step now checks the homepage and the case-study routes that actually mattered in the failure.",
-    },
-    {
-      label: "Successful hardened workflow run",
-      url: "https://github.com/acoyfellow/gateproof/actions/runs/22776653080",
-      note: "Real Gateproof CI run used as the green hardening witness after seeding stale queued runs.",
-    },
-  ];
-  const hardeningEvidenceSections: ReadonlyArray<CaseStudyEvidenceSection> = [
-    {
-      title: "Seeded stale-run conditions",
-      summary: "The hardened proof intentionally created a stale queued deploy run before dispatching the target run.",
-      items: [
-        "The proof dispatches one priming Gateproof CI run and then a second target run on the same branch and workflow.",
-        "The proof records the exact expected target run_id and fails if the next runnable queue payload points at a different run.",
-        "This removes manual GitHub queue cleanup from the operator path and turns stale-run handling into something the product must survive.",
-      ],
-    },
-    {
-      title: "Queue eviction and exact selection",
-      summary: "Cinder now validates queued Gateproof jobs against GitHub and evicts stale or superseded ones before returning a runnable payload.",
-      items: [
-        "The orchestrator now checks queued job state against the real GitHub run and workflow state before serving /jobs/peek or /jobs/next.",
-        "Stale jobs are explicitly skipped and evicted instead of relying on a human to cancel older runs in GitHub first.",
-        "The hardened green proof selected the exact expected Gateproof deploy run rather than the primed stale run.",
-      ],
-    },
-    {
-      title: "Runner identity and production witness",
-      summary: "The runner proof now binds the accepted job to the expected run_id and the production smoke covers the routes that actually failed.",
-      items: [
-        "The local cinder-agent logged the exact accepted Gateproof job_id, run_id, and repo identity before starting the runner.",
-        "The runner witness required those exact log lines instead of inferring success from a generic completed workflow.",
-        "The production smoke now checks /, /case-studies, and /case-studies/cinder so a healthy homepage no longer hides a broken case-study route.",
-      ],
-    },
-  ];
   const chapters: ReadonlyArray<CaseStudyChapter> = [
     {
       id: "chapter-1",
@@ -787,24 +732,7 @@ export function getCinderCaseStudyContent(): CinderCaseStudyContent {
         "This chapter proves the Gateproof docs deploy path, not every historical Cargo cache/speed claim from chapter one.",
         "A live rerun still requires Cloudflare infrastructure, GitHub access, and the Cinder environment secrets.",
         "The witness repo and workflow are real, but the proof is still scoped to one ongoing case study rather than a generalized benchmark suite.",
-      ],
-    },
-    {
-      id: "chapter-3",
-      label: "Chapter 3: Hardening the Gateproof dogfood loop",
-      status: "Current hardened green proof",
-      primaryClaim:
-        "Cinder can keep Gateproof's docs deploy proof green from a messy starting state by selecting the intended fresh run, preserving exact runner identity, and smoking the public case-study routes that actually matter.",
-      methodSummary:
-        "Seed a stale Gateproof run, dispatch a fresh target run, force the queue proof to bind to the exact target run_id, verify the exact job the agent accepted, and smoke the homepage plus the case-study routes after deploy.",
-      observedOutcome:
-        "From committed code, Cinder evicted stale queued Gateproof jobs, exposed the expected target payload, ran the exact intended Deploy Demo Site job through the local agent, and the hardened smoke witness passed on gateproof.dev, /case-studies, and /case-studies/cinder.",
-      artifacts: hardeningArtifacts,
-      evidenceSections: hardeningEvidenceSections,
-      limitations: [
-        "This chapter still hardens one witness repo and one deploy path rather than proving generalized multi-repo behavior.",
-        "Live reruns still require Cloudflare infrastructure, GitHub access, and the Cinder environment secrets.",
-        "The production smoke now covers the failed public routes, but it still validates one public site rather than every future witness route.",
+        "Recurring deploys under messy queued-run conditions are future hardening work, not part of this chapter's claim.",
       ],
     },
   ];
@@ -812,26 +740,26 @@ export function getCinderCaseStudyContent(): CinderCaseStudyContent {
   return {
     title: "Cinder",
     description:
-      "One ongoing Gateproof case study with a preserved historical fixture proof, a current Gateproof dogfood proof, and a hardened operator-ready dogfood chapter.",
+      "One ongoing Gateproof case study with a preserved historical fixture proof and a current Gateproof dogfood proof.",
     caseId: "cinder",
     studyLabel: "Ongoing case study",
     studyType: "Single-case historical + live dogfood record",
-    temporalStatus: "Historical chapter preserved; dogfood and hardening chapters green",
+    temporalStatus: "Historical chapter preserved; dogfood chapter green",
     primaryClaim:
-      "Gateproof can preserve an original historical proof chapter while extending the same Cinder case study into live dogfood and hardening chapters without rewriting the earlier record.",
+      "Gateproof can preserve an original historical proof chapter while extending the same Cinder case study into a live dogfood chapter without rewriting the earlier record.",
     methodSummary:
       "Freeze completed chapters, then let the next truthful gate contract expose the next blocker until the live system earns a new green chapter.",
     observedOutcome:
-      "This page now preserves the original fixture proof, the first Gateproof dogfood proof, and the hardened stale-run-safe dogfood proof as one continuous Cinder record.",
+      "This page now preserves the original fixture proof and the first Gateproof dogfood proof as one continuous Cinder record.",
     abstract:
-      "Cinder is now presented as one ongoing Gateproof case study. Chapter one preserves the original historical Cargo-fixture proof. Chapter two records the first green dogfood proof in which Cinder ran Gateproof's real docs deploy workflow on a self-hosted Cinder runner. Chapter three records the hardening work that made that same dogfood loop survive stale queued runs and stronger public smoke. The page keeps all three chapters visible without rewriting the earlier record.",
+      "Cinder is now presented as one ongoing Gateproof case study. Chapter one preserves the original historical Cargo-fixture proof. Chapter two records the first green dogfood proof in which Cinder ran Gateproof's real docs deploy workflow on a self-hosted Cinder runner. The page keeps both chapters visible without rewriting the earlier record.",
     historicalStatus:
-      "The historical fixture chapter remains preserved, and the newer dogfood and hardening chapters are backed by real green workflow witnesses.",
+      "The historical fixture chapter remains preserved, and the newer dogfood chapter is backed by a real green workflow witness.",
     caseBoundary: [
       "System under study: Cinder on Cloudflare.",
-      "Case structure: one preserved historical fixture chapter, one first green dogfood chapter, and one hardening chapter.",
+      "Case structure: one preserved historical fixture chapter and one first green dogfood chapter.",
       "Historical artifacts remain fixed and inspectable rather than reinterpreted.",
-      "Current dogfood and hardening artifacts point at public repos and successful witness workflow runs.",
+      "Current dogfood artifacts point at public repos and a successful witness workflow run.",
       "Out of scope for this page: turning every future proof into a separate standalone case-study route.",
     ],
     procedure: [
@@ -839,26 +767,21 @@ export function getCinderCaseStudyContent(): CinderCaseStudyContent {
       "Promote the current proof contract to the next truthful claim rather than rewriting the old one.",
       "Run the live loop against the new claim until the first failing gate is honestly green.",
       "Publish the resulting proof artifacts before updating the public narrative.",
-      "Present all earned chapters on one page so the case study reads as one continuous story.",
+      "Present the earned chapters on one page so the case study reads as one continuous story.",
     ],
     findings: [
       "Chapter one remains preserved as the historical Cargo-fixture proof.",
       "Chapter two proves Gateproof's docs deploy through Cinder against the real Gateproof repo.",
-      "Chapter three proves the same dogfood loop can survive stale queued runs and stronger route-level deploy smoke.",
       "The same case study can extend forward without rewriting the original proof chapters.",
-      "Public artifact links now point at the museum-style historical record plus the live dogfood and hardening proofs.",
+      "Public artifact links now point at the museum-style historical record plus the live dogfood proof.",
     ],
     limitations: [
-      "This page summarizes three proof chapters but does not itself execute the live loop.",
-      "The current dogfood and hardening chapters depend on public infra and secrets to reproduce live.",
+      "This page summarizes two proof chapters but does not itself execute the live loop.",
+      "The current dogfood chapter depends on public infra and secrets to reproduce live.",
       "Future chapters still need to be earned through the same proof-loop discipline rather than added narratively.",
     ],
-    artifacts: [...historicalArtifacts, ...dogfoodArtifacts, ...hardeningArtifacts],
-    evidenceSections: [
-      ...historicalEvidenceSections,
-      ...dogfoodEvidenceSections,
-      ...hardeningEvidenceSections,
-    ],
+    artifacts: [...historicalArtifacts, ...dogfoodArtifacts],
+    evidenceSections: [...historicalEvidenceSections, ...dogfoodEvidenceSections],
     chapters,
     currentRepoStatus,
   };
