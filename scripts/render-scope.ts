@@ -640,7 +640,7 @@ export function getCinderCaseStudyContent(): CinderCaseStudyContent {
     {
       label: "Cinder proof contract",
       url: CINDER_DOGFOOD_PLAN_URL,
-      note: "Canonical Gateproof dogfood contract: webhook, queue, runner, and deploy-smoke against Gateproof.",
+      note: "Canonical Gateproof product-path contract: repo connect, repo list, repo status, repo dispatch, webhook, queue, runner, and deploy-smoke against Gateproof.",
     },
     {
       label: "Cinder provisioning",
@@ -670,8 +670,9 @@ export function getCinderCaseStudyContent(): CinderCaseStudyContent {
     },
     {
       title: "Execution-ready queue payload",
-      summary: "Cinder exposed the queued Gateproof deploy job as an execution-ready payload.",
+      summary: "Cinder exposed the connected Gateproof deploy job as an execution-ready payload after dispatching it through its own product path.",
       items: [
+        "Cinder connected Gateproof as a product-owned repo before dispatch.",
         "The queue payload resolved repo_full_name as acoyfellow/gateproof.",
         "The payload included self-hosted and cinder labels.",
         "The payload included a real repo-scoped runner registration token for the Gateproof job.",
@@ -721,18 +722,18 @@ export function getCinderCaseStudyContent(): CinderCaseStudyContent {
       label: "Chapter 2: Gateproof docs dogfood proof",
       status: "Current green proof",
       primaryClaim:
-        "Cinder ran Gateproof's real docs deploy workflow on a self-hosted Cinder runner and the deployed site passed smoke.",
+        "Cinder connected Gateproof through its own product path, dispatched the real docs deploy workflow, ran it on a self-hosted Cinder runner, and the deployed site passed smoke.",
       methodSummary:
-        "Provision Cinder against the existing Gateproof repo, dispatch the real CI workflow, observe the webhook and queue, run the deploy job through the local agent, and verify the deployed site.",
+        "Provision Cinder, connect Gateproof through the CLI, list and inspect the repo through Cinder, dispatch the real CI workflow through Cinder, observe the webhook and queue, run the deploy job through the local agent, and verify the deployed site.",
       observedOutcome:
-        "From committed code, Cinder dispatched Gateproof CI, handled the workflow_job webhook, exposed an execution-ready queue payload, ran the real Deploy Demo Site job through the local cinder-agent, and observed a 200 smoke response from gateproof.dev.",
+        "From committed code, Cinder connected Gateproof through its own repo path, listed and inspected the connected repo, dispatched Gateproof CI through Cinder, handled the workflow_job webhook, exposed an execution-ready queue payload, ran the real Deploy Demo Site job through the local cinder-agent, and observed a 200 smoke response from gateproof.dev.",
       artifacts: dogfoodArtifacts,
       evidenceSections: dogfoodEvidenceSections,
       limitations: [
         "This chapter proves the Gateproof docs deploy path, not every historical Cargo cache/speed claim from chapter one.",
         "A live rerun still requires Cloudflare infrastructure, GitHub access, and the Cinder environment secrets.",
         "The witness repo and workflow are real, but the proof is still scoped to one ongoing case study rather than a generalized benchmark suite.",
-        "Recurring deploys under messy queued-run conditions are future hardening work, not part of this chapter's claim.",
+        "Multi-repo onboarding and messy queued-run hardening are future chapters, not part of this chapter's claim.",
       ],
     },
   ];
@@ -750,14 +751,14 @@ export function getCinderCaseStudyContent(): CinderCaseStudyContent {
     methodSummary:
       "Freeze completed chapters, then let the next truthful gate contract expose the next blocker until the live system earns a new green chapter.",
     observedOutcome:
-      "This page now preserves the original fixture proof and the first Gateproof dogfood proof as one continuous Cinder record.",
+      "This page now preserves the original fixture proof and the first productized Gateproof dogfood proof as one continuous Cinder record.",
     abstract:
-      "Cinder is now presented as one ongoing Gateproof case study. Chapter one preserves the original historical Cargo-fixture proof. Chapter two records the first green dogfood proof in which Cinder ran Gateproof's real docs deploy workflow on a self-hosted Cinder runner. The page keeps both chapters visible without rewriting the earlier record.",
+      "Cinder is now presented as one ongoing Gateproof case study. Chapter one preserves the original historical Cargo-fixture proof. Chapter two records the first green product-path proof in which Cinder connected Gateproof through its own repo UX, dispatched Gateproof's real docs deploy workflow, ran it on a self-hosted Cinder runner, and verified the deployed site. The page keeps both chapters visible without rewriting the earlier record.",
     historicalStatus:
       "The historical fixture chapter remains preserved, and the newer dogfood chapter is backed by a real green workflow witness.",
     caseBoundary: [
       "System under study: Cinder on Cloudflare.",
-      "Case structure: one preserved historical fixture chapter and one first green dogfood chapter.",
+      "Case structure: one preserved historical fixture chapter and one first green dogfood chapter with productized repo operations.",
       "Historical artifacts remain fixed and inspectable rather than reinterpreted.",
       "Current dogfood artifacts point at public repos and a successful witness workflow run.",
       "Out of scope for this page: turning every future proof into a separate standalone case-study route.",
@@ -771,7 +772,7 @@ export function getCinderCaseStudyContent(): CinderCaseStudyContent {
     ],
     findings: [
       "Chapter one remains preserved as the historical Cargo-fixture proof.",
-      "Chapter two proves Gateproof's docs deploy through Cinder against the real Gateproof repo.",
+      "Chapter two proves Gateproof's docs deploy through Cinder against the real Gateproof repo using Cinder's own repo connect/list/status/dispatch path.",
       "The same case study can extend forward without rewriting the original proof chapters.",
       "Public artifact links now point at the museum-style historical record plus the live dogfood proof.",
     ],
