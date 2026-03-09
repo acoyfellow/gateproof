@@ -422,6 +422,175 @@ describe("Worker loop", () => {
     }
   });
 
+  test("createOpenCodeWorker accepts fenced JSON content and retries after an unusable reply", async () => {
+    const cwd = await createTempRepo();
+    let calls = 0;
+    const server = Bun.serve({
+      port: 0,
+      fetch() {
+        calls += 1;
+
+        if (calls === 1) {
+          return Response.json({
+            choices: [
+              {
+                message: {
+                  content: "I need to think about this a bit more first.",
+                },
+              },
+            ],
+          });
+        }
+
+        return Response.json({
+          choices: [
+            {
+              message: {
+                content: [
+                  {
+                    type: "text",
+                    text: [
+                      "I'll inspect the file first.",
+                      "```json",
+                      JSON.stringify({
+                        action: "done",
+                        summary: "worker recovered after retry",
+                        commitMessage: "chore: retry succeeded",
+                      }),
+                      "```",
+                    ].join("\n"),
+                  },
+                ],
+              },
+            },
+          ],
+        });
+      },
+    });
+
+    try {
+      const worker = createOpenCodeWorker({
+        endpoint: `http://127.0.0.1:${server.port}`,
+        timeoutMs: 1_000,
+      });
+
+      if (!worker) {
+        throw new Error("worker was not created");
+      }
+
+      const context: WorkerContext = {
+        iteration: 1,
+        plan: createFailingPlan([createFailingGoal("alpha", "Alpha gate")]),
+        result: {
+          status: "fail",
+          proofStrength: "weak",
+          iterations: 1,
+          goals: [
+            {
+              id: "alpha",
+              title: "Alpha gate",
+              status: "fail",
+              proofStrength: "weak",
+              summary: "expected failure",
+              evidence: {
+                actions: [],
+                errors: ["expected failure"],
+              },
+            } satisfies GateRunResult,
+          ],
+          summary: "one or more gates failed",
+          cleanupErrors: [],
+        },
+        failedGoals: [
+          {
+            id: "alpha",
+            title: "Alpha gate",
+            status: "fail",
+            proofStrength: "weak",
+            summary: "expected failure",
+            evidence: {
+              actions: [],
+              errors: ["expected failure"],
+            },
+          },
+        ],
+        firstFailedGoal: {
+          id: "alpha",
+          title: "Alpha gate",
+          status: "fail",
+          proofStrength: "weak",
+          summary: "expected failure",
+          evidence: {
+            actions: [],
+            errors: ["expected failure"],
+          },
+        },
+        cwd,
+        planPath: "plan.ts",
+      };
+
+      const result = await Effect.runPromise(worker(context));
+
+      expect(calls).toBe(2);
+      expect(result.summary).toBe("worker recovered after retry");
+      expect(result.commitMessage).toBe("chore: retry succeeded");
+    } finally {
+      server.stop(true);
+      await rm(cwd, { recursive: true, force: true });
+    }
+  });
+
+  test("iteration reports include worker response excerpts when parsing fails", async () => {
+    const cwd = await createTempRepo();
+    const server = Bun.serve({
+      port: 0,
+      fetch() {
+        return Response.json({
+          choices: [
+            {
+              message: {
+                content: "I should probably inspect crates/cinder-cli/src/main.rs first.",
+              },
+            },
+          ],
+        });
+      },
+    });
+
+    try {
+      await Effect.runPromise(
+        Plan.runLoop(
+          createFailingPlan([createFailingGoal("alpha", "Alpha gate")]),
+          {
+            cwd,
+            worker: createOpenCodeWorker({
+              endpoint: `http://127.0.0.1:${server.port}`,
+              timeoutMs: 1_000,
+              maxSteps: 1,
+            }),
+          },
+        ),
+      );
+
+      const latestText = await readFile(join(cwd, ".gateproof", "latest.json"), "utf8");
+      const latest = JSON.parse(latestText) as Record<string, unknown>;
+      const worker = latest.worker as Record<string, unknown>;
+      const debug = worker.debug as Record<string, unknown>;
+
+      expect(worker.summary).toBe("worker did not return a usable instruction");
+      expect(debug.attempts).toBe(3);
+      expect(debug.rawAssistantContentExcerpt).toBe(
+        "I should probably inspect crates/cinder-cli/src/main.rs first.",
+      );
+      expect(debug.normalizedAssistantContentExcerpt).toBe(
+        "I should probably inspect crates/cinder-cli/src/main.rs first.",
+      );
+    } finally {
+      server.stop(true);
+      await rm(cwd, { recursive: true, force: true });
+    }
+  });
+
   test("writes iteration reports into .gateproof/latest.json", async () => {
     const cwd = await createTempRepo();
 
