@@ -268,6 +268,12 @@ export interface WorkerResult {
   summary: string;
   commitMessage?: string;
   stop?: boolean;
+  debug?: {
+    attempts?: number;
+    rawAssistantContentExcerpt?: string;
+    normalizedAssistantContentExcerpt?: string;
+    lastHttpStatus?: number;
+  };
 }
 
 export interface WorkerRuntime {
@@ -391,6 +397,7 @@ interface IterationReport {
     timedOut?: boolean;
     stopped?: boolean;
     scopeViolation?: string;
+    debug?: WorkerResult["debug"];
   };
   commit?: CommitResult;
   snapshot?: ProofSnapshot;
@@ -407,9 +414,27 @@ interface WorkerInvocationResult {
   timedOut: boolean;
 }
 
+interface OpenCodeModelCallDebug {
+  attempts: number;
+  rawAssistantContentExcerpt?: string;
+  normalizedAssistantContentExcerpt?: string;
+  lastHttpStatus?: number;
+}
+
+interface OpenCodeModelCallResult {
+  instruction: OpenCodeInstruction | null;
+  debug?: OpenCodeModelCallDebug;
+}
+
+type OpenCodeMessageContentPart =
+  | { type?: string; text?: string | null }
+  | { type?: string; content?: string | null };
+
+type OpenCodeMessageContent = string | null | ReadonlyArray<OpenCodeMessageContentPart>;
+
 interface OpenCodeChatCompletionChoice {
   message?: {
-    content?: string | null;
+    content?: OpenCodeMessageContent;
   };
 }
 
@@ -778,6 +803,21 @@ const captureProofSnapshot = (
 
     return snapshot;
   });
+
+const createExcerpt = (value: string | null | undefined, maxLength = 1000): string | undefined => {
+  if (typeof value !== "string") {
+    return undefined;
+  }
+
+  const trimmed = value.trim();
+  if (trimmed.length === 0) {
+    return undefined;
+  }
+
+  return trimmed.length <= maxLength
+    ? trimmed
+    : `${trimmed.slice(0, maxLength - 1)}…`;
+};
 
 const createCommit = (
   cwd: string,
@@ -1789,6 +1829,7 @@ const runPlanLoop = (
         timedOut: workerInvocation.timedOut || undefined,
         stopped: workerInvocation.result.stop || undefined,
         scopeViolation,
+        debug: workerInvocation.result.debug,
       };
       const commitMessage =
         workerInvocation.result.commitMessage ??
@@ -1854,11 +1895,65 @@ const runPlanLoop = (
     return finalizedResult;
   });
 
+const extractJsonCandidate = (content: string): string | null => {
+  const fenced = content.match(/```(?:json)?\s*([\s\S]*?)```/i);
+  if (fenced && typeof fenced[1] === "string") {
+    return fenced[1].trim();
+  }
+
+  const start = content.indexOf("{");
+  if (start === -1) {
+    return null;
+  }
+
+  let depth = 0;
+  let inString = false;
+  let escaped = false;
+
+  for (let index = start; index < content.length; index += 1) {
+    const char = content[index];
+
+    if (inString) {
+      if (escaped) {
+        escaped = false;
+      } else if (char === "\\") {
+        escaped = true;
+      } else if (char === "\"") {
+        inString = false;
+      }
+      continue;
+    }
+
+    if (char === "\"") {
+      inString = true;
+      continue;
+    }
+
+    if (char === "{") {
+      depth += 1;
+      continue;
+    }
+
+    if (char === "}") {
+      depth -= 1;
+      if (depth === 0) {
+        return content.slice(start, index + 1).trim();
+      }
+    }
+  }
+
+  return null;
+};
+
 const parseOpenCodeInstruction = (content: string): OpenCodeInstruction | null => {
   try {
     const parsed: unknown = JSON.parse(content);
     if (!isRecord(parsed) || typeof parsed.action !== "string") {
-      return null;
+      const candidate = extractJsonCandidate(content);
+      if (!candidate || candidate === content) {
+        return null;
+      }
+      return parseOpenCodeInstruction(candidate);
     }
 
     switch (parsed.action) {
@@ -1898,40 +1993,111 @@ const parseOpenCodeInstruction = (content: string): OpenCodeInstruction | null =
         return null;
     }
   } catch {
+    const candidate = extractJsonCandidate(content);
+    if (!candidate || candidate === content) {
+      return null;
+    }
+    return parseOpenCodeInstruction(candidate);
+  }
+};
+
+const normalizeOpenCodeMessageContent = (
+  content: OpenCodeMessageContent | undefined,
+): string | null => {
+  if (typeof content === "string") {
+    return content;
+  }
+
+  if (!Array.isArray(content)) {
     return null;
   }
+
+  const parts = content
+    .map((entry: OpenCodeMessageContentPart) => {
+      if (!entry || typeof entry !== "object") {
+        return "";
+      }
+
+      if ("text" in entry && typeof entry.text === "string") {
+        return entry.text;
+      }
+
+      if ("content" in entry && typeof entry.content === "string") {
+        return entry.content;
+      }
+
+      return "";
+    })
+    .filter((part: string) => part.length > 0);
+
+  return parts.length > 0 ? parts.join("\n") : null;
 };
 
 const callOpenCodeModel = (
   options: OpenCodeWorkerOptions,
   messages: ReadonlyArray<{ role: "system" | "user" | "assistant"; content: string }>,
-): Effect.Effect<OpenCodeInstruction | null, never, never> => {
+): Effect.Effect<OpenCodeModelCallResult, never, never> => {
   const endpoint = options.endpoint;
   if (!endpoint) {
-    return Effect.succeed(null);
+    return Effect.succeed({
+      instruction: null,
+    });
   }
 
   return Effect.tryPromise(async () => {
-    const response = await fetch(endpoint, {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        ...(options.apiKey ? { Authorization: `Bearer ${options.apiKey}` } : {}),
-      },
-      body: JSON.stringify({
-        model: options.model ?? "gpt-5.3-codex",
-        messages,
-      }),
-    });
+    let lastDebug: OpenCodeModelCallDebug | undefined;
 
-    if (!response.ok) {
-      return null;
+    for (let attempt = 0; attempt < 3; attempt += 1) {
+      const response = await fetch(endpoint, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          ...(options.apiKey ? { Authorization: `Bearer ${options.apiKey}` } : {}),
+        },
+        body: JSON.stringify({
+          model: options.model ?? "gpt-5.3-codex",
+          messages,
+        }),
+      });
+
+      if (!response.ok) {
+        lastDebug = {
+          attempts: attempt + 1,
+          lastHttpStatus: response.status,
+        };
+        continue;
+      }
+
+      const payload = (await response.json()) as OpenCodeChatCompletionResponse;
+      const content = normalizeOpenCodeMessageContent(payload.choices?.[0]?.message?.content);
+      const instruction = typeof content === "string" ? parseOpenCodeInstruction(content) : null;
+      if (instruction) {
+        return {
+          instruction,
+          debug: {
+            attempts: attempt + 1,
+          },
+        };
+      }
+
+      const rawContent = payload.choices?.[0]?.message?.content;
+      lastDebug = {
+        attempts: attempt + 1,
+        lastHttpStatus: response.status,
+        rawAssistantContentExcerpt: createExcerpt(
+          typeof rawContent === "string" ? rawContent : JSON.stringify(rawContent),
+        ),
+        normalizedAssistantContentExcerpt: createExcerpt(content),
+      };
     }
 
-    const payload = (await response.json()) as OpenCodeChatCompletionResponse;
-    const content = payload.choices?.[0]?.message?.content;
-    return typeof content === "string" ? parseOpenCodeInstruction(content) : null;
-  }).pipe(Effect.catch(() => Effect.succeed(null)));
+    return {
+      instruction: null,
+      debug: lastDebug,
+    };
+  }).pipe(Effect.catch(() => Effect.succeed({
+    instruction: null,
+  })));
 };
 
 const executeOpenCodeInstruction = (
@@ -2069,12 +2235,14 @@ export const createOpenCodeWorker = (
       const changes: WorkerChange[] = [];
 
       for (let step = 0; step < maxSteps; step += 1) {
-        const instruction = yield* callOpenCodeModel(options, messages);
+        const modelResult = yield* callOpenCodeModel(options, messages);
+        const instruction = modelResult.instruction;
         if (!instruction) {
           return {
             changes,
             summary: "worker did not return a usable instruction",
             stop: true,
+            debug: modelResult.debug,
           };
         }
 
