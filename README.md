@@ -93,9 +93,9 @@ Public artifacts:
 - Proof-run chapter commit: https://github.com/acoyfellow/cinder/commit/de26df3
 - Proof-run chapter contract: https://github.com/acoyfellow/cinder/blob/de26df3/plan.ts
 
-Status: Public proof artifacts are canonical; sibling workspaces are not build inputs
+Status: This page is built from public proof links, not a local Cinder checkout
 
-The canonical witnesses for this page are the public repositories and workflow artifacts linked above. Gateproof's deployed case-study content is generated from Gateproof-owned source and public artifact links, not from a mutable sibling Cinder checkout on the runner.
+This page is built from Gateproof-owned source and the public repo and workflow links above. It does not read a nearby Cinder checkout at deploy time, so the public page stays stable and reproducible.
 
 ## Roadmap
 

@@ -34,12 +34,12 @@ describe("front-door artifacts", () => {
     expect("cinderProvision" in files).toBe(false);
     expect("cinderPlan" in files).toBe(false);
     expect(caseStudy.temporalStatus).toBe(
-      "Historical chapter preserved; proof-run chapter green",
+      "Historical chapter preserved; proof-run chapter is green",
     );
     expect(caseStudy.historicalStatus).toContain("historical fixture chapter remains preserved");
-    expect(caseStudy.primaryClaim).toContain("extending the same Cinder case study");
+    expect(caseStudy.primaryClaim).toContain("adding new live chapters");
     expect(caseStudy.currentRepoStatus.title).toBe(
-      "Public proof artifacts are canonical; sibling workspaces are not build inputs",
+      "This page is built from public proof links, not a local Cinder checkout",
     );
     expect(proofContract?.code).toBeUndefined();
     expect(provisioning?.code).toBeUndefined();
