@@ -407,9 +407,15 @@ interface WorkerInvocationResult {
   timedOut: boolean;
 }
 
+type OpenCodeMessageContentPart =
+  | { type?: string; text?: string | null }
+  | { type?: string; content?: string | null };
+
+type OpenCodeMessageContent = string | null | ReadonlyArray<OpenCodeMessageContentPart>;
+
 interface OpenCodeChatCompletionChoice {
   message?: {
-    content?: string | null;
+    content?: OpenCodeMessageContent;
   };
 }
 
@@ -1902,6 +1908,38 @@ const parseOpenCodeInstruction = (content: string): OpenCodeInstruction | null =
   }
 };
 
+const normalizeOpenCodeMessageContent = (
+  content: OpenCodeMessageContent | undefined,
+): string | null => {
+  if (typeof content === "string") {
+    return content;
+  }
+
+  if (!Array.isArray(content)) {
+    return null;
+  }
+
+  const parts = content
+    .map((entry: OpenCodeMessageContentPart) => {
+      if (!entry || typeof entry !== "object") {
+        return "";
+      }
+
+      if ("text" in entry && typeof entry.text === "string") {
+        return entry.text;
+      }
+
+      if ("content" in entry && typeof entry.content === "string") {
+        return entry.content;
+      }
+
+      return "";
+    })
+    .filter((part: string) => part.length > 0);
+
+  return parts.length > 0 ? parts.join("\n") : null;
+};
+
 const callOpenCodeModel = (
   options: OpenCodeWorkerOptions,
   messages: ReadonlyArray<{ role: "system" | "user" | "assistant"; content: string }>,
@@ -1929,7 +1967,7 @@ const callOpenCodeModel = (
     }
 
     const payload = (await response.json()) as OpenCodeChatCompletionResponse;
-    const content = payload.choices?.[0]?.message?.content;
+    const content = normalizeOpenCodeMessageContent(payload.choices?.[0]?.message?.content);
     return typeof content === "string" ? parseOpenCodeInstruction(content) : null;
   }).pipe(Effect.catch(() => Effect.succeed(null)));
 };
