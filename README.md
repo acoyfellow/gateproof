@@ -78,11 +78,11 @@ Outcome: The loop only passes when the live response says hello world.
 
 ## First Case Study: Cinder
 
-The Cinder case study is now one ongoing record with two earned chapters:
+The Cinder case study is now one ongoing record with three earned chapters:
 
 - Chapter 1 preserves the original historical Cargo-fixture proof.
 - Chapter 2 proves that Cinder ran Gateproof's real docs deploy workflow on a self-hosted Cinder runner.
-The next chapter is planned hardening work for recurring dogfood under messy queued-run conditions.
+- Chapter 3 proves that Cinder can start and report proof runs for a connected repo through its own product path.
 
 Public artifacts:
 
@@ -90,6 +90,8 @@ Public artifacts:
 - Historical proof contract: https://github.com/acoyfellow/cinder-round-one-end/blob/main/plan.ts
 - Dogfood provisioning: https://github.com/acoyfellow/cinder/blob/1cd5460/alchemy.run.ts
 - Dogfood proof contract: https://github.com/acoyfellow/cinder/blob/1cd5460/plan.ts
+- Proof-run chapter commit: https://github.com/acoyfellow/cinder/commit/de26df3
+- Proof-run chapter contract: https://github.com/acoyfellow/cinder/blob/de26df3/plan.ts
 
 Status: Public proof artifacts are canonical; sibling workspaces are not build inputs
 
@@ -97,10 +99,10 @@ The canonical witnesses for this page are the public repositories and workflow a
 
 ## Roadmap
 
-Gateproof is now dogfooding on Cinder in the case study. The next phase is to harden recurring deploys under messy queue state without losing proof quality.
+Gateproof is now dogfooding on Cinder through a connected-repo proof-run path. The next phase is to make that path work across more than one repo without losing proof quality.
 
 - Preserve the historical and current chapters without rewriting their claims after publication.
-- Harden recurring Gateproof deploys before extending the same proof discipline to new repos.
+- Extend the same product path from one connected repo to two connected repos.
 - Keep finalize and publication tied to the last known green proof instead of ad hoc local state.
 - Continue future Cinder chapters in the same case study instead of resetting the narrative.
 

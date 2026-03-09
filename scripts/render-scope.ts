@@ -179,6 +179,12 @@ const CINDER_END_REPO_URL = "https://github.com/acoyfellow/cinder-round-one-end"
 const CINDER_DOGFOOD_COMMIT_URL = "https://github.com/acoyfellow/cinder/commit/1cd5460";
 const CINDER_DOGFOOD_PLAN_URL = "https://github.com/acoyfellow/cinder/blob/1cd5460/plan.ts";
 const CINDER_DOGFOOD_PROVISION_URL = "https://github.com/acoyfellow/cinder/blob/1cd5460/alchemy.run.ts";
+const CINDER_PROOF_RUN_COMMIT_URL = "https://github.com/acoyfellow/cinder/commit/de26df3";
+const CINDER_PROOF_RUN_PLAN_URL = "https://github.com/acoyfellow/cinder/blob/de26df3/plan.ts";
+const GATEPROOF_WORKER_LOOP_COMMIT_URL =
+  "https://github.com/acoyfellow/gateproof/commit/8326307396cd131154af4dc39b715bc410713f5b";
+const GATEPROOF_PROOF_RUN_WITNESS_URL =
+  "https://github.com/acoyfellow/gateproof/actions/runs/22869731418";
 const apiList = [
   "`Gate.define(...)`",
   "`Plan.define(...)`",
@@ -347,11 +353,11 @@ Outcome: The loop only passes when the live response says hello world.
 
 ## First Case Study: Cinder
 
-The Cinder case study is now one ongoing record with two earned chapters:
+The Cinder case study is now one ongoing record with three earned chapters:
 
 - Chapter 1 preserves the original historical Cargo-fixture proof.
 - Chapter 2 proves that Cinder ran Gateproof's real docs deploy workflow on a self-hosted Cinder runner.
-The next chapter is planned hardening work for recurring dogfood under messy queued-run conditions.
+- Chapter 3 proves that Cinder can start and report proof runs for a connected repo through its own product path.
 
 Public artifacts:
 
@@ -359,6 +365,8 @@ Public artifacts:
 - Historical proof contract: ${CINDER_END_REPO_URL}/blob/main/plan.ts
 - Dogfood provisioning: ${CINDER_DOGFOOD_PROVISION_URL}
 - Dogfood proof contract: ${CINDER_DOGFOOD_PLAN_URL}
+- Proof-run chapter commit: ${CINDER_PROOF_RUN_COMMIT_URL}
+- Proof-run chapter contract: ${CINDER_PROOF_RUN_PLAN_URL}
 
 Status: ${cinderStatus.title}
 
@@ -366,10 +374,10 @@ ${cinderStatus.body}
 
 ## Roadmap
 
-Gateproof is now dogfooding on Cinder in the case study. The next phase is to harden recurring deploys under messy queue state without losing proof quality.
+Gateproof is now dogfooding on Cinder through a connected-repo proof-run path. The next phase is to make that path work across more than one repo without losing proof quality.
 
 - Preserve the historical and current chapters without rewriting their claims after publication.
-- Harden recurring Gateproof deploys before extending the same proof discipline to new repos.
+- Extend the same product path from one connected repo to two connected repos.
 - Keep finalize and publication tied to the last known green proof instead of ad hoc local state.
 - Continue future Cinder chapters in the same case study instead of resetting the narrative.
 
@@ -697,6 +705,57 @@ export function getCinderCaseStudyContent(): CinderCaseStudyContent {
       ],
     },
   ];
+  const proofRunArtifacts: ReadonlyArray<CaseStudyArtifact> = [
+    {
+      label: "Cinder proof-run chapter",
+      url: CINDER_PROOF_RUN_COMMIT_URL,
+      note: "Public Cinder commit where repo proof runs became part of the connected-repo product path.",
+    },
+    {
+      label: "Cinder proof-run contract",
+      url: CINDER_PROOF_RUN_PLAN_URL,
+      note: "Canonical proof contract including repo connect, repo list, repo status, repo dispatch, repo proof run, webhook, queue, runner, and deploy-smoke.",
+    },
+    {
+      label: "Gateproof worker-loop foundation",
+      url: GATEPROOF_WORKER_LOOP_COMMIT_URL,
+      note: "Gateproof commit that provided the reusable self-fixing worker-loop substrate consumed by this chapter.",
+    },
+    {
+      label: "Successful proof-run witness",
+      url: GATEPROOF_PROOF_RUN_WITNESS_URL,
+      note: "Real Gateproof CI run whose Deploy Demo Site job completed during the proof-run chapter.",
+    },
+  ];
+  const proofRunEvidenceSections: ReadonlyArray<CaseStudyEvidenceSection> = [
+    {
+      title: "Connected repo proof-run API",
+      summary: "Cinder exposed a product-owned proof-run path for the connected Gateproof repo.",
+      items: [
+        "The CLI added cinder repo prove acoyfellow/gateproof.",
+        "Cinder returned a proof_run_id, repo, triggered_run_id, status, and timestamps through its own HTTP API.",
+        "The proof fetched the same proof-run record back from GET /proof-runs/:id and used that as the grounded witness.",
+      ],
+    },
+    {
+      title: "Repo operations stayed green",
+      summary: "The proof-run chapter was added on top of the existing connected-repo operations surface rather than replacing it.",
+      items: [
+        "Repo connect remained the way Gateproof entered Cinder state.",
+        "Repo list and repo status still proved that the connected repo was visible and inspectable.",
+        "Repo dispatch still triggered the real Gateproof workflow before the proof-run record was created.",
+      ],
+    },
+    {
+      title: "Runtime continuity",
+      summary: "The chapter only counted as complete because the old runtime witnesses stayed green after repo-proof-run was added.",
+      items: [
+        "The webhook gate still observed the real workflow_job delivery after dispatch.",
+        "The queue gate still observed the intended self-hosted Gateproof deploy job as an execution-ready payload.",
+        "The runner and deploy-smoke gates still ended on a successful Deploy Demo Site job and 200 responses from the public routes.",
+      ],
+    },
+  ];
   const chapters: ReadonlyArray<CaseStudyChapter> = [
     {
       id: "chapter-1",
@@ -720,7 +779,7 @@ export function getCinderCaseStudyContent(): CinderCaseStudyContent {
     {
       id: "chapter-2",
       label: "Chapter 2: Gateproof docs dogfood proof",
-      status: "Current green proof",
+      status: "Completed live proof",
       primaryClaim:
         "Cinder connected Gateproof through its own product path, dispatched the real docs deploy workflow, ran it on a self-hosted Cinder runner, and the deployed site passed smoke.",
       methodSummary:
@@ -733,7 +792,25 @@ export function getCinderCaseStudyContent(): CinderCaseStudyContent {
         "This chapter proves the Gateproof docs deploy path, not every historical Cargo cache/speed claim from chapter one.",
         "A live rerun still requires Cloudflare infrastructure, GitHub access, and the Cinder environment secrets.",
         "The witness repo and workflow are real, but the proof is still scoped to one ongoing case study rather than a generalized benchmark suite.",
-        "Multi-repo onboarding and messy queued-run hardening are future chapters, not part of this chapter's claim.",
+        "Repo proof runs are not part of this chapter's claim; they were earned in the following chapter.",
+      ],
+    },
+    {
+      id: "chapter-3",
+      label: "Chapter 3: Connected repo proof runs",
+      status: "Current green proof",
+      primaryClaim:
+        "Cinder can start and report proof runs for a connected repo through its own product path, and the existing Gateproof runtime witnesses stay green afterward.",
+      methodSummary:
+        "Connect Gateproof through Cinder, list and inspect the connected repo, dispatch the real workflow through Cinder, start a proof run for that connected repo through Cinder, then require the webhook, queue, runner, and deploy-smoke witnesses to stay green.",
+      observedOutcome:
+        "From committed code, Cinder created a proof-run record for the connected Gateproof repo through its own CLI and HTTP API, reported the proof-run state back through GET /proof-runs/:id, and still drove the real Gateproof Deploy Demo Site job to a successful smoke-checked deploy.",
+      artifacts: proofRunArtifacts,
+      evidenceSections: proofRunEvidenceSections,
+      limitations: [
+        "This chapter is still scoped to one connected repo at a time.",
+        "A live rerun still requires Cloudflare infrastructure, GitHub access, and the Cinder environment secrets.",
+        "Multi-repo onboarding, repo isolation, stale-run recovery, and agent fleet behavior are later chapters.",
       ],
     },
   ];
@@ -741,26 +818,26 @@ export function getCinderCaseStudyContent(): CinderCaseStudyContent {
   return {
     title: "Cinder",
     description:
-      "One ongoing Gateproof case study with a preserved historical fixture proof and a current Gateproof dogfood proof.",
+      "One ongoing Gateproof case study with a preserved historical fixture proof, a live dogfood proof, and a current proof-run chapter.",
     caseId: "cinder",
     studyLabel: "Ongoing case study",
     studyType: "Single-case historical + live dogfood record",
-    temporalStatus: "Historical chapter preserved; dogfood chapter green",
+    temporalStatus: "Historical chapter preserved; proof-run chapter green",
     primaryClaim:
-      "Gateproof can preserve an original historical proof chapter while extending the same Cinder case study into a live dogfood chapter without rewriting the earlier record.",
+      "Gateproof can preserve an original historical proof chapter while extending the same Cinder case study through live dogfood and proof-run chapters without rewriting the earlier record.",
     methodSummary:
       "Freeze completed chapters, then let the next truthful gate contract expose the next blocker until the live system earns a new green chapter.",
     observedOutcome:
-      "This page now preserves the original fixture proof and the first productized Gateproof dogfood proof as one continuous Cinder record.",
+      "This page now preserves the original fixture proof, the first productized Gateproof dogfood proof, and the connected-repo proof-run chapter as one continuous Cinder record.",
     abstract:
-      "Cinder is now presented as one ongoing Gateproof case study. Chapter one preserves the original historical Cargo-fixture proof. Chapter two records the first green product-path proof in which Cinder connected Gateproof through its own repo UX, dispatched Gateproof's real docs deploy workflow, ran it on a self-hosted Cinder runner, and verified the deployed site. The page keeps both chapters visible without rewriting the earlier record.",
+      "Cinder is now presented as one ongoing Gateproof case study. Chapter one preserves the original historical Cargo-fixture proof. Chapter two records the first green product-path proof in which Cinder connected Gateproof through its own repo UX, dispatched Gateproof's real docs deploy workflow, ran it on a self-hosted Cinder runner, and verified the deployed site. Chapter three records the next earned step: Cinder can now start and report proof runs for that connected repo through its own product path while keeping the runtime witnesses green. The page keeps all earned chapters visible without rewriting the earlier record.",
     historicalStatus:
-      "The historical fixture chapter remains preserved, and the newer dogfood chapter is backed by a real green workflow witness.",
+      "The historical fixture chapter remains preserved, and the current connected-repo proof-run chapter is backed by a real green workflow witness.",
     caseBoundary: [
       "System under study: Cinder on Cloudflare.",
-      "Case structure: one preserved historical fixture chapter and one first green dogfood chapter with productized repo operations.",
+      "Case structure: one preserved historical fixture chapter, one live dogfood chapter, and one current proof-run chapter.",
       "Historical artifacts remain fixed and inspectable rather than reinterpreted.",
-      "Current dogfood artifacts point at public repos and a successful witness workflow run.",
+      "Current proof-run artifacts point at public repos and a successful witness workflow run.",
       "Out of scope for this page: turning every future proof into a separate standalone case-study route.",
     ],
     procedure: [
@@ -773,16 +850,17 @@ export function getCinderCaseStudyContent(): CinderCaseStudyContent {
     findings: [
       "Chapter one remains preserved as the historical Cargo-fixture proof.",
       "Chapter two proves Gateproof's docs deploy through Cinder against the real Gateproof repo using Cinder's own repo connect/list/status/dispatch path.",
+      "Chapter three proves Cinder can start and report proof runs for a connected repo through its own product path.",
       "The same case study can extend forward without rewriting the original proof chapters.",
       "Public artifact links now point at the museum-style historical record plus the live dogfood proof.",
     ],
     limitations: [
-      "This page summarizes two proof chapters but does not itself execute the live loop.",
-      "The current dogfood chapter depends on public infra and secrets to reproduce live.",
+      "This page summarizes three proof chapters but does not itself execute the live loop.",
+      "The current proof-run chapter depends on public infra and secrets to reproduce live.",
       "Future chapters still need to be earned through the same proof-loop discipline rather than added narratively.",
     ],
-    artifacts: [...historicalArtifacts, ...dogfoodArtifacts],
-    evidenceSections: [...historicalEvidenceSections, ...dogfoodEvidenceSections],
+    artifacts: [...historicalArtifacts, ...dogfoodArtifacts, ...proofRunArtifacts],
+    evidenceSections: [...historicalEvidenceSections, ...dogfoodEvidenceSections, ...proofRunEvidenceSections],
     chapters,
     currentRepoStatus,
   };
