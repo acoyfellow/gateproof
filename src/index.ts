@@ -1,4 +1,5 @@
 import { createHash } from "node:crypto";
+import { existsSync } from "node:fs";
 import { readFile, mkdir, stat, writeFile } from "node:fs/promises";
 import { spawn } from "node:child_process";
 import { dirname, relative, resolve } from "node:path";
@@ -18,7 +19,16 @@ const createRequestTimeout = (
 };
 
 const DEFAULT_ALLOWED_PATHS = ["src/", "app/", "components/", "pages/", "lib/"] as const;
-const DEFAULT_FORBIDDEN_PATHS = ["node_modules/", ".git/", "dist/", "build/", ".env"] as const;
+const DEFAULT_FORBIDDEN_PATHS = [
+  "node_modules/",
+  ".git/",
+  "dist/",
+  "build/",
+  ".env",
+  "plan.ts",
+  "README.md",
+  "demo/src/routes/case-studies/",
+] as const;
 
 const normalizePath = (value: string): string => value.replaceAll("\\", "/");
 
@@ -243,6 +253,8 @@ export interface WorkerContext {
   firstFailedGoal: GateRunResult | null;
   cwd: string;
   planPath?: string;
+  activeScope?: PlanScope;
+  latestReportPath?: string;
 }
 
 export interface WorkerChange {
@@ -319,6 +331,7 @@ export interface PlanRunLoopOptions {
   commit?: LoopCommitOptions;
   onIteration?: (status: LoopIterationStatus) => void;
   memory?: MemoryRuntime;
+  rerunFailedGoalPrefix?: boolean;
 }
 
 export interface OpenCodeWorkerOptions {
@@ -327,6 +340,7 @@ export interface OpenCodeWorkerOptions {
   model?: string;
   maxSteps?: number;
   timeoutMs?: number;
+  prompt?: string;
 }
 
 interface CommandResult {
@@ -1525,11 +1539,26 @@ const evaluateGate = (
     };
   });
 
-const runPlanOnce = (plan: PlanDefinition): Effect.Effect<PlanRunResult, never, never> =>
+const selectGoalsThrough = (
+  plan: PlanDefinition,
+  targetGoalId: string | undefined,
+): ReadonlyArray<PlanGoal> => {
+  if (!targetGoalId) {
+    return plan.goals;
+  }
+
+  const index = plan.goals.findIndex((goal) => goal.id === targetGoalId);
+  return index === -1 ? plan.goals : plan.goals.slice(0, index + 1);
+};
+
+const runPlanOnce = (
+  plan: PlanDefinition,
+  targetGoalId?: string,
+): Effect.Effect<PlanRunResult, never, never> =>
   Effect.gen(function* () {
     const cloudflareTails = new Map<string, CloudflareTailState>();
     const goals: GateRunResult[] = [];
-    for (const goal of plan.goals) {
+    for (const goal of selectGoalsThrough(plan, targetGoalId)) {
       goals.push(yield* evaluateGate(goal, cloudflareTails));
     }
 
@@ -1547,6 +1576,11 @@ const runPlanOnce = (plan: PlanDefinition): Effect.Effect<PlanRunResult, never, 
       cleanupErrors: [],
     };
   });
+
+const resolveLatestReportPath = (cwd: string): string | undefined => {
+  const latestPath = resolve(cwd, ".gateproof", "latest.json");
+  return existsSync(latestPath) ? latestPath : undefined;
+};
 
 const runCleanup = (
   plan: PlanDefinition,
@@ -1634,10 +1668,10 @@ const createDefaultCommitMessage = (
   iteration: number,
 ): string => {
   if (!firstFailedGoal) {
-    return `chore: loop iteration ${iteration}`;
+    return `wip(loop): iteration ${iteration}`;
   }
 
-  return `fix: attempt ${firstFailedGoal.id} gate`;
+  return `wip(loop): ${firstFailedGoal.id} iteration ${iteration}`;
 };
 
 const createIterationReport = (
@@ -1672,6 +1706,7 @@ const runPlanLoop = (
     const maxIterations = options.maxIterations ?? plan.loop?.maxIterations ?? 1;
     const cwd = resolve(options.cwd ?? process.cwd());
     const workerTimeoutMs = options.workerTimeoutMs ?? 10 * 60 * 1000;
+    let rerunTargetGoalId: string | undefined;
     let iteration = 0;
     let latest: PlanRunResult = {
       status: "inconclusive",
@@ -1684,7 +1719,7 @@ const runPlanLoop = (
 
     while (iteration < maxIterations) {
       iteration += 1;
-      const result = yield* runPlanOnce(plan);
+      const result = yield* runPlanOnce(plan, rerunTargetGoalId);
       latest = {
         ...result,
         iterations: iteration,
@@ -1723,6 +1758,12 @@ const runPlanLoop = (
       }
 
       const failedGoals = latest.goals.filter((goal) => goal.status !== "pass");
+      if (options.rerunFailedGoalPrefix && !rerunTargetGoalId && firstFailedGoal?.id) {
+        rerunTargetGoalId = firstFailedGoal.id;
+      }
+      const targetGoal = firstFailedGoal
+        ? plan.goals.find((goal) => goal.id === firstFailedGoal.id)
+        : undefined;
       const workerContext: WorkerContext = {
         iteration,
         plan,
@@ -1731,15 +1772,14 @@ const runPlanLoop = (
         firstFailedGoal,
         cwd,
         planPath: options.planPath,
+        activeScope: targetGoal?.scope,
+        latestReportPath: resolveLatestReportPath(cwd),
       };
       const workerInvocation = yield* invokeWorker(
         options.worker,
         workerContext,
         workerTimeoutMs,
       );
-      const targetGoal = firstFailedGoal
-        ? plan.goals.find((goal) => goal.id === firstFailedGoal.id)
-        : undefined;
       const scopeValidation = yield* validateScope(targetGoal, cwd);
       const scopeViolation = scopeValidation.ok ? undefined : scopeValidation.violation;
       const workerEntry: IterationReport["worker"] = {
@@ -1996,16 +2036,28 @@ export const createOpenCodeWorker = (
     Effect.gen(function* () {
       const maxSteps = Math.max(1, options.maxSteps ?? 4);
       const systemPrompt =
-        "You are Gateproof's built-in worker. Fix only the first failing gate. " +
-        "Return exactly one JSON object with an action: read, write, replace, exec, or done. " +
-        "Keep changes minimal and stay inside the repository scope.";
+        options.prompt ??
+        (
+          "You are Gateproof's built-in worker. Fix only the first failing gate. " +
+          "Do not edit the objective files unless the active scope explicitly allows them. " +
+          "Return exactly one JSON object with an action: read, write, replace, exec, or done. " +
+          "Keep changes minimal and stay inside the active scope."
+        );
       const initialContext = JSON.stringify({
+        repoRoot: context.cwd,
         planPath: context.planPath,
-        firstFailedGoal: context.firstFailedGoal,
+        latestReportPath: context.latestReportPath,
+        activeScope: context.activeScope,
+        firstFailedGoal: context.firstFailedGoal
+          ? {
+            id: context.firstFailedGoal.id,
+            title: context.firstFailedGoal.title,
+            summary: context.firstFailedGoal.summary,
+          }
+          : null,
         failedGoals: context.failedGoals.map((goal) => ({
           id: goal.id,
           title: goal.title,
-          status: goal.status,
           summary: goal.summary,
         })),
       }, null, 2);

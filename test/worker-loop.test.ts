@@ -179,6 +179,62 @@ describe("Worker loop", () => {
     }
   });
 
+  test("reruns only through the first failing gate when rerunFailedGoalPrefix is enabled", async () => {
+    const cwd = await createTempRepo();
+
+    try {
+      const result = await Effect.runPromise(
+        Plan.runLoop(
+          Plan.define({
+            goals: [
+              {
+                id: "alpha",
+                title: "Alpha gate",
+                gate: Gate.define({
+                  act: [Act.exec("true")],
+                  assert: [Assert.noErrors()],
+                }),
+              },
+              {
+                id: "beta",
+                title: "Beta gate",
+                gate: Gate.define({
+                  act: [Act.exec("false")],
+                  assert: [Assert.noErrors()],
+                }),
+              },
+              {
+                id: "gamma",
+                title: "Gamma gate",
+                gate: Gate.define({
+                  act: [Act.exec("false")],
+                  assert: [Assert.noErrors()],
+                }),
+              },
+            ],
+            loop: {
+              maxIterations: 2,
+            },
+          }),
+          {
+            cwd,
+            rerunFailedGoalPrefix: true,
+            worker: () =>
+              Effect.succeed({
+                changes: [],
+                summary: "no-op worker attempt",
+              }),
+          },
+        ),
+      );
+
+      expect(result.status).toBe("fail");
+      expect(result.goals.map((goal) => goal.id)).toEqual(["alpha", "beta"]);
+    } finally {
+      await rm(cwd, { recursive: true, force: true });
+    }
+  });
+
   test("writes .gateproof/latest.json on an immediate fail without a worker", async () => {
     const cwd = await createTempRepo();
 

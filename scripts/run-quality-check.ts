@@ -24,6 +24,16 @@ export async function runQualityCheck(): Promise<void> {
 
   const steps: Step[] = [
     {
+      label: "Plan validate",
+      command: ["bun", "run", "plan:validate"],
+      cwd: root,
+    },
+    {
+      label: "Gate hygiene",
+      command: ["bun", "run", "plan:hygiene"],
+      cwd: root,
+    },
+    {
       label: "Root lint",
       command: ["bun", "run", "lint"],
       cwd: root,

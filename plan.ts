@@ -31,6 +31,12 @@ const scope = {
       {
         id: "hello-world",
         title: "GET / returns hello world",
+        scope: {
+          allowedPaths: ["examples/hello-world/"],
+          forbiddenPaths: ["plan.ts", "README.md", "demo/src/routes/case-studies/"],
+          maxChangedFiles: 2,
+          maxChangedLines: 50,
+        },
         gate: Gate.define({
           observe: createHttpObserveResource({
             url: `${baseUrl}/`,
