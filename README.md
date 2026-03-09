@@ -81,8 +81,10 @@ Outcome: The loop only passes when the live response says hello world.
 The Cinder case study is now one ongoing record with three earned chapters:
 
 - Chapter 1 preserves the original historical Cargo-fixture proof.
-- Chapter 2 proves that Cinder ran Gateproof's real docs deploy workflow on a self-hosted Cinder runner.
-- Chapter 3 proves that Cinder can start and report proof runs for a connected repo through its own product path.
+- Chapter 2 proves that Cinder ran Gateproof's real docs deploy workflow through a Cloudflare control plane and onto a separate runner machine.
+- Chapter 3 proves that Cinder can start and report proof runs for a connected repo through its own product path while still using that same machine-backed execution path.
+
+Current truth: Cinder's control plane is on Cloudflare, but the compute still runs on a separate machine today. Hosted runner capacity in the user's Cloudflare account is the next claim, not an earned one yet.
 
 Public artifacts:
 
