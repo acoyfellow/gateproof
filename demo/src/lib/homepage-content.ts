@@ -66,8 +66,9 @@ export const homepageContent: HomepageContent = {
       body: "The gate describes the finished behavior before any code exists.",
     },
     {
-      title: "The loop runs the worker",
-      body: "One failing gate, one bounded attempt, loop repeats until the live system passes.",
+      title: "Use one worker path at a time",
+      body:
+        "The built-in worker is the stable demo path. filepath is a separate runtime alpha that returns a patch for Gateproof to apply locally.",
     },
     {
       title: "One file, one contract",

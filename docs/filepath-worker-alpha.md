@@ -1,6 +1,7 @@
 # filepath Worker Alpha
 
 This is an internal alpha for Gateproof's filepath-backed worker runtime.
+It has a real hello-world witness against deployed `https://myfilepath.com`, but it is still not Gateproof's default public worker path.
 
 It keeps Gateproof local and uses filepath only for isolated worker execution. Gateproof still owns:
 - proof execution
@@ -51,6 +52,7 @@ Failure is expected if:
 
 Current runtime truth:
 - filepath worker runs execute against a fresh repo clone for the workspace, not against a shared mutable workspace filesystem
+- filepath's live `/run` and `/run/script` responses currently report `status: "success"` on a passing bounded run
 - this alpha proves the returned patch contract and local materialization path
 - it does not require the filepath workspace itself to stay mutated after the run
 

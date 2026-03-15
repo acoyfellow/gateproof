@@ -197,6 +197,12 @@ const apiList = [
 ];
 
 const trimSource = (source: string): string => source.trim();
+const FILEPATH_ALPHA_SNIPPET = trimSource(`bun run example:hello-world:filepath-worker
+
+# Gateproof runs the proof locally.
+# filepath runs the bounded worker task.
+# filepath returns a unified patch.
+# Gateproof applies the patch locally and reruns proof.`);
 
 const missingSnippet = (filePath: string, label: string): string =>
   `// ${label} is not available on this machine yet.\n// Expected at: ${filePath}`;
@@ -337,7 +343,7 @@ export function renderReadme(
 
   return `# Gateproof
 
-Gateproof runs the proof, sends in the worker, and keeps going until the live claim is true.
+Gateproof runs the proof locally from \`plan.ts\`. The built-in worker loop is the stable demo path, and the filepath-backed worker is a real hello-world alpha witness rather than the default public runtime.
 
 ## Tutorial
 
@@ -350,6 +356,11 @@ ${files.helloWorldPlan}
 \`\`\`
 
 Outcome: The loop only passes when the live response says hello world.
+
+## Worker Paths
+
+- \`bun run example:hello-world:worker\` — stable built-in worker demo path
+- \`bun run example:hello-world:filepath-worker\` — real filepath-backed alpha witness on the hello-world loop
 
 ## First Case Study: Cinder
 
@@ -392,7 +403,9 @@ Done when: ${scope.spec.howTo.done}
 Run it:
 
 \`\`\`bash
+bun run example:hello-world
 bun run example:hello-world:worker
+bun run example:hello-world:filepath-worker
 bun run alchemy.run.ts
 ${runCommand}
 \`\`\`
@@ -499,13 +512,18 @@ Run it. The loop passes only when the live response matches the claim. One file,
 
 1. Run the proof once.
 2. Select the first failing gate.
-3. Send in the worker for one bounded attempt.
+3. Use one bounded worker path for one bounded attempt.
 4. Commit the attempt.
 5. Rerun until the live claim is green or the loop stops.
 
 ## Gates that matter
 
-${canonicalGoals.map((g) => `- ${g}`).join("\n")}`,
+${canonicalGoals.map((g) => `- ${g}`).join("\n")}
+
+## Worker paths
+
+- Built-in worker: stable demo path for Gateproof itself.
+- filepath worker: real alpha witness for the hello-world loop; Gateproof still owns proof, scope validation, and commits locally.`,
     "reference/api": `# Reference: API
 
 Public surface for the proof loop. This is the curated list of entrypoints and assertions.
@@ -561,9 +579,9 @@ export function getHomepageContent(): HomepageContent {
           "The gate describes the finished behavior before any code exists.",
       },
       {
-        title: "The loop runs the worker",
+        title: "Use one worker path at a time",
         body:
-          "One failing gate, one bounded attempt, loop repeats until the live system passes.",
+          "The built-in worker is the stable demo path. filepath is a separate runtime alpha that returns a patch for Gateproof to apply locally.",
       },
       {
         title: "One file, one contract",
@@ -899,11 +917,19 @@ export function getPatternsContent(): ReadonlyArray<PatternContent> {
     },
     {
       id: "runloop",
-      tab: "Worker loop",
-      title: "Plan.runLoop with worker",
-      description: "The loop hands the first failing gate to a worker, commits, reruns.",
+      tab: "Built-in loop",
+      title: "Plan.runLoop with built-in worker",
+      description: "The stable demo path: first failing gate, one bounded built-in worker attempt, rerun.",
       language: "typescript",
       code: files.runloopWorkerPlan,
+    },
+    {
+      id: "filepath-alpha",
+      tab: "filepath alpha",
+      title: "filepath worker alpha",
+      description: "Gateproof stays local. filepath runs one bounded worker task, returns a patch, and Gateproof reruns proof after applying it.",
+      language: "bash",
+      code: FILEPATH_ALPHA_SNIPPET,
     },
     {
       id: "reference",
