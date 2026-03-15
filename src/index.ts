@@ -349,6 +349,15 @@ export interface OpenCodeWorkerOptions {
   prompt?: string;
 }
 
+export interface FilepathWorkerOptions {
+  endpoint: string;
+  workspaceId: string;
+  harnessId: string;
+  model: string;
+  apiKey?: string;
+  timeoutMs?: number;
+}
+
 interface CommandResult {
   ok: boolean;
   stdout: string;
@@ -419,6 +428,21 @@ interface OpenCodeModelCallDebug {
   rawAssistantContentExcerpt?: string;
   normalizedAssistantContentExcerpt?: string;
   lastHttpStatus?: number;
+}
+
+interface FilepathWorkerRunResponse {
+  status: "success" | "error" | "aborted" | "policy_error";
+  summary: string;
+  events?: ReadonlyArray<unknown>;
+  filesTouched?: ReadonlyArray<string>;
+  violations?: ReadonlyArray<string>;
+  diffSummary?: string | null;
+  patch?: string | null;
+  commit?: { sha: string; message: string } | null;
+  agentId: string;
+  runId: string;
+  startedAt: number;
+  finishedAt: number;
 }
 
 interface OpenCodeModelCallResult {
@@ -528,6 +552,62 @@ const runCommand = (
           exitCode: code,
         });
       });
+    }),
+  ).pipe(
+    Effect.catch(() =>
+      Effect.succeed({
+        ok: false,
+        stdout: "",
+        stderr: "command failed unexpectedly",
+        exitCode: null,
+      }),
+    ),
+  );
+
+const runCommandWithInput = (
+  command: string,
+  args: ReadonlyArray<string>,
+  cwd: string,
+  input: string,
+): Effect.Effect<CommandResult, never, never> =>
+  Effect.tryPromise(() =>
+    new Promise<CommandResult>((resolveCommand) => {
+      const child = spawn(command, [...args], {
+        cwd,
+        env: process.env,
+        stdio: ["pipe", "pipe", "pipe"],
+      });
+
+      let stdout = "";
+      let stderr = "";
+
+      child.stdout?.on("data", (chunk) => {
+        stdout += String(chunk);
+      });
+
+      child.stderr?.on("data", (chunk) => {
+        stderr += String(chunk);
+      });
+
+      child.on("error", (error) => {
+        resolveCommand({
+          ok: false,
+          stdout,
+          stderr: error instanceof Error ? error.message : String(error),
+          exitCode: null,
+        });
+      });
+
+      child.on("close", (code) => {
+        resolveCommand({
+          ok: code === 0,
+          stdout,
+          stderr,
+          exitCode: code,
+        });
+      });
+
+      child.stdin?.end(input);
     }),
   ).pipe(
     Effect.catch(() =>
@@ -818,6 +898,101 @@ const createExcerpt = (value: string | null | undefined, maxLength = 1000): stri
     ? trimmed
     : `${trimmed.slice(0, maxLength - 1)}…`;
 };
+
+const resolveFilepathRunEndpoint = (
+  endpoint: string,
+  workspaceId: string,
+): string => {
+  const trimmed = endpoint.trim();
+  if (trimmed.includes("/api/workspaces/")) {
+    return trimmed;
+  }
+
+  return `${trimmed.replace(/\/+$/, "")}/api/workspaces/${workspaceId}/run`;
+};
+
+const deriveWritableRoot = (scope: PlanScope | undefined): string => {
+  if (!scope?.allowedPaths || scope.allowedPaths.length !== 1) {
+    return ".";
+  }
+
+  const candidate = scope.allowedPaths[0];
+  if (!candidate || candidate === ".") {
+    return ".";
+  }
+
+  return candidate.endsWith("/") ? candidate.slice(0, -1) : ".";
+};
+
+const readLatestReportExcerpt = (
+  latestReportPath?: string,
+): Effect.Effect<string | undefined, never, never> =>
+  Effect.gen(function* () {
+    if (!latestReportPath || !existsSync(latestReportPath)) {
+      return undefined;
+    }
+
+    const contents = yield* Effect.tryPromise(() => readFile(latestReportPath, "utf8")).pipe(
+      Effect.catch(() => Effect.succeed("")),
+    );
+
+    return createExcerpt(contents, 16_000);
+  });
+
+const createFilepathWorkerTask = (
+  context: WorkerContext,
+  snapshot: ProofSnapshot,
+  latestReportExcerpt?: string,
+): string =>
+  [
+    "You are Gateproof's isolated worker runtime.",
+    "Fix only the first failing gate.",
+    "Keep changes minimal and stay inside the provided scope.",
+    "Edit concrete file paths, not directories.",
+    "If the allowed scope is a directory, inspect files inside it and patch the specific file that fixes the gate.",
+    "Do not commit.",
+    "",
+    JSON.stringify({
+      repoRoot: context.cwd,
+      planPath: context.planPath,
+      latestReportPath: context.latestReportPath,
+      latestReport: latestReportExcerpt,
+      snapshot,
+      activeScope: context.activeScope,
+      firstFailedGoal: context.firstFailedGoal
+        ? {
+          id: context.firstFailedGoal.id,
+          title: context.firstFailedGoal.title,
+          summary: context.firstFailedGoal.summary,
+        }
+        : null,
+      failedGoals: context.failedGoals.map((goal) => ({
+        id: goal.id,
+        title: goal.title,
+        summary: goal.summary,
+      })),
+    }, null, 2),
+  ].join("\n");
+
+const applyUnifiedPatch = (
+  cwd: string,
+  patch: string,
+): Effect.Effect<CommandResult, never, never> =>
+  runCommandWithInput(
+    "git",
+    ["apply", "--whitespace=nowarn", "--recount"],
+    cwd,
+    patch,
+  );
+
+const createWorkerChangesFromFiles = (
+  filesTouched: ReadonlyArray<string> | undefined,
+): WorkerChange[] =>
+  (filesTouched ?? []).map((path) => ({
+    kind: "write" as const,
+    path,
+    summary: `patched ${path}`,
+  }));
 
 const createCommit = (
   cwd: string,
@@ -2194,6 +2369,121 @@ const executeOpenCodeInstruction = (
       }],
     };
   });
+
+export const createFilepathWorker = (
+  options: FilepathWorkerOptions,
+): LoopWorker =>
+  (context) =>
+    Effect.gen(function* () {
+      const snapshot = yield* captureProofSnapshot(context.cwd, context.planPath);
+      const latestReportExcerpt = yield* readLatestReportExcerpt(context.latestReportPath);
+      const response = yield* Effect.tryPromise(() => {
+        const timeout = createRequestTimeout(options.timeoutMs ?? 10 * 60 * 1000);
+        return fetch(resolveFilepathRunEndpoint(options.endpoint, options.workspaceId), {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            ...(options.apiKey ? { Authorization: `Bearer ${options.apiKey}` } : {}),
+          },
+          body: JSON.stringify({
+            content: createFilepathWorkerTask(context, snapshot, latestReportExcerpt),
+            harnessId: options.harnessId,
+            model: options.model,
+            scope: {
+              allowedPaths: context.activeScope?.allowedPaths ?? [...DEFAULT_ALLOWED_PATHS],
+              forbiddenPaths: context.activeScope?.forbiddenPaths ?? [...DEFAULT_FORBIDDEN_PATHS],
+              toolPermissions: ["inspect", "search", "run", "write"],
+              writableRoot: deriveWritableRoot(context.activeScope),
+            },
+          }),
+          signal: timeout.signal,
+        }).finally(timeout.clear);
+      }).pipe(
+        Effect.catch(() => Effect.succeed(null)),
+      );
+
+      if (!response) {
+        return {
+          changes: [],
+          summary: "filepath worker request failed",
+          stop: true,
+        };
+      }
+
+      const payload = yield* Effect.tryPromise(() => response.json() as Promise<FilepathWorkerRunResponse>).pipe(
+        Effect.catch(() => Effect.succeed(null)),
+      );
+
+      if (!response.ok || !payload) {
+        return {
+          changes: [],
+          summary: `filepath worker request failed with status ${response.status}`,
+          stop: true,
+          debug: {
+            lastHttpStatus: response.status,
+          },
+        };
+      }
+
+      const violations = payload.violations ?? [];
+      if (payload.status !== "success" || violations.length > 0) {
+        return {
+          changes: [],
+          summary: violations.length > 0
+            ? `${payload.summary} (${violations.join("; ")})`
+            : payload.summary,
+          stop: true,
+          debug: {
+            lastHttpStatus: response.status,
+          },
+        };
+      }
+
+      const patch = typeof payload.patch === "string" ? payload.patch : "";
+      if (patch.trim().length === 0 && (payload.filesTouched?.length ?? 0) > 0) {
+        return {
+          changes: [],
+          summary: "filepath worker reported file changes but did not return a patch",
+          stop: true,
+          debug: {
+            lastHttpStatus: response.status,
+          },
+        };
+      }
+
+      if (patch.trim().length > 0) {
+        const applied = yield* applyUnifiedPatch(context.cwd, patch);
+        if (!applied.ok) {
+          const detail = createExcerpt(applied.stderr || applied.stdout, 600);
+          return {
+            changes: [],
+            summary: detail
+              ? `failed to apply filepath worker patch: ${detail}`
+              : "failed to apply filepath worker patch",
+            stop: true,
+            debug: {
+              lastHttpStatus: response.status,
+            },
+          };
+        }
+      }
+
+      return {
+        changes: createWorkerChangesFromFiles(payload.filesTouched),
+        summary: payload.summary,
+        debug: {
+          lastHttpStatus: response.status,
+        },
+      };
+    }).pipe(
+      Effect.catch(() =>
+        Effect.succeed({
+          changes: [],
+          summary: "filepath worker failed unexpectedly",
+          stop: true,
+        }),
+      ),
+    );
 
 export const createOpenCodeWorker = (
   options: OpenCodeWorkerOptions,
