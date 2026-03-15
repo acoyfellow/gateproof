@@ -33,6 +33,7 @@
     "readme:generate": "bun scripts/generate-readme.ts",
     "example:hello-world": "bun scripts/run-hello-world-example.ts",
     "example:hello-world:worker": "bun scripts/run-hello-world-worker-loop.ts",
+    "example:hello-world:filepath-worker": "bun scripts/run-hello-world-filepath-worker-loop.ts",
     "quality:check": "bun scripts/run-quality-check.ts",
     "plan:validate": "bun scripts/validate-plan.ts",
     "plan:hygiene": "bun scripts/check-gate-hygiene.ts",

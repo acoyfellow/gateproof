@@ -1,12 +1,13 @@
 import { describe, expect, test } from "bun:test";
 import { mkdtemp, mkdir, readFile, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
-import { join } from "node:path";
+import { dirname, join } from "node:path";
 import { spawnSync } from "node:child_process";
 import { Effect } from "effect";
 import {
   Act,
   Assert,
+  createFilepathWorker,
   Gate,
   Plan,
   createOpenCodeWorker,
@@ -30,19 +31,44 @@ const runGit = (cwd: string, args: ReadonlyArray<string>): string => {
   return result.stdout.trim();
 };
 
-const createTempRepo = async (): Promise<string> => {
+const createTempRepo = async (
+  files: Record<string, string> = { "README.md": "# temp\n" },
+): Promise<string> => {
   const cwd = await mkdtemp(join(tmpdir(), "gateproof-worker-"));
   runGit(cwd, ["init"]);
   runGit(cwd, ["config", "user.name", "Gateproof Test"]);
   runGit(cwd, ["config", "user.email", "gateproof-test@example.com"]);
-  await writeFile(join(cwd, "README.md"), "# temp\n", "utf8");
-  runGit(cwd, ["add", "README.md"]);
+  for (const [path, contents] of Object.entries(files)) {
+    const absolutePath = join(cwd, path);
+    await mkdir(dirname(absolutePath), { recursive: true });
+    await writeFile(absolutePath, contents, "utf8");
+  }
+  runGit(cwd, ["add", "-A"]);
   runGit(cwd, ["commit", "-m", "chore: baseline"]);
   return cwd;
 };
 
 const getCommitCount = (cwd: string): number =>
   Number(runGit(cwd, ["rev-list", "--count", "HEAD"]));
+
+const createTrackedPatch = async (
+  cwd: string,
+  path: string,
+  contents: string,
+): Promise<string> => {
+  await writeFile(join(cwd, path), contents, "utf8");
+  const result = spawnSync("git", ["diff", "--binary", "--relative", "HEAD", "--"], {
+    cwd,
+    encoding: "utf8",
+  });
+
+  if (result.status !== 0) {
+    throw new Error(result.stderr || "git diff failed");
+  }
+
+  runGit(cwd, ["checkout", "--", "."]);
+  return result.stdout;
+};
 
 const createFailingPlan = (
   goals: ReadonlyArray<PlanDefinition["goals"][number]>,
@@ -534,6 +560,236 @@ describe("Worker loop", () => {
       expect(calls).toBe(2);
       expect(result.summary).toBe("worker recovered after retry");
       expect(result.commitMessage).toBe("chore: retry succeeded");
+    } finally {
+      server.stop(true);
+      await rm(cwd, { recursive: true, force: true });
+    }
+  });
+
+  test("createFilepathWorker applies a returned patch, keeps commit authority local, and reruns the loop", async () => {
+    const cwd = await createTempRepo({
+      "README.md": "# temp\n",
+      "response.txt": "not ready\n",
+    });
+    const patch = await createTrackedPatch(cwd, "response.txt", "hello world\n");
+    let requestBody: Record<string, unknown> | undefined;
+    const server = Bun.serve({
+      port: 0,
+      async fetch(request) {
+        requestBody = await request.json() as Record<string, unknown>;
+        return Response.json({
+          status: "success",
+          summary: "restored hello world",
+          events: [],
+          filesTouched: ["response.txt"],
+          violations: [],
+          diffSummary: "1 file touched: response.txt",
+          patch,
+          commit: null,
+          agentId: "agent-1",
+          runId: "run-1",
+          startedAt: Date.now(),
+          finishedAt: Date.now(),
+        });
+      },
+    });
+
+    try {
+      const result = await Effect.runPromise(
+        Plan.runLoop(
+          Plan.define({
+            goals: [
+              {
+                id: "hello-world",
+                title: "response.txt says hello world",
+                gate: Gate.define({
+                  act: [Act.exec("grep -qx 'hello world' response.txt", { cwd })],
+                  assert: [Assert.noErrors()],
+                }),
+                scope: {
+                  allowedPaths: ["response.txt"],
+                  forbiddenPaths: ["README.md"],
+                  maxChangedFiles: 1,
+                },
+              },
+            ],
+            loop: {
+              maxIterations: 2,
+            },
+          }),
+          {
+            cwd,
+            worker: createFilepathWorker({
+              endpoint: `http://127.0.0.1:${server.port}`,
+              workspaceId: "ws-hello",
+              harnessId: "codex",
+              model: "test-model",
+              apiKey: "secret-token",
+              timeoutMs: 1_000,
+            }),
+          },
+        ),
+      );
+
+      expect(result.status).toBe("pass");
+      expect((await readFile(join(cwd, "response.txt"), "utf8")).trim()).toBe("hello world");
+      expect(getCommitCount(cwd)).toBe(2);
+      expect(requestBody?.harnessId).toBe("codex");
+      expect(requestBody?.model).toBe("test-model");
+      expect((requestBody?.scope as Record<string, unknown>)?.toolPermissions).toEqual([
+        "inspect",
+        "search",
+        "run",
+        "write",
+      ]);
+      expect((requestBody?.scope as Record<string, unknown>)?.allowedPaths).toEqual(["response.txt"]);
+      expect((requestBody?.scope as Record<string, unknown>)?.forbiddenPaths).toEqual(["README.md"]);
+      expect(typeof requestBody?.content).toBe("string");
+      expect(String(requestBody?.content)).toContain("\"id\": \"hello-world\"");
+      expect(String(requestBody?.content)).toContain("\"snapshot\"");
+    } finally {
+      server.stop(true);
+      await rm(cwd, { recursive: true, force: true });
+    }
+  });
+
+  test("createFilepathWorker still fails the loop when the returned patch escapes scope", async () => {
+    const cwd = await createTempRepo({
+      "README.md": "# temp\n",
+      "response.txt": "not ready\n",
+    });
+    const patch = await createTrackedPatch(cwd, "README.md", "# escaped\n");
+    const server = Bun.serve({
+      port: 0,
+      fetch() {
+        return Response.json({
+          status: "success",
+          summary: "patched README",
+          events: [],
+          filesTouched: ["README.md"],
+          violations: [],
+          diffSummary: "1 file touched: README.md",
+          patch,
+          commit: null,
+          agentId: "agent-2",
+          runId: "run-2",
+          startedAt: Date.now(),
+          finishedAt: Date.now(),
+        });
+      },
+    });
+
+    try {
+      const result = await Effect.runPromise(
+        Plan.runLoop(
+          Plan.define({
+            goals: [
+              {
+                id: "hello-world",
+                title: "response.txt says hello world",
+                gate: Gate.define({
+                  act: [Act.exec("grep -qx 'hello world' response.txt", { cwd })],
+                  assert: [Assert.noErrors()],
+                }),
+                scope: {
+                  allowedPaths: ["response.txt"],
+                  forbiddenPaths: ["README.md"],
+                },
+              },
+            ],
+            loop: {
+              maxIterations: 2,
+            },
+          }),
+          {
+            cwd,
+            worker: createFilepathWorker({
+              endpoint: `http://127.0.0.1:${server.port}`,
+              workspaceId: "ws-scope",
+              harnessId: "codex",
+              model: "test-model",
+              timeoutMs: 1_000,
+            }),
+          },
+        ),
+      );
+
+      expect(result.status).toBe("fail");
+      expect(result.summary).toContain("scope violation");
+      expect(getCommitCount(cwd)).toBe(2);
+    } finally {
+      server.stop(true);
+      await rm(cwd, { recursive: true, force: true });
+    }
+  });
+
+  test("createFilepathWorker stops with a clear summary when the returned patch cannot be applied", async () => {
+    const cwd = await createTempRepo({
+      "README.md": "# temp\n",
+      "response.txt": "not ready\n",
+    });
+    const server = Bun.serve({
+      port: 0,
+      fetch() {
+        return Response.json({
+          status: "success",
+          summary: "attempted change",
+          events: [],
+          filesTouched: ["response.txt"],
+          violations: [],
+          diffSummary: "1 file touched: response.txt",
+          patch: "not a valid patch",
+          commit: null,
+          agentId: "agent-3",
+          runId: "run-3",
+          startedAt: Date.now(),
+          finishedAt: Date.now(),
+        });
+      },
+    });
+
+    try {
+      const result = await Effect.runPromise(
+        Plan.runLoop(
+          Plan.define({
+            goals: [
+              {
+                id: "hello-world",
+                title: "response.txt says hello world",
+                gate: Gate.define({
+                  act: [Act.exec("grep -qx 'hello world' response.txt", { cwd })],
+                  assert: [Assert.noErrors()],
+                }),
+                scope: {
+                  allowedPaths: ["response.txt"],
+                },
+              },
+            ],
+            loop: {
+              maxIterations: 2,
+            },
+          }),
+          {
+            cwd,
+            worker: createFilepathWorker({
+              endpoint: `http://127.0.0.1:${server.port}`,
+              workspaceId: "ws-apply",
+              harnessId: "codex",
+              model: "test-model",
+              timeoutMs: 1_000,
+            }),
+          },
+        ),
+      );
+
+      expect(result.status).toBe("fail");
+      expect((await readFile(join(cwd, "response.txt"), "utf8")).trim()).toBe("not ready");
+      expect(getCommitCount(cwd)).toBe(2);
+      const latest = JSON.parse(
+        await readFile(join(cwd, ".gateproof", "latest.json"), "utf8"),
+      ) as Record<string, unknown>;
+      const worker = latest.worker as Record<string, unknown>;
+      expect(worker.summary).toContain("failed to apply filepath worker patch");
     } finally {
       server.stop(true);
       await rm(cwd, { recursive: true, force: true });
