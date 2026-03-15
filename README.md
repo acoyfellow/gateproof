@@ -1,6 +1,6 @@
 # Gateproof
 
-Gateproof runs the proof, sends in the worker, and keeps going until the live claim is true.
+Gateproof runs the proof locally from `plan.ts`. The built-in worker loop is the stable demo path, and the filepath-backed worker is a real hello-world alpha witness rather than the default public runtime.
 
 ## Tutorial
 
@@ -76,6 +76,11 @@ if (import.meta.main) {
 
 Outcome: The loop only passes when the live response says hello world.
 
+## Worker Paths
+
+- `bun run example:hello-world:worker` — stable built-in worker demo path
+- `bun run example:hello-world:filepath-worker` — real filepath-backed alpha witness on the hello-world loop
+
 ## First Case Study: Cinder
 
 The Cinder case study is now one ongoing record with three earned chapters:
@@ -117,7 +122,9 @@ Done when: The endpoint returns 200 and the body contains hello world.
 Run it:
 
 ```bash
+bun run example:hello-world
 bun run example:hello-world:worker
+bun run example:hello-world:filepath-worker
 bun run alchemy.run.ts
 bun run plan.ts
 ```
