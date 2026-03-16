@@ -1,5 +1,5 @@
 import { error } from '@sveltejs/kit';
-import { renderMarkdown } from '$lib/markdown';
+import { renderMarkdown } from '$lib/server/markdown';
 import { allDocSlugs } from '$lib/docs-manifest';
 import { docsContent } from '$lib/docs-content';
 

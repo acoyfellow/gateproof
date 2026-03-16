@@ -74,7 +74,7 @@
           </p>
         </div>
         <div class="p-4 sm:p-6">
-          <CodeBlock code={data.snippetCode} language="typescript" wrap={true} />
+          <CodeBlock code={data.snippetCode} html={data.snippetHtml} language="typescript" wrap={true} />
         </div>
       </section>
 

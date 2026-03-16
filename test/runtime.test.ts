@@ -644,13 +644,12 @@ describe("README generation", () => {
 
     const readme = renderReadme(scope);
 
-    expect(readme).toContain("## Tutorial");
-    expect(readme).toContain("## First Case Study: Cinder");
+    expect(readme).toContain("Docs live on the website:");
+    expect(readme).toContain("## Start Small");
+    expect(readme).toContain("## Case Study: Cinder");
     expect(readme).toContain("### examples/hello-world/plan.ts");
-    expect(readme).toContain("Public artifacts:");
-    expect(readme).toContain(
-      "The next phase is to make that path work across more than one repo without losing proof quality.",
-    );
+    expect(readme).toContain("[Case study page](https://gateproof.dev/case-studies/cinder)");
+    expect(readme).toContain("## Run It");
     expect(readme).toContain("Canonical gates:");
   });
 });

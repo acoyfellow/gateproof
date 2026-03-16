@@ -1,10 +1,17 @@
 # Gateproof
 
-Gateproof runs the proof locally from `plan.ts`. The built-in worker loop is the stable demo path, and the filepath-backed worker is a real hello-world alpha witness rather than the default public runtime.
+Gateproof is a local proof loop. Put the claim in `plan.ts`, run it, and keep the system honest.
 
-## Tutorial
+Docs live on the website:
 
-Goal: Start with one tiny gate that is small on purpose and complete on purpose.
+- [Tutorial](https://gateproof.dev/docs/tutorials/first-gate)
+- [Run in a loop](https://gateproof.dev/docs/how-to/run-in-a-loop)
+- [Use the filepath worker alpha](https://gateproof.dev/docs/how-to/use-the-filepath-worker-alpha)
+- [Case studies](https://gateproof.dev/case-studies)
+
+## Start Small
+
+Start with one gate that is deliberately tiny and complete.
 
 ### examples/hello-world/plan.ts
 
@@ -79,20 +86,19 @@ Outcome: The loop only passes when the live response says hello world.
 ## Worker Paths
 
 - `bun run example:hello-world:worker` — stable built-in worker demo path
-- `bun run example:hello-world:filepath-worker` — real filepath-backed alpha witness on the hello-world loop
+- `bun run example:hello-world:filepath-worker` — real filepath-backed hello-world witness; not the default public worker path
 
-## First Case Study: Cinder
+The filepath path is documented on the site, not in a standalone markdown note:
 
-The Cinder case study is now one ongoing record with three earned chapters:
+- [Use the filepath Worker Alpha](https://gateproof.dev/docs/how-to/use-the-filepath-worker-alpha)
 
-- Chapter 1 preserves the original historical Cargo-fixture proof.
-- Chapter 2 proves that Cinder ran Gateproof's real docs deploy workflow through a Cloudflare control plane and onto a separate runner machine.
-- Chapter 3 proves that Cinder can start and report proof runs for a connected repo through its own product path while still using that same machine-backed execution path.
+## Case Study: Cinder
+
+The Cinder case study is one ongoing record with three earned chapters.
 
 Current truth: Cinder's control plane is on Cloudflare, but the compute still runs on a separate machine today. Hosted runner capacity in the user's Cloudflare account is the next claim, not an earned one yet.
 
-Public artifacts:
-
+- [Case study page](https://gateproof.dev/case-studies/cinder)
 - Historical provisioning: https://github.com/acoyfellow/cinder-round-one-end/blob/main/alchemy.run.ts
 - Historical proof contract: https://github.com/acoyfellow/cinder-round-one-end/blob/main/plan.ts
 - Dogfood provisioning: https://github.com/acoyfellow/cinder/blob/1cd5460/alchemy.run.ts
@@ -104,43 +110,21 @@ Status: This page is built from public proof links, not a local Cinder checkout
 
 This page is built from Gateproof-owned source and the public repo and workflow links above. It does not read a nearby Cinder checkout at deploy time, so the public page stays stable and reproducible.
 
-## Roadmap
+## Run It
 
-Gateproof is now dogfooding on Cinder through a connected-repo proof-run path. The next phase is to make that path work across more than one repo without losing proof quality.
-
-- Preserve the historical and current chapters without rewriting their claims after publication.
-- Extend the same product path from one connected repo to two connected repos.
-- Keep finalize and publication tied to the last known green proof instead of ad hoc local state.
-- Continue future Cinder chapters in the same case study instead of resetting the narrative.
-
-## How To
-
-Task: Run one complete gate from one file.
-
-Done when: The endpoint returns 200 and the body contains hello world.
-
-Run it:
+Smallest commands:
 
 ```bash
 bun run example:hello-world
 bun run example:hello-world:worker
 bun run example:hello-world:filepath-worker
-bun run alchemy.run.ts
 bun run plan.ts
 ```
-
-## Breaking Changes In 0.4.0
-
-- `Prd.*` is gone
-- `Claim.*` is gone
-- `plan.ts` is the canonical entrypoint
-- `Plan.*` replaces the old front door
 
 ## Reference
 
 Files:
 - `examples/hello-world/plan.ts`
-- `alchemy.run.ts`
 - `plan.ts`
 
 Canonical gates:

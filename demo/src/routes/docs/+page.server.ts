@@ -1,4 +1,4 @@
-import { renderMarkdown } from '$lib/markdown';
+import { renderMarkdown } from '$lib/server/markdown';
 import { docsContent } from '$lib/docs-content';
 
 export async function load() {

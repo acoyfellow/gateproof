@@ -12,7 +12,16 @@ export interface DocCategory {
 const manifest: DocCategory[] = [
 	{ label: "Overview", entries: [{ slug: "index", title: "Documentation" }] },
 	{ label: "Tutorials", entries: [{ slug: "tutorials/first-gate", title: "Your First Gate" }] },
-	{ label: "How-To Guides", entries: [{ slug: "how-to/run-in-a-loop", title: "Run in a Loop" }] },
+	{
+		label: "How-To Guides",
+		entries: [
+			{ slug: "how-to/run-in-a-loop", title: "Run in a Loop" },
+			{
+				slug: "how-to/use-the-filepath-worker-alpha",
+				title: "Use the filepath Worker Alpha"
+			}
+		]
+	},
 	{ label: "Reference", entries: [{ slug: "reference/api", title: "API Reference" }] },
 	{
 		label: "Explanations",

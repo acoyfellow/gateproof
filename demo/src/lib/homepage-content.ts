@@ -11,6 +11,7 @@ export interface HomepageContent {
   snippetTitle: string;
   snippetBody: string;
   snippetCode: string;
+  snippetHtml?: string;
   principles: ReadonlyArray<PrincipleCard>;
   ctaEyebrow: string;
   ctaTitle: string;
@@ -68,7 +69,7 @@ export const homepageContent: HomepageContent = {
     {
       title: "Use one worker path at a time",
       body:
-        "The built-in worker is the stable demo path. filepath is a separate runtime alpha that returns a patch for Gateproof to apply locally.",
+        "The built-in worker is the stable demo path. The filepath worker has its own site docs page and is currently scoped to a real hello-world witness.",
     },
     {
       title: "One file, one contract",

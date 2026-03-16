@@ -343,11 +343,18 @@ export function renderReadme(
 
   return `# Gateproof
 
-Gateproof runs the proof locally from \`plan.ts\`. The built-in worker loop is the stable demo path, and the filepath-backed worker is a real hello-world alpha witness rather than the default public runtime.
+Gateproof is a local proof loop. Put the claim in \`plan.ts\`, run it, and keep the system honest.
 
-## Tutorial
+Docs live on the website:
 
-Goal: Start with one tiny gate that is small on purpose and complete on purpose.
+- [Tutorial](https://gateproof.dev/docs/tutorials/first-gate)
+- [Run in a loop](https://gateproof.dev/docs/how-to/run-in-a-loop)
+- [Use the filepath worker alpha](https://gateproof.dev/docs/how-to/use-the-filepath-worker-alpha)
+- [Case studies](https://gateproof.dev/case-studies)
+
+## Start Small
+
+Start with one gate that is deliberately tiny and complete.
 
 ### examples/hello-world/plan.ts
 
@@ -360,20 +367,19 @@ Outcome: The loop only passes when the live response says hello world.
 ## Worker Paths
 
 - \`bun run example:hello-world:worker\` — stable built-in worker demo path
-- \`bun run example:hello-world:filepath-worker\` — real filepath-backed alpha witness on the hello-world loop
+- \`bun run example:hello-world:filepath-worker\` — real filepath-backed hello-world witness; not the default public worker path
 
-## First Case Study: Cinder
+The filepath path is documented on the site, not in a standalone markdown note:
 
-The Cinder case study is now one ongoing record with three earned chapters:
+- [Use the filepath Worker Alpha](https://gateproof.dev/docs/how-to/use-the-filepath-worker-alpha)
 
-- Chapter 1 preserves the original historical Cargo-fixture proof.
-- Chapter 2 proves that Cinder ran Gateproof's real docs deploy workflow through a Cloudflare control plane and onto a separate runner machine.
-- Chapter 3 proves that Cinder can start and report proof runs for a connected repo through its own product path while still using that same machine-backed execution path.
+## Case Study: Cinder
+
+The Cinder case study is one ongoing record with three earned chapters.
 
 Current truth: Cinder's control plane is on Cloudflare, but the compute still runs on a separate machine today. Hosted runner capacity in the user's Cloudflare account is the next claim, not an earned one yet.
 
-Public artifacts:
-
+- [Case study page](https://gateproof.dev/case-studies/cinder)
 - Historical provisioning: ${CINDER_END_REPO_URL}/blob/main/alchemy.run.ts
 - Historical proof contract: ${CINDER_END_REPO_URL}/blob/main/plan.ts
 - Dogfood provisioning: ${CINDER_DOGFOOD_PROVISION_URL}
@@ -385,43 +391,21 @@ Status: ${cinderStatus.title}
 
 ${cinderStatus.body}
 
-## Roadmap
+## Run It
 
-Gateproof is now dogfooding on Cinder through a connected-repo proof-run path. The next phase is to make that path work across more than one repo without losing proof quality.
-
-- Preserve the historical and current chapters without rewriting their claims after publication.
-- Extend the same product path from one connected repo to two connected repos.
-- Keep finalize and publication tied to the last known green proof instead of ad hoc local state.
-- Continue future Cinder chapters in the same case study instead of resetting the narrative.
-
-## How To
-
-Task: ${scope.spec.howTo.task}
-
-Done when: ${scope.spec.howTo.done}
-
-Run it:
+Smallest commands:
 
 \`\`\`bash
 bun run example:hello-world
 bun run example:hello-world:worker
 bun run example:hello-world:filepath-worker
-bun run alchemy.run.ts
 ${runCommand}
 \`\`\`
-
-## Breaking Changes In 0.4.0
-
-- \`Prd.*\` is gone
-- \`Claim.*\` is gone
-- \`plan.ts\` is the canonical entrypoint
-- \`Plan.*\` replaces the old front door
 
 ## Reference
 
 Files:
 - \`examples/hello-world/plan.ts\`
-- \`alchemy.run.ts\`
 - \`plan.ts\`
 
 Canonical gates:
@@ -452,7 +436,14 @@ export function getDocsManifest(): ReadonlyArray<DocsCategory> {
     },
     {
       label: "How-To Guides",
-      entries: [{ slug: "how-to/run-in-a-loop", title: "Run in a Loop", kind: "how-to" }],
+      entries: [
+        { slug: "how-to/run-in-a-loop", title: "Run in a Loop", kind: "how-to" },
+        {
+          slug: "how-to/use-the-filepath-worker-alpha",
+          title: "Use the filepath Worker Alpha",
+          kind: "how-to",
+        },
+      ],
     },
     {
       label: "Reference",
@@ -479,12 +470,17 @@ export function renderDocsContent(scope?: ScopeFile): Record<string, string> {
   return {
     "index": `# Documentation
 
-Four ways to use Gateproof docs:
+Gateproof has one front door: define the claim in \`plan.ts\`, run it, and keep the loop honest.
+
+Use the docs by task:
 
 - **Tutorial** — [Your First Gate](/docs/tutorials/first-gate): Learn by doing. One file, one gate, one pass.
 - **How-to** — [Run in a Loop](/docs/how-to/run-in-a-loop): Prove the live system. Task, steps, done condition.
+- **How-to** — [Use the filepath Worker Alpha](/docs/how-to/use-the-filepath-worker-alpha): Run the hello-world witness against filepath's live worker runtime.
 - **Reference** — [API Reference](/docs/reference/api): The public surface. Functions and types.
-- **Explanation** — [Case Studies](/docs/explanations/case-studies): Proof loops in the wild. Cinder and more.`,
+- **Explanation** — [Case Studies](/docs/explanations/case-studies): What has actually been earned so far.
+
+If you are new here, start with [Your First Gate](/docs/tutorials/first-gate).`,
     "tutorials/first-gate": `# Tutorial: Your First Gate
 
 **Goal:** ${resolvedScope.spec.tutorial.goal}
@@ -499,7 +495,13 @@ Do this: create one tiny proof file.
 ${files.helloWorldPlan}
 \`\`\`
 
-Run it. The loop passes only when the live response matches the claim. One file, one gate, one pass.`,
+Run it:
+
+\`\`\`bash
+bun run example:hello-world
+\`\`\`
+
+The loop passes only when the live response matches the claim. One file, one gate, one pass.`,
     "how-to/run-in-a-loop": `# How To: Prove The Live System
 
 **Task:** ${resolvedScope.spec.howTo.task}
@@ -513,8 +515,14 @@ Run it. The loop passes only when the live response matches the claim. One file,
 1. Run the proof once.
 2. Select the first failing gate.
 3. Use one bounded worker path for one bounded attempt.
-4. Commit the attempt.
-5. Rerun until the live claim is green or the loop stops.
+4. Rerun until the live claim is green or the loop stops.
+
+## Smallest commands
+
+\`\`\`bash
+bun run example:hello-world
+bun run example:hello-world:worker
+\`\`\`
 
 ## Gates that matter
 
@@ -523,10 +531,83 @@ ${canonicalGoals.map((g) => `- ${g}`).join("\n")}
 ## Worker paths
 
 - Built-in worker: stable demo path for Gateproof itself.
-- filepath worker: real alpha witness for the hello-world loop; Gateproof still owns proof, scope validation, and commits locally.`,
+- filepath worker: real alpha witness for the hello-world loop; Gateproof still owns proof, scope validation, and commits locally.
+
+For the filepath path, use the dedicated guide: [Use the filepath Worker Alpha](/docs/how-to/use-the-filepath-worker-alpha).`,
+    "how-to/use-the-filepath-worker-alpha": `# How To: Use the filepath Worker Alpha
+
+Run the filepath-backed worker path through the site docs.
+
+## What it proves
+
+- Gateproof still runs the proof locally.
+- filepath runs one bounded worker task against the workspace repo clone.
+- filepath returns a unified patch.
+- Gateproof applies that patch locally and reruns the proof.
+
+## Current scope
+
+- This is a real hello-world witness.
+- It is not the default public worker path.
+- The built-in worker remains the stable demo path.
+
+## Required configuration
+
+- \`GATEPROOF_FILEPATH_ENDPOINT\`
+  - Base filepath URL such as \`https://myfilepath.com\`
+  - A full \`/api/workspaces/:id/run\` URL also works
+- \`GATEPROOF_FILEPATH_API_KEY\`
+  - filepath API key for the target account
+- \`GATEPROOF_FILEPATH_WORKSPACE_ID\`
+  - workspace pointing at a Gateproof checkout that includes \`examples/hello-world\`
+- \`GATEPROOF_FILEPATH_HARNESS_ID\`
+  - filepath harness for the worker task
+- \`GATEPROOF_FILEPATH_MODEL\`
+  - use \`openai/gpt-4o\` for the current witness
+
+## filepath account requirements
+
+- Save the model provider key inside filepath itself.
+- In the current setup, that means saving an OpenRouter key in filepath Settings.
+- If runs fail because the stored provider key is missing or unreadable, re-save it in filepath before retrying.
+
+## Run the witness
+
+\`\`\`bash
+bun run example:hello-world:filepath-worker
+\`\`\`
+
+## What success looks like
+
+- filepath returns \`status: "success"\`
+- filepath returns a non-empty \`patch\`
+- Gateproof applies the patch locally with \`git apply\`
+- the hello-world gate reruns to green
+- the temp repo ends at \`hello from filepath\`
+
+## Current runtime truth
+
+- filepath worker runs execute against a fresh repo clone for the workspace
+- the run proves the returned patch contract and local materialization path
+- it does not require the filepath workspace itself to stay mutated after the run
+
+## Common failure modes
+
+- no \`patch\` returned
+- patch does not apply locally
+- patch escapes scope
+- workspace does not point at a compatible Gateproof checkout
+- filepath provider key is missing or unreadable`,
     "reference/api": `# Reference: API
 
 Public surface for the proof loop. This is the curated list of entrypoints and assertions.
+
+## Common commands
+
+- \`bun run example:hello-world\`
+- \`bun run example:hello-world:worker\`
+- \`bun run example:hello-world:filepath-worker\`
+- \`bun run plan.ts\`
 
 ## Core API
 
@@ -540,7 +621,7 @@ ${apiList.map((entry) => `- ${entry}`).join("\n")}
 Status: ${cinderStatus.title}. ${cinderStatus.body}`,
     "explanations/case-studies": `# Case Studies
 
-Case records for Gateproof deployments. Each entry states the claim, method, preserved artifacts, and current reproducibility limits.
+Case records for Gateproof deployments. Each entry states the claim, method, artifacts, and current reproducibility limits.
 
 ## 1. Cinder
 
@@ -552,9 +633,9 @@ One ongoing Gateproof case study with a preserved historical fixture chapter and
 
 Status: ${cinderStatus.title}. ${cinderStatus.body}
 
-### What went wrong
+### Current lesson
 
-The agent was allowed to modify \`plan.ts\` on the fly (we want that). Without guardrails, it wrote implementation into the plan—long inline scripts, app logic—so we effectively "wrote code 2x." The plan should stay declarative: *what must be true*, not *how*. Going forward we need guardrails (scope, lint, or plan-hygiene checks) when the agent edits \`plan.ts\`, so it doesn’t inject long \`Act.exec\` blocks or encode behavior that belongs in app code.
+The plan should stay declarative: *what must be true*, not *how*. The case-study work exposed a real process gap around runtime isolation and plan hygiene, so future chapters need stronger guardrails between orchestration and implementation.
 
 ---
 
@@ -581,7 +662,7 @@ export function getHomepageContent(): HomepageContent {
       {
         title: "Use one worker path at a time",
         body:
-          "The built-in worker is the stable demo path. filepath is a separate runtime alpha that returns a patch for Gateproof to apply locally.",
+          "The built-in worker is the stable demo path. The filepath worker has its own site docs page and is currently scoped to a real hello-world witness.",
       },
       {
         title: "One file, one contract",

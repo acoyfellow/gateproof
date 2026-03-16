@@ -1,5 +1,5 @@
 <script lang="ts">
-	import type { TocEntry } from '$lib/markdown';
+	import type { TocEntry } from '$lib/markdown-types';
 	import { getPrevNext } from '$lib/docs-manifest';
 
 	interface Props {
