@@ -54,33 +54,35 @@ if (import.meta.main) {
 }`;
 
 export const homepageContent: HomepageContent = {
-  eyebrow: "steer the loop",
-  headline: "Build software in reverse.",
-  subheadline: "Start from the spec; let the loop make reality match.",
+  eyebrow: "typescript library",
+  headline: "Define done. Let agents figure out the rest.",
+  subheadline:
+    "Gateproof is a TypeScript library for writing pass/fail gates that agentic coding loops run against. You describe what working looks like — the agent iterates until it gets there.",
   snippetLabel: "hello world",
-  snippetTitle: "One file. One gate. One real pass condition.",
-  snippetBody: "Define what done looks like. Hand it to the loop.",
+  snippetTitle: "A goal is an observable condition and an action to try.",
+  snippetBody:
+    "This plan checks if GET / returns 200. If it doesn't, the agent runs curl. That's it.",
   snippetCode: helloWorldSnippet,
   principles: [
     {
-      title: "Define done first",
-      body: "The gate describes the finished behavior before any code exists.",
+      title: "You write the condition",
+      body: "A gate is an HTTP check, a shell command, or any observable assertion. No magic — just a function that returns pass or fail.",
     },
     {
-      title: "Use one worker path at a time",
+      title: "The agent runs the loop",
       body:
-        "The built-in worker is the stable demo path. The filepath worker has its own site docs page and is currently scoped to a real hello-world witness.",
+        "Observe, act, assert, repeat. The agent keeps trying the action until every assertion passes or the loop times out.",
     },
     {
-      title: "One file, one contract",
-      body: "The same file the human reads is the file the loop hands to the worker.",
+      title: "One file is the whole spec",
+      body: "Your plan.ts is readable by humans and executable by agents. No config layer, no dashboard — just TypeScript.",
     },
   ],
   ctaEyebrow: "Case Studies",
-  ctaTitle: "Proof loops in the wild.",
-  ctaBody: "Real systems, one plan, one loop. Cinder is the first; more to come.",
+  ctaTitle: "See it run against real systems.",
+  ctaBody: "Cinder is the first case study — a real system validated by a single plan file, start to finish.",
   ctaHref: "/case-studies",
-  ctaLabel: "See case studies",
+  ctaLabel: "Read the case study",
   githubHref: "https://github.com/acoyfellow/gateproof",
   npmHref: "https://www.npmjs.com/package/gateproof",
 };

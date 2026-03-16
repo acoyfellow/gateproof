@@ -12,10 +12,10 @@
 </script>
 
 <svelte:head>
-  <title>gateproof - Build in reverse</title>
+  <title>gateproof - Pass/fail gates for agentic coding loops</title>
   <meta
     name="description"
-    content="Write the green state first. Then let one proof loop decide whether the live product is actually real."
+    content="A TypeScript library for writing pass/fail gates that agentic coding loops run against. Define what working looks like — the agent iterates until it gets there."
   />
 </svelte:head>
 

@@ -12,7 +12,7 @@
   <title>Case Studies - gateproof</title>
   <meta
     name="description"
-    content="Historical validation records for Gateproof deployments. Claim, method, outcome, and artifacts."
+    content="Real systems validated by gateproof plans. Each case study documents the claim, method, outcome, and artifacts."
   />
 </svelte:head>
 
@@ -23,11 +23,10 @@
         Case Studies
       </p>
       <h1 class="mt-4 text-4xl leading-tight text-foreground sm:text-5xl">
-        Historical validation records.
+        Real systems, validated by a plan file.
       </h1>
       <p class="mt-5 text-sm leading-7 text-secondary-foreground sm:text-base">
-        Each entry is written as a bounded record: claim, method, observed outcome, limitations,
-        and preserved artifacts.
+        Each case study documents what was claimed, how gateproof verified it, what passed, and what didn't.
       </p>
     </div>
 
