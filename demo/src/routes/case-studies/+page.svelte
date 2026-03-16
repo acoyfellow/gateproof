@@ -1,4 +1,6 @@
 <script lang="ts">
+  import { ArrowRight } from '@lucide/svelte';
+  import { Button } from '$lib/components/ui/button';
   import type { CaseStudyEntry } from '$scripts/render-scope';
 
   interface Props {
@@ -16,8 +18,14 @@
   />
 </svelte:head>
 
-<main class="min-h-screen bg-background">
-  <section class="mx-auto max-w-5xl px-4 py-10 sm:px-8 sm:py-14">
+<main class="relative min-h-screen overflow-x-hidden bg-[#070605]">
+  <div class="absolute inset-0 h-full max-h-screen z-0">
+    <div
+      class="pointer-events-none absolute inset-0 opacity-50 bg-cover bg-center max-h-screen"
+      style="background-image: url('/chaos.jpg'); background-position: center 40%;"
+    ></div>
+  </div>
+  <section class="relative mx-auto max-w-5xl px-4 py-10 sm:px-8 sm:py-14">
     <div class="mx-auto max-w-3xl">
       <p class="text-[11px] uppercase tracking-[0.28em] text-muted-foreground">
         Case Studies
@@ -33,10 +41,7 @@
     <ul class="mx-auto mt-12 max-w-3xl space-y-6">
       {#each data.caseStudies as entry}
         <li>
-          <a
-            href={entry.href}
-            class="block rounded-[1.4rem] border border-border/80 bg-card/70 p-6 transition hover:border-border hover:bg-card/80"
-          >
+          <article class="rounded-[1.4rem] border border-border/80 bg-card/70 p-6 shadow-2xl shadow-black/20 backdrop-blur-sm transition hover:border-border hover:bg-card/80">
             <div class="flex flex-wrap items-start justify-between gap-4">
               <div>
                 <span class="text-xs font-medium uppercase tracking-wider text-muted-foreground">
@@ -49,9 +54,12 @@
                   {entry.description}
                 </p>
               </div>
-              <span class="shrink-0 text-sm font-medium text-foreground">Open record →</span>
+              <Button href={entry.href} variant="default" size="pill" class="shrink-0">
+                Open case study
+                <ArrowRight class="h-3.5 w-3.5" aria-hidden="true" />
+              </Button>
             </div>
-          </a>
+          </article>
         </li>
       {/each}
     </ul>

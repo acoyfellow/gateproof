@@ -94,9 +94,7 @@ The filepath path is documented on the site, not in a standalone markdown note:
 
 ## Case Study: Cinder
 
-The Cinder case study is one ongoing record with three earned chapters.
-
-Current truth: Cinder's control plane is on Cloudflare, but the compute still runs on a separate machine today. Hosted runner capacity in the user's Cloudflare account is the next claim, not an earned one yet.
+Cinder is a CI runner built on Cloudflare. This case study has three earned chapters, and the current truth is simple: Cloudflare hosts the control plane, a separate machine still handles compute, and hosted execution is next.
 
 - [Case study page](https://gateproof.dev/case-studies/cinder)
 - Historical provisioning: https://github.com/acoyfellow/cinder-round-one-end/blob/main/alchemy.run.ts

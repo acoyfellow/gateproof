@@ -35,7 +35,7 @@
 	}
 </script>
 
-<div class="flex min-h-screen flex-col bg-background">
+<div class="flex min-h-screen flex-col bg-background max-w-6xl mx-auto">
 	<nav class="flex h-11 shrink-0 items-center justify-between gap-3 border-b border-border bg-card px-4 pl-6">
 		<div class="flex items-center gap-2 font-(family-name:--font-body) text-[0.8125rem]">
 			<a href="/docs" class="text-muted-foreground no-underline hover:text-foreground">Docs</a>
@@ -74,9 +74,6 @@
 		<aside
 			class="fixed left-0 top-0 bottom-0 z-50 w-60 -translate-x-full shrink-0 overflow-y-auto border-r border-sidebar-border bg-sidebar py-5 px-3 pb-8 transition-transform duration-200 md:static md:translate-x-0 {sidebarOpen ? 'translate-x-0' : ''}"
 		>
-			<a href="/" class="mb-6 block px-2 opacity-95 hover:opacity-100">
-				<img src="/logo.svg" alt="Gateproof" width="46" height="15" class="block h-3.5 w-auto" />
-			</a>
 			<nav class="flex flex-col gap-5 font-(family-name:--font-body)" aria-label="Docs">
 				{#each data.nav as category}
 					<div>

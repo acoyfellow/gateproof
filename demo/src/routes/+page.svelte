@@ -19,45 +19,49 @@
   />
 </svelte:head>
 
-<main class="relative min-h-screen overflow-x-hidden">
+<main class="relative min-h-screen overflow-x-hidden bg-[#070605]">
+  <div class="absolute inset-0 h-full max-h-screen z-0">
+    
   <div
-    class="pointer-events-none absolute inset-0 bg-cover bg-center opacity-[0.22]"
-    style="background-image: url('/hero.jpg');"
+    class="pointer-events-none absolute inset-0 opacity-50 bg-cover bg-center max-h-screen -mt-40"
+    style="background-image: url('/hero.jpg'); background-position: center 12%; "
   ></div>
-  <div
-    class="pointer-events-none absolute inset-0"
-    style="background:
-      radial-gradient(circle at 16% 14%, rgba(246, 174, 83, 0.16), transparent 24%),
-      radial-gradient(circle at 82% 10%, rgba(255, 236, 188, 0.10), transparent 18%),
-      radial-gradient(circle at 76% 70%, rgba(175, 83, 27, 0.12), transparent 22%),
-      linear-gradient(180deg, rgba(17, 14, 12, 0.98), rgba(7, 6, 5, 1));"
-  ></div>
+  </div>
 
   <section class="relative mx-auto max-w-7xl px-4 py-10 sm:px-8 sm:py-14">
     <div class="mx-auto max-w-6xl">
-      <section class="pt-2">
-        <p class="text-[11px] uppercase tracking-[0.28em] text-muted-foreground">{data.eyebrow}</p>
-        <h1 class="mt-4 max-w-4xl text-5xl leading-[0.92] text-foreground sm:text-7xl">
-          {data.headline}
-        </h1>
-        <p class="mt-5 max-w-2xl text-sm leading-7 text-secondary-foreground sm:text-base">
-          {data.subheadline}
-        </p>
-        <div class="mt-6 flex flex-wrap gap-3 text-sm text-secondary-foreground">
-          <a
-            href={data.githubHref}
-            class="inline-flex items-center gap-2 rounded-full border border-border/70 bg-card/70 px-3 py-1.5 text-xs font-medium text-foreground hover:border-border hover:bg-card"
-          >
-            <Github class="h-3.5 w-3.5" aria-hidden="true" />
-            <span>GitHub</span>
-          </a>
-          <a
-            href={data.npmHref}
-            class="inline-flex items-center gap-2 rounded-full border border-border/70 bg-card/70 px-3 py-1.5 text-xs font-medium text-foreground hover:border-border hover:bg-card"
-          >
-            <Package class="h-3.5 w-3.5" aria-hidden="true" />
-            <span>npm</span>
-          </a>
+      <section class="relative min-h-[72vh]">
+        
+        <div class="relative flex min-h-[72vh] items-end py-6 sm:py-8 lg:items-center">
+          <div class="max-w-3xl rounded-[2rem] border border-[rgba(255,151,82,0.16)] bg-[rgba(11,9,8,0.42)] px-6 py-7 shadow-[0_25px_80px_rgba(0,0,0,0.34)] backdrop-blur-md sm:px-8 sm:py-8">
+            <div
+              class="pointer-events-none absolute -left-12 top-10 h-40 w-40 rounded-full blur-3xl"
+              style="background: rgba(246, 174, 83, 0.14);"
+            ></div>
+            <div
+              class="pointer-events-none absolute inset-0 rounded-[2.5rem]"
+              style="background:
+                linear-gradient(90deg, rgba(11,9,8,0.78) 0%, rgba(11,9,8,0.52) 28%, rgba(11,9,8,0.16) 58%, rgba(11,9,8,0.34) 100%),
+                linear-gradient(180deg, rgba(11,9,8,0.08) 0%, rgba(11,9,8,0.02) 38%, rgba(11,9,8,0.72) 100%);"
+            ></div>
+            <p class="relative text-[11px] uppercase tracking-[0.28em] text-muted-foreground">{data.eyebrow}</p>
+            <h1 class="relative mt-4 max-w-4xl text-5xl leading-[0.92] text-foreground sm:text-7xl">
+              {data.headline}
+            </h1>
+            <p class="relative mt-5 max-w-2xl text-sm leading-7 text-secondary-foreground sm:text-base">
+              {data.subheadline}
+            </p>
+            <div class="relative mt-6 flex flex-wrap gap-3 text-sm text-secondary-foreground">
+              <Button href={data.githubHref} variant="surface" size="pill-sm">
+                <Github class="h-3.5 w-3.5" aria-hidden="true" />
+                <span>GitHub</span>
+              </Button>
+              <Button href={data.npmHref} variant="surface" size="pill-sm">
+                <Package class="h-3.5 w-3.5" aria-hidden="true" />
+                <span>npm</span>
+              </Button>
+            </div>
+          </div>
         </div>
       </section>
 
@@ -97,7 +101,7 @@
                 {data.ctaBody}
               </p>
             </div>
-            <Button href={data.ctaHref} variant="default" size="lg" class="shrink-0">
+            <Button href={data.ctaHref} variant="default" size="pill-lg" class="shrink-0">
               {data.ctaLabel}
             </Button>
           </div>

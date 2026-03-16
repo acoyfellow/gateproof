@@ -15,6 +15,15 @@ function getHighlighter(): Promise<Highlighter> {
 	return highlighterPromise;
 }
 
+function escapeHtml(value: string): string {
+	return value
+		.replaceAll('&', '&amp;')
+		.replaceAll('<', '&lt;')
+		.replaceAll('>', '&gt;')
+		.replaceAll('"', '&quot;')
+		.replaceAll("'", '&#39;');
+}
+
 function slugify(text: string): string {
 	return text
 		.toLowerCase()
@@ -25,9 +34,7 @@ function slugify(text: string): string {
 }
 
 export async function renderMarkdown(source: string): Promise<RenderResult> {
-	const highlighter = await getHighlighter();
 	const toc: TocEntry[] = [];
-
 	const renderer = new marked.Renderer();
 
 	renderer.heading = ({ text, depth }: { text: string; depth: number }) => {
@@ -38,9 +45,21 @@ export async function renderMarkdown(source: string): Promise<RenderResult> {
 		return `<h${depth} id="${id}">${text}</h${depth}>`;
 	};
 
+	let highlighter: Highlighter | null = null;
+	try {
+		highlighter = await getHighlighter();
+	} catch {
+		// Shiki may fail on CF Workers (WASM); use plain code blocks
+	}
+
 	renderer.code = ({ text, lang }: { text: string; lang?: string }) => {
 		const language = lang || 'text';
-		return renderCodeBlockWithHighlighter(highlighter, text, language);
+		if (highlighter) {
+			try {
+				return renderCodeBlockWithHighlighter(highlighter, text, language);
+			} catch {}
+		}
+		return `<pre><code class="language-${language}">${escapeHtml(text)}</code></pre>`;
 	};
 
 	renderer.link = ({ href, text }: { href: string; text: string }) => {
@@ -48,6 +67,5 @@ export async function renderMarkdown(source: string): Promise<RenderResult> {
 	};
 
 	const html = await marked.parse(source, { renderer });
-
 	return { html, toc };
 }

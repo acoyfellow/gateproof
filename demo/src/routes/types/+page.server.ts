@@ -1,6 +1,23 @@
 import type { PageServerLoad } from './$types';
 import { renderCodeBlock } from '$lib/server/highlight';
 
+function escapeHtml(value: string): string {
+	return value
+		.replaceAll('&', '&amp;')
+		.replaceAll('<', '&lt;')
+		.replaceAll('>', '&gt;')
+		.replaceAll('"', '&quot;')
+		.replaceAll("'", '&#39;');
+}
+
+async function safeRenderCodeBlock(code: string, language: string): Promise<string> {
+	try {
+		return await renderCodeBlock(code, language);
+	} catch {
+		return `<pre><code class="language-${language}">${escapeHtml(code)}</code></pre>`;
+	}
+}
+
 const sections = [
 	{
 		title: 'ScopeFile',
@@ -49,7 +66,7 @@ export const load: PageServerLoad = async () => ({
 	sections: await Promise.all(
 		sections.map(async (section) => ({
 			...section,
-			html: await renderCodeBlock(section.code, 'typescript')
+			html: await safeRenderCodeBlock(section.code, 'typescript')
 		}))
 	)
 });

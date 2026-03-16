@@ -102,7 +102,7 @@
 {#if isOpen}
   <!-- Backdrop -->
   <div
-    class="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 {closing ? 'fade-out' : 'fade-in'}"
+    class="fixed inset-0 z-50 bg-black/60 backdrop-blur-sm {closing ? 'animate-[fade-out_0.3s_ease-out_forwards]' : 'animate-[fade-in_0.3s_ease-out_forwards]'}"
     onclick={handleClose}
     role="button"
     tabindex="0"
@@ -111,7 +111,7 @@
   
   <!-- Drawer -->
   <div
-    class="fixed bottom-0 left-0 right-0 z-50 max-h-[85vh] overflow-y-auto {closing ? 'slide-down' : 'slide-up'}"
+    class="fixed bottom-0 left-0 right-0 z-50 max-h-[85vh] overflow-y-auto {closing ? 'animate-[slide-down_0.3s_cubic-bezier(0.16,1,0.3,1)_forwards]' : 'animate-[slide-up_0.4s_cubic-bezier(0.16,1,0.3,1)_forwards]'}"
     style="background: linear-gradient(180deg, oklch(0.08 0.02 30) 0%, oklch(0.04 0.01 25) 100%); border-top: 1px solid oklch(0.2 0.03 35);"
   >
     <!-- Handle -->
