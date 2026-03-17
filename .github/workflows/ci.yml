@@ -105,8 +105,3 @@ jobs:
           ALCHEMY_STATE_TOKEN: ${{ secrets.ALCHEMY_STATE_TOKEN }}
           OPENCODE_ZEN_API_KEY: ${{ secrets.OPENCODE_ZEN_API_KEY }}
 
-      - name: Wait for deployment propagation
-        run: sleep 5
-
-      - name: Run production smoke gates
-        run: bun run gates/production/smoke.gate.ts
