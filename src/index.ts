@@ -245,6 +245,28 @@ export interface PlanRunResult {
   cleanupErrors: ReadonlyArray<string>;
 }
 
+export interface RunIdentityEnvelope {
+  traceId: string | null;
+  workspaceId: string | null;
+  conversationId: string | null;
+  runId: string | null;
+  proofRunId: string | null;
+  proofIterationId: string | null;
+}
+
+export interface MemoryRecall {
+  prompt?: string;
+  learnings: ReadonlyArray<{
+    id?: string;
+    trigger: string;
+    learning: string;
+    reason?: string;
+    source?: string;
+  }>;
+  stateSummary?: string;
+  raw?: unknown;
+}
+
 export interface WorkerContext {
   iteration: number;
   plan: PlanDefinition;
@@ -255,6 +277,8 @@ export interface WorkerContext {
   planPath?: string;
   activeScope?: PlanScope;
   latestReportPath?: string;
+  identity: RunIdentityEnvelope;
+  recall?: MemoryRecall | null;
 }
 
 export interface WorkerChange {
@@ -268,6 +292,7 @@ export interface WorkerResult {
   summary: string;
   commitMessage?: string;
   stop?: boolean;
+  identity?: Partial<RunIdentityEnvelope>;
   debug?: {
     attempts?: number;
     rawAssistantContentExcerpt?: string;
@@ -283,6 +308,8 @@ export interface WorkerRuntime {
 export interface MemoryEntry {
   iteration: number;
   timestamp: string;
+  identity: RunIdentityEnvelope;
+  recall?: MemoryRecall | null;
   firstFailedGoal: {
     id: string;
     title: string;
@@ -303,8 +330,42 @@ export interface MemoryEntry {
   };
 }
 
+export interface MemoryRecallContext {
+  iteration: number;
+  cwd: string;
+  planPath?: string;
+  plan: PlanDefinition;
+  result: PlanRunResult;
+  failedGoals: ReadonlyArray<GateRunResult>;
+  firstFailedGoal: GateRunResult | null;
+  identity: RunIdentityEnvelope;
+}
+
+export interface MemoryWorkingStateEntry {
+  timestamp: string;
+  identity: RunIdentityEnvelope;
+  result: PlanRunResult;
+  firstFailedGoal: GateRunResult | null;
+}
+
+export interface MemoryResolutionEntry {
+  timestamp: string;
+  identity: RunIdentityEnvelope;
+  result: PlanRunResult;
+  firstFailedGoal: GateRunResult | null;
+}
+
 export interface MemoryRuntime {
+  recallIteration?(
+    context: MemoryRecallContext,
+  ): Effect.Effect<MemoryRecall | null, never, never>;
   writeIteration(entry: MemoryEntry): Effect.Effect<void, never, never>;
+  updateWorkingState?(
+    entry: MemoryWorkingStateEntry,
+  ): Effect.Effect<void, never, never>;
+  resolveWorkingState?(
+    entry: MemoryResolutionEntry,
+  ): Effect.Effect<void, never, never>;
 }
 
 export type LoopWorker =
@@ -319,6 +380,8 @@ export interface LoopCommitOptions {
 
 export interface LoopIterationStatus {
   iteration: number;
+  identity: RunIdentityEnvelope;
+  recall?: MemoryRecall | null;
   result: PlanRunResult;
   firstFailedGoal: GateRunResult | null;
   workerCalled: boolean;
@@ -358,6 +421,40 @@ export interface FilepathWorkerOptions {
   timeoutMs?: number;
 }
 
+export interface DejaMemoryOptions {
+  endpoint: string;
+  scope: string;
+  apiKey?: string;
+  recallLimit?: number;
+  updatedBy?: string;
+}
+
+interface DejaLearningRecord {
+  id?: string;
+  trigger: string;
+  learning: string;
+  reason?: string;
+  source?: string;
+}
+
+interface DejaWorkingStateResponse {
+  runId: string;
+  state?: {
+    goal?: string;
+    assumptions?: ReadonlyArray<string>;
+    decisions?: ReadonlyArray<{ text: string; status?: string }>;
+    open_questions?: ReadonlyArray<string>;
+    next_actions?: ReadonlyArray<string>;
+    confidence?: number;
+  };
+}
+
+interface DejaInjectResponse {
+  prompt?: string;
+  learnings?: ReadonlyArray<DejaLearningRecord>;
+  state?: DejaWorkingStateResponse;
+}
+
 interface CommandResult {
   ok: boolean;
   stdout: string;
@@ -393,6 +490,8 @@ interface ProofSnapshot {
 interface IterationReport {
   iteration: number;
   timestamp: string;
+  identity: RunIdentityEnvelope;
+  recall?: MemoryRecall | null;
   firstFailedGoal: {
     id: string;
     title: string;
@@ -441,6 +540,11 @@ interface FilepathWorkerRunResponse {
   commit?: { sha: string; message: string } | null;
   agentId: string;
   runId: string;
+  traceId?: string | null;
+  workspaceId?: string | null;
+  conversationId?: string | null;
+  proofRunId?: string | null;
+  proofIterationId?: string | null;
   startedAt: number;
   finishedAt: number;
 }
@@ -911,6 +1015,106 @@ const resolveFilepathRunEndpoint = (
   return `${trimmed.replace(/\/+$/, "")}/api/workspaces/${workspaceId}/run`;
 };
 
+const resolveDejaEndpoint = (endpoint: string, path: string): string =>
+  `${endpoint.trim().replace(/\/+$/, "")}${path}`;
+
+const createDejaHeaders = (apiKey?: string): Record<string, string> => ({
+  "Content-Type": "application/json",
+  ...(apiKey ? { Authorization: `Bearer ${apiKey}` } : {}),
+});
+
+const createRecallContextText = (context: MemoryRecallContext): string =>
+  JSON.stringify({
+    cwd: context.cwd,
+    planPath: context.planPath,
+    proofRunId: context.identity.proofRunId,
+    proofIterationId: context.identity.proofIterationId,
+    resultSummary: context.result.summary,
+    firstFailedGoal: context.firstFailedGoal
+      ? {
+        id: context.firstFailedGoal.id,
+        title: context.firstFailedGoal.title,
+        summary: context.firstFailedGoal.summary,
+      }
+      : null,
+    failedGoals: context.failedGoals.map((goal) => ({
+      id: goal.id,
+      title: goal.title,
+      summary: goal.summary,
+    })),
+  }, null, 2);
+
+const summarizeDejaState = (
+  state: DejaWorkingStateResponse | undefined,
+): string | undefined => {
+  if (!state?.state) {
+    return undefined;
+  }
+
+  const parts = [
+    state.state.goal ? `Goal: ${state.state.goal}` : "",
+    state.state.decisions?.length
+      ? `Decisions: ${state.state.decisions.map((entry) => entry.text).join("; ")}`
+      : "",
+    state.state.next_actions?.length
+      ? `Next actions: ${state.state.next_actions.join("; ")}`
+      : "",
+  ].filter(Boolean);
+
+  return parts.length > 0 ? parts.join(" | ") : undefined;
+};
+
+const createWorkingStatePayload = (
+  entry: MemoryWorkingStateEntry,
+) => ({
+  goal: entry.firstFailedGoal
+    ? `Fix ${entry.firstFailedGoal.title}`
+    : "Keep the proof green",
+  decisions: [{
+    text: entry.result.summary,
+    status: entry.result.status === "pass" ? "complete" : "active",
+  }],
+  next_actions: entry.firstFailedGoal
+    ? [`Address gate ${entry.firstFailedGoal.id}`]
+    : ["Finalize the proof run"],
+  confidence:
+    entry.result.proofStrength === "strong"
+      ? 0.9
+      : entry.result.proofStrength === "moderate"
+        ? 0.7
+        : entry.result.proofStrength === "weak"
+          ? 0.5
+          : 0.3,
+});
+
+const createLearningPayload = (entry: MemoryEntry) => {
+  const trigger = entry.firstFailedGoal
+    ? `proof iteration for gate ${entry.firstFailedGoal.id}`
+    : "proof run completed";
+  const parts = [
+    entry.firstFailedGoal
+      ? `First failed gate ${entry.firstFailedGoal.id}: ${entry.firstFailedGoal.summary}.`
+      : "All current gates passed.",
+    `Proof summary: ${entry.result.summary}.`,
+    entry.worker?.summary ? `Worker summary: ${entry.worker.summary}.` : "",
+    entry.worker?.scopeViolation ? `Scope violation: ${entry.worker.scopeViolation}.` : "",
+    entry.commit?.message ? `Commit message: ${entry.commit.message}.` : "",
+  ].filter(Boolean);
+
+  return {
+    trigger,
+    learning: parts.join(" "),
+    confidence:
+      entry.result.status === "pass"
+        ? 0.9
+        : entry.result.status === "fail"
+          ? 0.75
+          : 0.6,
+    reason: "Stored from a Gateproof proof iteration.",
+    source: `gateproof:${entry.identity.proofRunId ?? "proof"}:${entry.identity.proofIterationId ?? entry.iteration}`,
+  };
+};
+
 const deriveWritableRoot = (scope: PlanScope | undefined): string => {
   if (!scope?.allowedPaths || scope.allowedPaths.length !== 1) {
     return ".";
@@ -957,6 +1161,14 @@ const createFilepathWorkerTask = (
       planPath: context.planPath,
       latestReportPath: context.latestReportPath,
       latestReport: latestReportExcerpt,
+      identity: context.identity,
+      memoryRecall: context.recall
+        ? {
+          prompt: context.recall.prompt,
+          stateSummary: context.recall.stateSummary,
+          learnings: context.recall.learnings,
+        }
+        : null,
       snapshot,
       activeScope: context.activeScope,
       firstFailedGoal: context.firstFailedGoal
@@ -1891,6 +2103,8 @@ const createDefaultCommitMessage = (
 
 const createIterationReport = (
   iteration: number,
+  identity: RunIdentityEnvelope,
+  recall: MemoryRecall | null | undefined,
   result: PlanRunResult,
   firstFailedGoal: GateRunResult | null,
   workerEntry: IterationReport["worker"] | undefined,
@@ -1899,6 +2113,8 @@ const createIterationReport = (
 ): IterationReport => ({
   iteration,
   timestamp: new Date().toISOString(),
+  identity,
+  recall,
   firstFailedGoal:
     firstFailedGoal
       ? {
@@ -1913,6 +2129,69 @@ const createIterationReport = (
   snapshot,
 });
 
+const createIterationIdentity = (
+  proofRunId: string,
+  iteration: number,
+): RunIdentityEnvelope => ({
+  traceId: crypto.randomUUID(),
+  workspaceId: null,
+  conversationId: null,
+  runId: null,
+  proofRunId,
+  proofIterationId: `${proofRunId}:${iteration}`,
+});
+
+const mergeRunIdentity = (
+  base: RunIdentityEnvelope,
+  next?: Partial<RunIdentityEnvelope>,
+): RunIdentityEnvelope => ({
+  traceId: next?.traceId ?? base.traceId,
+  workspaceId: next?.workspaceId ?? base.workspaceId,
+  conversationId: next?.conversationId ?? base.conversationId,
+  runId: next?.runId ?? base.runId,
+  proofRunId: next?.proofRunId ?? base.proofRunId,
+  proofIterationId: next?.proofIterationId ?? base.proofIterationId,
+});
+
+const recallToStateSummary = (recall: MemoryRecall | null | undefined): string | undefined => {
+  if (!recall) return undefined;
+  if (recall.stateSummary?.trim()) return recall.stateSummary.trim();
+  if (recall.prompt?.trim()) return createExcerpt(recall.prompt, 800);
+  return undefined;
+};
+
+const invokeMemoryRecall = (
+  memory: MemoryRuntime | undefined,
+  context: MemoryRecallContext,
+): Effect.Effect<MemoryRecall | null, never, never> =>
+  memory?.recallIteration
+    ? memory.recallIteration(context).pipe(Effect.catch(() => Effect.succeed(null)))
+    : Effect.succeed(null);
+
+const writeMemoryIteration = (
+  memory: MemoryRuntime | undefined,
+  entry: MemoryEntry,
+): Effect.Effect<void, never, never> =>
+  memory
+    ? memory.writeIteration(entry).pipe(Effect.catch(() => Effect.void))
+    : Effect.void;
+
+const updateMemoryWorkingState = (
+  memory: MemoryRuntime | undefined,
+  entry: MemoryWorkingStateEntry,
+): Effect.Effect<void, never, never> =>
+  memory?.updateWorkingState
+    ? memory.updateWorkingState(entry).pipe(Effect.catch(() => Effect.void))
+    : Effect.void;
+
+const resolveMemoryWorkingState = (
+  memory: MemoryRuntime | undefined,
+  entry: MemoryResolutionEntry,
+): Effect.Effect<void, never, never> =>
+  memory?.resolveWorkingState
+    ? memory.resolveWorkingState(entry).pipe(Effect.catch(() => Effect.void))
+    : Effect.void;
+
 const runPlanLoop = (
   plan: PlanDefinition,
   options: PlanRunLoopOptions = {},
@@ -1921,6 +2200,8 @@ const runPlanLoop = (
     const maxIterations = options.maxIterations ?? plan.loop?.maxIterations ?? 1;
     const cwd = resolve(options.cwd ?? process.cwd());
     const workerTimeoutMs = options.workerTimeoutMs ?? 10 * 60 * 1000;
+    const proofRunId = crypto.randomUUID();
+    let lastIdentity = createIterationIdentity(proofRunId, 1);
     let rerunTargetGoalId: string | undefined;
     let iteration = 0;
     let latest: PlanRunResult = {
@@ -1934,29 +2215,64 @@ const runPlanLoop = (
 
     while (iteration < maxIterations) {
       iteration += 1;
+      let identity = createIterationIdentity(proofRunId, iteration);
+      lastIdentity = identity;
       const result = yield* runPlanOnce(plan, rerunTargetGoalId);
       latest = {
         ...result,
         iterations: iteration,
       };
       const firstFailedGoal = latest.goals.find((goal) => goal.status !== "pass") ?? null;
+      const recall = yield* invokeMemoryRecall(options.memory, {
+        iteration,
+        cwd,
+        planPath: options.planPath,
+        plan,
+        result: latest,
+        failedGoals: latest.goals.filter((goal) => goal.status !== "pass"),
+        firstFailedGoal,
+        identity,
+      });
       const finalizeWithoutWorker = (
         resultToFinalize: PlanRunResult,
         workerEntry?: IterationReport["worker"],
         commit?: CommitResult,
+        persistIterationMemory = false,
       ): Effect.Effect<PlanRunResult, never, never> =>
         Effect.gen(function* () {
           const finalizedResult = yield* withCleanup(plan, resultToFinalize);
+          const finalizedFirstFailedGoal =
+            finalizedResult.goals.find((goal) => goal.status !== "pass") ?? null;
           const snapshot = yield* captureProofSnapshot(cwd, options.planPath);
           const report = createIterationReport(
             iteration,
+            identity,
+            recall,
             finalizedResult,
-            firstFailedGoal,
+            finalizedFirstFailedGoal,
             workerEntry,
             commit,
             snapshot,
           );
           yield* writeIterationReport(cwd, iteration, report);
+          if (!persistIterationMemory) {
+            yield* writeMemoryIteration(options.memory, {
+              iteration,
+              timestamp: report.timestamp,
+              identity,
+              recall,
+              firstFailedGoal: report.firstFailedGoal,
+              result: finalizedResult,
+              worker: workerEntry,
+              commit,
+            });
+          }
+          yield* resolveMemoryWorkingState(options.memory, {
+            timestamp: report.timestamp,
+            identity,
+            result: finalizedResult,
+            firstFailedGoal: finalizedFirstFailedGoal,
+          });
           return finalizedResult;
         });
 
@@ -1989,12 +2305,16 @@ const runPlanLoop = (
         planPath: options.planPath,
         activeScope: targetGoal?.scope,
         latestReportPath: resolveLatestReportPath(cwd),
+        identity,
+        recall,
       };
       const workerInvocation = yield* invokeWorker(
         options.worker,
         workerContext,
         workerTimeoutMs,
       );
+      identity = mergeRunIdentity(identity, workerInvocation.result.identity);
+      lastIdentity = identity;
       const scopeValidation = yield* validateScope(targetGoal, cwd);
       const scopeViolation = scopeValidation.ok ? undefined : scopeValidation.violation;
       const workerEntry: IterationReport["worker"] = {
@@ -2012,6 +2332,8 @@ const runPlanLoop = (
       const commit = yield* createCommit(cwd, commitMessage, options.commit);
       const report = createIterationReport(
         iteration,
+        identity,
+        recall,
         latest,
         firstFailedGoal,
         workerEntry,
@@ -2019,19 +2341,27 @@ const runPlanLoop = (
         yield* captureProofSnapshot(cwd, options.planPath),
       );
       const reportPath = yield* writeIterationReport(cwd, iteration, report);
-      if (options.memory) {
-        yield* options.memory.writeIteration({
-          iteration,
-          timestamp: report.timestamp,
-          firstFailedGoal: report.firstFailedGoal,
-          result: latest,
-          worker: workerEntry,
-          commit,
-        }).pipe(Effect.catch(() => Effect.void));
-      }
+      yield* writeMemoryIteration(options.memory, {
+        iteration,
+        timestamp: report.timestamp,
+        identity,
+        recall,
+        firstFailedGoal: report.firstFailedGoal,
+        result: latest,
+        worker: workerEntry,
+        commit,
+      });
+      yield* updateMemoryWorkingState(options.memory, {
+        timestamp: report.timestamp,
+        identity,
+        result: latest,
+        firstFailedGoal,
+      });
 
       const iterationStatus: LoopIterationStatus = {
         iteration,
+        identity,
+        recall,
         result: latest,
         firstFailedGoal,
         workerCalled: true,
@@ -2047,19 +2377,22 @@ const runPlanLoop = (
           ...latest,
           status: "fail",
           summary: scopeViolation ?? latest.summary,
-        }, workerEntry, commit);
+        }, workerEntry, commit, true);
       }
 
       if (workerInvocation.result.stop) {
-        return yield* finalizeWithoutWorker(latest, workerEntry, commit);
+        return yield* finalizeWithoutWorker(latest, workerEntry, commit, true);
       }
     }
 
     const finalizedResult = yield* withCleanup(plan, latest);
     const finalFailedGoal = finalizedResult.goals.find((goal) => goal.status !== "pass") ?? null;
+    const identity = lastIdentity;
     const snapshot = yield* captureProofSnapshot(cwd, options.planPath);
     const report = createIterationReport(
       iteration,
+      identity,
+      null,
       finalizedResult,
       finalFailedGoal,
       undefined,
@@ -2067,6 +2400,20 @@ const runPlanLoop = (
       snapshot,
     );
     yield* writeIterationReport(cwd, iteration, report);
+    yield* writeMemoryIteration(options.memory, {
+      iteration,
+      timestamp: report.timestamp,
+      identity,
+      recall: null,
+      firstFailedGoal: report.firstFailedGoal,
+      result: finalizedResult,
+    });
+    yield* resolveMemoryWorkingState(options.memory, {
+      timestamp: report.timestamp,
+      identity,
+      result: finalizedResult,
+      firstFailedGoal: finalFailedGoal,
+    });
     return finalizedResult;
   });
 
@@ -2389,6 +2736,11 @@ export const createFilepathWorker = (
             content: createFilepathWorkerTask(context, snapshot, latestReportExcerpt),
             harnessId: options.harnessId,
             model: options.model,
+            identity: {
+              traceId: context.identity.traceId,
+              proofRunId: context.identity.proofRunId,
+              proofIterationId: context.identity.proofIterationId,
+            },
             scope: {
               allowedPaths: context.activeScope?.allowedPaths ?? [...DEFAULT_ALLOWED_PATHS],
               forbiddenPaths: context.activeScope?.forbiddenPaths ?? [...DEFAULT_FORBIDDEN_PATHS],
@@ -2471,6 +2823,14 @@ export const createFilepathWorker = (
       return {
         changes: createWorkerChangesFromFiles(payload.filesTouched),
         summary: payload.summary,
+        identity: {
+          traceId: payload.traceId ?? context.identity.traceId,
+          workspaceId: payload.workspaceId ?? options.workspaceId,
+          conversationId: payload.conversationId ?? payload.agentId,
+          runId: payload.runId,
+          proofRunId: payload.proofRunId ?? context.identity.proofRunId,
+          proofIterationId: payload.proofIterationId ?? context.identity.proofIterationId,
+        },
         debug: {
           lastHttpStatus: response.status,
         },
@@ -2484,6 +2844,118 @@ export const createFilepathWorker = (
         }),
       ),
     );
+
+export const createDejaMemoryRuntime = (
+  options: DejaMemoryOptions,
+): MemoryRuntime => ({
+  recallIteration: (context) =>
+    Effect.tryPromise(async () => {
+      const proofRunId = context.identity.proofRunId;
+      if (!proofRunId) {
+        return null;
+      }
+
+      const response = await fetch(resolveDejaEndpoint(options.endpoint, "/inject"), {
+        method: "POST",
+        headers: createDejaHeaders(options.apiKey),
+        body: JSON.stringify({
+          scopes: [options.scope],
+          context: createRecallContextText(context),
+          limit: options.recallLimit ?? 4,
+          format: "learnings",
+          includeState: true,
+          runId: proofRunId,
+          identity: context.identity,
+        }),
+      });
+
+      if (!response.ok) {
+        return null;
+      }
+
+      const payload = (await response.json().catch(() => null)) as DejaInjectResponse | null;
+      if (!payload) {
+        return null;
+      }
+
+      const learnings = (payload.learnings ?? []).map((entry) => ({
+        id: entry.id,
+        trigger: entry.trigger,
+        learning: entry.learning,
+        reason: entry.reason,
+        source: entry.source,
+      }));
+
+      const stateSummary = summarizeDejaState(payload.state);
+      if (learnings.length === 0 && !payload.prompt && !stateSummary) {
+        return null;
+      }
+
+      return {
+        prompt: payload.prompt,
+        learnings,
+        stateSummary,
+        raw: payload,
+      };
+    }).pipe(
+      Effect.catch(() => Effect.succeed(null)),
+    ),
+  writeIteration: (entry) =>
+    Effect.tryPromise(async () => {
+      const payload = createLearningPayload(entry);
+      await fetch(resolveDejaEndpoint(options.endpoint, "/learn"), {
+        method: "POST",
+        headers: createDejaHeaders(options.apiKey),
+        body: JSON.stringify({
+          scope: options.scope,
+          ...payload,
+          identity: entry.identity,
+        }),
+      });
+    }).pipe(
+      Effect.catch(() => Effect.void),
+    ),
+  updateWorkingState: (entry) =>
+    Effect.tryPromise(async () => {
+      const proofRunId = entry.identity.proofRunId;
+      if (!proofRunId) {
+        return;
+      }
+
+      await fetch(resolveDejaEndpoint(options.endpoint, `/state/${encodeURIComponent(proofRunId)}`), {
+        method: "PUT",
+        headers: createDejaHeaders(options.apiKey),
+        body: JSON.stringify({
+          ...createWorkingStatePayload(entry),
+          updatedBy: options.updatedBy ?? "gateproof",
+          changeSummary: `proof iteration ${entry.identity.proofIterationId ?? entry.timestamp}`,
+          identity: entry.identity,
+        }),
+      });
+    }).pipe(
+      Effect.catch(() => Effect.void),
+    ),
+  resolveWorkingState: (entry) =>
+    Effect.tryPromise(async () => {
+      const proofRunId = entry.identity.proofRunId;
+      if (!proofRunId) {
+        return;
+      }
+
+      await fetch(resolveDejaEndpoint(options.endpoint, `/state/${encodeURIComponent(proofRunId)}/resolve`), {
+        method: "POST",
+        headers: createDejaHeaders(options.apiKey),
+        body: JSON.stringify({
+          persistToLearn: false,
+          updatedBy: options.updatedBy ?? "gateproof",
+          scope: options.scope,
+          identity: entry.identity,
+        }),
+      });
+    }).pipe(
+      Effect.catch(() => Effect.void),
+    ),
+});
 
 export const createOpenCodeWorker = (
   options: OpenCodeWorkerOptions,
@@ -2503,6 +2975,14 @@ export const createOpenCodeWorker = (
         repoRoot: context.cwd,
         planPath: context.planPath,
         latestReportPath: context.latestReportPath,
+        identity: context.identity,
+        memoryRecall: context.recall
+          ? {
+            prompt: context.recall.prompt,
+            stateSummary: context.recall.stateSummary,
+            learnings: context.recall.learnings,
+          }
+          : null,
         activeScope: context.activeScope,
         firstFailedGoal: context.firstFailedGoal
           ? {

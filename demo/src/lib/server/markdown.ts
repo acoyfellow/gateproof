@@ -1,19 +1,6 @@
 import { marked } from 'marked';
 import type { RenderResult, TocEntry } from '$lib/markdown-types';
-import { renderCodeBlockWithHighlighter } from './highlight';
-import { createHighlighter, type Highlighter } from 'shiki';
-
-let highlighterPromise: Promise<Highlighter> | null = null;
-
-function getHighlighter(): Promise<Highlighter> {
-	if (!highlighterPromise) {
-		highlighterPromise = createHighlighter({
-			themes: ['github-dark'],
-			langs: ['typescript', 'javascript', 'bash', 'json', 'yaml', 'tsx', 'text', 'shell']
-		});
-	}
-	return highlighterPromise;
-}
+import { getHighlighter, renderCodeBlockWithHighlighter } from './highlight';
 
 function escapeHtml(value: string): string {
 	return value
@@ -45,11 +32,11 @@ export async function renderMarkdown(source: string): Promise<RenderResult> {
 		return `<h${depth} id="${id}">${text}</h${depth}>`;
 	};
 
-	let highlighter: Highlighter | null = null;
+	let highlighter = null;
 	try {
 		highlighter = await getHighlighter();
 	} catch {
-		// Shiki may fail on CF Workers (WASM); use plain code blocks
+		// fallback to plain code blocks
 	}
 
 	renderer.code = ({ text, lang }: { text: string; lang?: string }) => {

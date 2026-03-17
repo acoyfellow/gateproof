@@ -7,6 +7,7 @@ import { Effect } from "effect";
 import {
   Act,
   Assert,
+  createDejaMemoryRuntime,
   createFilepathWorker,
   Gate,
   Plan,
@@ -388,6 +389,14 @@ describe("Worker loop", () => {
 
       const context: WorkerContext = {
         iteration: 1,
+        identity: {
+          traceId: "trace-open-code",
+          workspaceId: null,
+          conversationId: null,
+          runId: null,
+          proofRunId: "proof-run-open-code",
+          proofIterationId: "proof-run-open-code:1",
+        },
         plan: createFailingPlan([createFailingGoal("alpha", "Alpha gate")]),
         result: {
           status: "fail",
@@ -435,6 +444,7 @@ describe("Worker loop", () => {
         },
         cwd,
         planPath: "plan.ts",
+        recall: null,
       };
 
       const result = await Effect.runPromise(worker(context));
@@ -506,6 +516,14 @@ describe("Worker loop", () => {
 
       const context: WorkerContext = {
         iteration: 1,
+        identity: {
+          traceId: "trace-open-code-retry",
+          workspaceId: null,
+          conversationId: null,
+          runId: null,
+          proofRunId: "proof-run-open-code-retry",
+          proofIterationId: "proof-run-open-code-retry:1",
+        },
         plan: createFailingPlan([createFailingGoal("alpha", "Alpha gate")]),
         result: {
           status: "fail",
@@ -553,6 +571,7 @@ describe("Worker loop", () => {
         },
         cwd,
         planPath: "plan.ts",
+        recall: null,
       };
 
       const result = await Effect.runPromise(worker(context));
@@ -868,6 +887,178 @@ describe("Worker loop", () => {
       expect(latestText).toContain("report check");
     } finally {
       await rm(cwd, { recursive: true, force: true });
+    }
+  });
+
+  test("createDejaMemoryRuntime recalls and persists proof memory with shared run identity", async () => {
+    const requests: Record<string, Record<string, unknown>> = {};
+    const server = Bun.serve({
+      port: 0,
+      async fetch(request) {
+        const url = new URL(request.url);
+        const body = await request.json().catch(() => ({})) as Record<string, unknown>;
+        requests[`${request.method} ${url.pathname}`] = body;
+
+        if (url.pathname === "/inject") {
+          return Response.json({
+            prompt: "Remember the last failure pattern.",
+            learnings: [
+              {
+                id: "learning-1",
+                trigger: "proof iteration for gate alpha",
+                learning: "Prefer the smallest patch that restores the gate.",
+              },
+            ],
+            state: {
+              runId: "proof-run-1",
+              state: {
+                goal: "Fix Alpha gate",
+                next_actions: ["Patch response.txt"],
+              },
+            },
+          });
+        }
+
+        return Response.json({ ok: true });
+      },
+    });
+
+    try {
+      const memory = createDejaMemoryRuntime({
+        endpoint: `http://127.0.0.1:${server.port}`,
+        scope: "shared",
+        apiKey: "memory-key",
+        updatedBy: "gateproof-test",
+      });
+
+      const identity = {
+        traceId: "trace-1",
+        workspaceId: "workspace-1",
+        conversationId: "conversation-1",
+        runId: "run-1",
+        proofRunId: "proof-run-1",
+        proofIterationId: "proof-run-1:1",
+      } as const;
+
+      const recall = await Effect.runPromise(
+        memory.recallIteration!({
+          iteration: 1,
+          cwd: "/tmp/repo",
+          planPath: "plan.ts",
+          plan: createFailingPlan([createFailingGoal("alpha", "Alpha gate")]),
+          result: {
+            status: "fail",
+            proofStrength: "weak",
+            iterations: 1,
+            goals: [
+              {
+                id: "alpha",
+                title: "Alpha gate",
+                status: "fail",
+                proofStrength: "weak",
+                summary: "expected failure",
+                evidence: { actions: [], errors: ["expected failure"] },
+              },
+            ],
+            summary: "one or more gates failed",
+            cleanupErrors: [],
+          },
+          failedGoals: [
+            {
+              id: "alpha",
+              title: "Alpha gate",
+              status: "fail",
+              proofStrength: "weak",
+              summary: "expected failure",
+              evidence: { actions: [], errors: ["expected failure"] },
+            },
+          ],
+          firstFailedGoal: {
+            id: "alpha",
+            title: "Alpha gate",
+            status: "fail",
+            proofStrength: "weak",
+            summary: "expected failure",
+            evidence: { actions: [], errors: ["expected failure"] },
+          },
+          identity,
+        }),
+      );
+
+      expect(recall?.learnings).toHaveLength(1);
+      expect(recall?.stateSummary).toContain("Fix Alpha gate");
+
+      await Effect.runPromise(
+        memory.writeIteration({
+          iteration: 1,
+          timestamp: new Date().toISOString(),
+          identity,
+          recall,
+          firstFailedGoal: {
+            id: "alpha",
+            title: "Alpha gate",
+            summary: "expected failure",
+          },
+          result: {
+            status: "fail",
+            proofStrength: "weak",
+            iterations: 1,
+            goals: [],
+            summary: "one or more gates failed",
+            cleanupErrors: [],
+          },
+          worker: {
+            changes: [{ kind: "write", path: "response.txt", summary: "patched response.txt" }],
+            summary: "patched response.txt",
+          },
+        }),
+      );
+
+      await Effect.runPromise(
+        memory.updateWorkingState!({
+          timestamp: new Date().toISOString(),
+          identity,
+          result: {
+            status: "fail",
+            proofStrength: "weak",
+            iterations: 1,
+            goals: [],
+            summary: "one or more gates failed",
+            cleanupErrors: [],
+          },
+          firstFailedGoal: {
+            id: "alpha",
+            title: "Alpha gate",
+            status: "fail",
+            proofStrength: "weak",
+            summary: "expected failure",
+            evidence: { actions: [], errors: ["expected failure"] },
+          },
+        }),
+      );
+
+      await Effect.runPromise(
+        memory.resolveWorkingState!({
+          timestamp: new Date().toISOString(),
+          identity,
+          result: {
+            status: "pass",
+            proofStrength: "strong",
+            iterations: 1,
+            goals: [],
+            summary: "all gates passed",
+            cleanupErrors: [],
+          },
+          firstFailedGoal: null,
+        }),
+      );
+
+      expect((requests["POST /inject"]?.identity as Record<string, unknown>)?.proofRunId).toBe("proof-run-1");
+      expect((requests["POST /learn"]?.identity as Record<string, unknown>)?.conversationId).toBe("conversation-1");
+      expect((requests["PUT /state/proof-run-1"]?.identity as Record<string, unknown>)?.traceId).toBe("trace-1");
+      expect((requests["POST /state/proof-run-1/resolve"]?.identity as Record<string, unknown>)?.proofIterationId).toBe("proof-run-1:1");
+    } finally {
+      server.stop(true);
     }
   });
 

@@ -1,6 +1,14 @@
-# Gateproof
+# Gateproof 0.05
 
 Gateproof is a local proof loop. Put the claim in `plan.ts`, run it, and keep the system honest.
+
+In 0.05, Gateproof can:
+
+- run the proof loop locally
+- hand one bounded worker turn to filepath
+- attach a Deja memory seam before and after each proof iteration
+
+Gateproof still owns proof authority. filepath does the work. Deja makes the next run smarter.
 
 Docs live on the website:
 
