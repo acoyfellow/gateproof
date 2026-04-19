@@ -3144,3 +3144,36 @@ export const createHttpObserveResource = (
   kind: "http",
   ...definition,
 });
+
+// ==================== proof-spec.v0 interop ====================
+// Unified observe/act/assert schema shared with acoyfellow/unsurf.
+// See ./ProofSpec.ts for the full type surface + conversion helpers.
+
+export type {
+	ActionResult as ProofActionResult,
+	AriaRole,
+	Assertion as ProofAssertion,
+	AssertionResult as ProofAssertionResult,
+	DomObservation,
+	DslOp,
+	ElementTarget,
+	EvidenceBundle,
+	ExecObservation,
+	HttpObservation,
+	Loop as ProofLoop,
+	NoteObservation,
+	Observation,
+	ObservationResult,
+	ProofSpec,
+	Provenance,
+	Risk,
+	Status as ProofStatus,
+	Target as ProofTarget,
+} from "./ProofSpec.js";
+
+export {
+	computeRisk,
+	goalToProofSpec,
+	planToProofSpecs,
+	proofSpecToGoal,
+} from "./ProofSpec.js";
