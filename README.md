@@ -14,6 +14,8 @@ Gateproof owns proof authority. It can delegate the work:
 - **filepath worker** — hands one bounded turn to a [filepath](https://github.com/acoyfellow/filepath) instance
 - **Deja memory** — optionally recalls learnings before each iteration and stores new ones after
 
+The `observe / act / assert` schema is shared with [unsurf](https://github.com/acoyfellow/unsurf) as **`proof-spec.v0`** — gateproof drives HTTP/exec; unsurf drives the DOM. Specs round-trip between them. See [proof-spec.v0 interop](#proof-specv0-interop) below.
+
 ## Quickstart
 
 ```bash
@@ -92,10 +94,36 @@ Assert.numericDeltaFromEnv(key, threshold)
 Require.env(key)
 ```
 
+## proof-spec.v0 interop
+
+Gateproof shares its `observe / act / assert` schema with [unsurf](https://github.com/acoyfellow/unsurf) — same loop at different altitudes: gateproof drives HTTP/exec; unsurf drives the DOM. A `ProofSpec` round-trips between the two.
+
+```ts
+import {
+	goalToProofSpec,
+	planToProofSpecs,
+	proofSpecToGoal,
+	computeRisk,
+	type ProofSpec,
+} from "gateproof";
+
+// Gateproof goal → publishable proof-spec (consumed by unsurf's Directory, an MCP client, etc.)
+const spec = goalToProofSpec(myGoal, { url: "https://example.com/" });
+
+// Proof-spec scouted by unsurf → runnable as a gateproof PlanGoal
+const goal = proofSpecToGoal(someSpec);
+
+// Risk is computed, not claimed. Pure function of the DSL.
+computeRisk(spec.act); // "low" | "medium" | "high"
+```
+
+Types added: `ProofSpec`, `Observation`, `DslOp`, `ProofAssertion`, `EvidenceBundle`, `Risk` — see [`src/ProofSpec.ts`](./src/ProofSpec.ts). Full field reference lives in unsurf's [`experiments/_proof-spec-v0/SPEC.md`](https://github.com/acoyfellow/unsurf/blob/main/experiments/_proof-spec-v0/SPEC.md).
+
 ## Reference
 
 - Root plan: `plan.ts`
 - Example: `examples/hello-world/plan.ts`
 - Worker entry: `src/index.ts`
+- proof-spec types + interop: `src/ProofSpec.ts`
 - [Run in a loop](https://gateproof.dev/docs/how-to/run-in-a-loop)
 - [Case studies](https://gateproof.dev/case-studies)
