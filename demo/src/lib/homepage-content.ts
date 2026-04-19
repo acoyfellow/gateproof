@@ -77,6 +77,11 @@ export const homepageContent: HomepageContent = {
       title: "One file is the whole spec",
       body: "Your plan.ts is readable by humans and executable by agents. No config layer, no dashboard — just TypeScript.",
     },
+    {
+      title: "Same shape as unsurf",
+      body:
+        "Gateproof drives HTTP and exec. unsurf drives the DOM. Both speak proof-spec.v0 — the observe/act/assert schema round-trips between them. Import goalToProofSpec from gateproof to publish a plan as a typed spec, or proofSpecToGoal to run one unsurf scouted.",
+    },
   ],
   ctaEyebrow: "Case Studies",
   ctaTitle: "See it run against real systems.",
