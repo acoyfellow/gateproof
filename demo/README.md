@@ -37,10 +37,11 @@ More information on Cloudflare credentials: [Cloudflare Auth Guide](https://alch
 ## Production Deployment
 
 ```bash
-bun run deploy
+npm ci
+npm run deploy
 ```
 
-This uses `alchemy.run.ts` to deploy the SvelteKit worker with the Sandbox container binding, static assets, and all Cloudflare resources.
+This runs the documented `alchemy deploy` command with Node.js. It deploys the SvelteKit worker with the Sandbox container binding, static assets, and all Cloudflare resources.
 
 ## Accessing Cloudflare Resources
 
