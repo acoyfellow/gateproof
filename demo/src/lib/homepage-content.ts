@@ -54,28 +54,28 @@ if (import.meta.main) {
 }`;
 
 export const homepageContent: HomepageContent = {
-  eyebrow: "typescript library",
-  headline: "Define done. Let agents figure out the rest.",
+  eyebrow: "proof authority for coding agents",
+  headline: "The agent writes code. Gateproof says when it is done.",
   subheadline:
-    "Gateproof is a TypeScript library for writing pass/fail gates that agentic coding loops run against. You describe what working looks like — the agent iterates until it gets there.",
+    "A plan.ts file is the contract. Plan.runLoop observes, acts, and asserts. Workers may change files inside allowedPaths. They may not rewrite the proof — plan.ts is forbidden by default.",
   snippetLabel: "hello world",
-  snippetTitle: "A goal is an observable condition and an action to try.",
+  snippetTitle: "The contract is one executable TypeScript file.",
   snippetBody:
-    "This plan checks if GET / returns 200. If it doesn't, the agent runs curl. That's it.",
+    "This is the public API: Gate.define, Plan.define, Plan.run / Plan.runLoop. The homepage walkthrough below is illustrative. The hello-world worker path is the live witness.",
   snippetCode: helloWorldSnippet,
   principles: [
     {
       title: "You write the condition",
-      body: "A gate is an HTTP check, a shell command, or any observable assertion. No magic — just a function that returns pass or fail.",
+      body: "A gate is an HTTP check, a shell command, or any observable assertion. Pass or fail is evidence, not a model opinion.",
     },
     {
       title: "The agent runs the loop",
       body:
-        "Observe, act, assert, repeat. The agent keeps trying the action until every assertion passes or the loop times out.",
+        "Plan.runLoop hands the first failing goal to a worker. createOpenCodeWorker may retry inside allowedPaths until the gate passes or maxIterations stops it.",
     },
     {
-      title: "One file is the whole spec",
-      body: "Your plan.ts is readable by humans and executable by agents. No config layer, no dashboard — just TypeScript.",
+      title: "The contract stays sealed",
+      body: "plan.ts, README.md, and .env are forbidden by default. A worker that edits the proof is a scope violation, not a pass.",
     },
     {
       title: "Same shape as unsurf",

@@ -1,5 +1,6 @@
 <script lang="ts">
   import CodeBlock from '$lib/components/CodeBlock.svelte';
+  import ProofLoopDemo from '$lib/components/ProofLoopDemo.svelte';
   import { Button } from '$lib/components/ui/button';
   import { Github, Package } from '@lucide/svelte';
   import type { HomepageContent } from '$lib/homepage-content';
@@ -12,10 +13,10 @@
 </script>
 
 <svelte:head>
-  <title>gateproof - Pass/fail gates for agentic coding loops</title>
+  <title>gateproof — proof authority for coding agents</title>
   <meta
     name="description"
-    content="A TypeScript library for writing pass/fail gates that agentic coding loops run against. Define what working looks like — the agent iterates until it gets there."
+    content="Gateproof owns the proof contract. Agents may change implementation inside allowed paths. They may not rewrite plan.ts."
   />
 </svelte:head>
 
@@ -82,7 +83,11 @@
         </div>
       </section>
 
-      <section class="mt-10 grid gap-4 sm:grid-cols-3">
+      <section class="mt-10">
+        <ProofLoopDemo />
+      </section>
+
+      <section class="mt-10 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
         {#each data.principles as principle}
           <div class="rounded-[1.5rem] border border-border/70 bg-card/55 p-4 backdrop-blur-sm">
             <p class="text-sm font-medium text-foreground">{principle.title}</p>
