@@ -92,11 +92,11 @@ jobs:
         run: bun install
 
       - name: Install demo dependencies
-        run: bun install
+        run: npm ci
         working-directory: demo
 
       - name: Deploy demo site
-        run: bun run deploy
+        run: npm run deploy
         working-directory: demo
         env:
           CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
