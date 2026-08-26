@@ -13,9 +13,9 @@ describe("homepage proof demo", () => {
     expect(isCompleteProofArc(proofDemoStepIds())).toBe(true);
   });
 
-  test("uses the public Plan.goals API and default forbidden contract file", () => {
+  test("uses the public Plan.stories API and default forbidden contract file", () => {
     expect(proofDemoPlan).toContain("Plan.define({");
-    expect(proofDemoPlan).toContain("goals: [{");
+    expect(proofDemoPlan).toContain("stories: [{");
     expect(proofDemoPlan).toContain("createHttpObserveResource");
     expect(proofDemoPlan).toContain("Plan.runLoop");
     expect(proofDemoPlan).toContain("createOpenCodeWorker");

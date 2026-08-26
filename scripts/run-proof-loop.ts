@@ -86,7 +86,7 @@ async function main() {
       cwd: repoRoot,
       planPath,
       maxIterations: Math.max(scope.plan.loop?.maxIterations ?? 1, 6),
-      rerunFailedGoalPrefix: true,
+      rerunFailedStoryPrefix: true,
       worker: createOpenCodeWorker({
         endpoint,
         apiKey,
@@ -102,7 +102,7 @@ async function main() {
       onIteration: (status) => {
         console.log(JSON.stringify({
           iteration: status.iteration,
-          firstFailedGoal: status.firstFailedGoal?.id ?? null,
+          firstFailedStory: status.firstFailedStory?.id ?? null,
           workerCalled: status.workerCalled,
           workerSummary: status.workerSummary,
           committed: status.committed,

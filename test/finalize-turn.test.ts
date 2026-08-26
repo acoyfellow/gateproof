@@ -43,7 +43,7 @@ const writeSavedProof = async (
   const latest = {
     iteration: 1,
     timestamp: new Date().toISOString(),
-    firstFailedGoal: options?.status === "pass"
+    firstFailedStory: options?.status === "pass"
       ? null
       : {
         id: "alpha",

@@ -1,15 +1,15 @@
 import { Effect } from "effect";
 import { Plan } from "../src/index";
-import { loadScope, selectGoalsThrough } from "./proof-lib";
+import { loadScope, selectStoriesThrough } from "./proof-lib";
 
 async function main() {
-  const goalId = process.argv[2]?.trim();
-  if (!goalId) {
+  const storyId = process.argv[2]?.trim();
+  if (!storyId) {
     throw new Error('usage: bun run prove:gate -- <gate-id>');
   }
 
   const scope = await loadScope();
-  const targetedPlan = selectGoalsThrough(scope.plan, goalId);
+  const targetedPlan = selectStoriesThrough(scope.plan, storyId);
   const result = await Effect.runPromise(Plan.run(targetedPlan));
 
   console.log(JSON.stringify(result, null, 2));

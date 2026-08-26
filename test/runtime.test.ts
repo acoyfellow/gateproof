@@ -153,7 +153,7 @@ describe("Plan runtime", () => {
       const result = await Effect.runPromise(
         Plan.run(
           Plan.define({
-            goals: [
+            stories: [
               {
                 id: "health",
                 title: "GET /health returns 200",
@@ -180,7 +180,7 @@ describe("Plan runtime", () => {
       );
 
       expect(result.status).toBe("pass");
-      expect(result.goals[0]?.status).toBe("pass");
+      expect(result.stories[0]?.status).toBe("pass");
       expect(result.proofStrength).toBe("strong");
     } finally {
       server.stop(true);
@@ -191,7 +191,7 @@ describe("Plan runtime", () => {
     const result = await Effect.runPromise(
       Plan.run(
         Plan.define({
-          goals: [
+          stories: [
             {
               id: "needs-env",
               title: "Waits for TEST_API_KEY",
@@ -208,8 +208,8 @@ describe("Plan runtime", () => {
     );
 
     expect(result.status).toBe("fail");
-    expect(result.goals[0]?.status).toBe("fail");
-    expect(result.goals[0]?.summary).toContain("TEST_API_KEY must be set before this gate can run");
+    expect(result.stories[0]?.status).toBe("fail");
+    expect(result.stories[0]?.summary).toContain("TEST_API_KEY must be set before this gate can run");
   });
 
   test("passes when a Cloudflare log contains the required action", async () => {
@@ -232,7 +232,7 @@ describe("Plan runtime", () => {
       const result = await Effect.runPromise(
         Plan.run(
           Plan.define({
-            goals: [
+            stories: [
               {
                 id: "webhook",
                 title: "Webhook action appears in logs",
@@ -255,8 +255,8 @@ describe("Plan runtime", () => {
       );
 
       expect(result.status).toBe("pass");
-      expect(result.goals[0]?.status).toBe("pass");
-      expect(result.goals[0]?.evidence.logs?.[0]?.action).toBe("webhook_received");
+      expect(result.stories[0]?.status).toBe("pass");
+      expect(result.stories[0]?.evidence.logs?.[0]?.action).toBe("webhook_received");
     } finally {
       restore();
     }
@@ -271,7 +271,7 @@ describe("Plan runtime", () => {
       const result = await Effect.runPromise(
         Plan.run(
           Plan.define({
-            goals: [
+            stories: [
               {
                 id: "webhook",
                 title: "Webhook action appears in logs",
@@ -293,8 +293,8 @@ describe("Plan runtime", () => {
       );
 
       expect(result.status).toBe("inconclusive");
-      expect(result.goals[0]?.status).toBe("inconclusive");
-      expect(result.goals[0]?.summary).toContain("missing log evidence");
+      expect(result.stories[0]?.status).toBe("inconclusive");
+      expect(result.stories[0]?.summary).toContain("missing log evidence");
     } finally {
       restore();
     }
@@ -308,7 +308,7 @@ describe("Plan runtime", () => {
       const result = await Effect.runPromise(
         Plan.run(
           Plan.define({
-            goals: [
+            stories: [
               {
                 id: "quiet-worker",
                 title: "Quiet worker returns promptly",
@@ -333,7 +333,7 @@ describe("Plan runtime", () => {
 
       expect(Date.now() - startedAt).toBeLessThan(4_000);
       expect(result.status).toBe("inconclusive");
-      expect(result.goals[0]?.summary).toContain("missing log evidence");
+      expect(result.stories[0]?.summary).toContain("missing log evidence");
     } finally {
       restore();
     }
@@ -347,7 +347,7 @@ describe("Plan runtime", () => {
       const result = await Effect.runPromise(
         Plan.run(
           Plan.define({
-            goals: [
+            stories: [
               {
                 id: "tail-timeout",
                 title: "Cloudflare tail create timeout",
@@ -366,7 +366,7 @@ describe("Plan runtime", () => {
       );
 
       expect(result.status).toBe("inconclusive");
-      expect(result.goals[0]?.status).toBe("inconclusive");
+      expect(result.stories[0]?.status).toBe("inconclusive");
       expect(Date.now() - startedAt).toBeLessThan(6_500);
     } finally {
       restore();
@@ -381,7 +381,7 @@ describe("Plan runtime", () => {
       const result = await Effect.runPromise(
         Plan.run(
           Plan.define({
-            goals: [
+            stories: [
               {
                 id: "tail-never-opens",
                 title: "Cloudflare tail websocket never opens",
@@ -400,7 +400,7 @@ describe("Plan runtime", () => {
       );
 
       expect(result.status).toBe("inconclusive");
-      expect(result.goals[0]?.status).toBe("inconclusive");
+      expect(result.stories[0]?.status).toBe("inconclusive");
       expect(Date.now() - startedAt).toBeLessThan(5_000);
     } finally {
       restore();
@@ -430,7 +430,7 @@ describe("Plan runtime", () => {
       const result = await Effect.runPromise(
         Plan.run(
           Plan.define({
-            goals: [
+            stories: [
               {
                 id: "tail-retry",
                 title: "Cloudflare tail retries once",
@@ -451,7 +451,7 @@ describe("Plan runtime", () => {
       );
 
       expect(result.status).toBe("pass");
-      expect(result.goals[0]?.status).toBe("pass");
+      expect(result.stories[0]?.status).toBe("pass");
     } finally {
       restore();
     }
@@ -461,7 +461,7 @@ describe("Plan runtime", () => {
     const result = await Effect.runPromise(
       Plan.run(
         Plan.define({
-          goals: [
+          stories: [
             {
               id: "body",
               title: "Action output includes a URL",
@@ -480,7 +480,7 @@ describe("Plan runtime", () => {
     );
 
     expect(result.status).toBe("pass");
-    expect(result.goals[0]?.status).toBe("pass");
+    expect(result.stories[0]?.status).toBe("pass");
   });
 
   test("checks numeric delta from log messages", async () => {
@@ -505,7 +505,7 @@ describe("Plan runtime", () => {
       const result = await Effect.runPromise(
         Plan.run(
           Plan.define({
-            goals: [
+            stories: [
               {
                 id: "speed",
                 title: "Warm build beats cold baseline",
@@ -548,7 +548,7 @@ describe("Plan runtime", () => {
     const result = await Effect.runPromise(
       Plan.run(
         Plan.define({
-          goals: [
+          stories: [
             {
               id: "cleanup",
               title: "Gate passes before cleanup",
@@ -579,7 +579,7 @@ describe("Plan runtime", () => {
     const result = await Effect.runPromise(
       Plan.run(
         Plan.define({
-          goals: [
+          stories: [
             {
               id: "cleanup-errors",
               title: "Gate passes before cleanup fails",
@@ -619,7 +619,7 @@ describe("README generation", () => {
         },
       },
       plan: Plan.define({
-        goals: [
+        stories: [
           {
             id: "health",
             title: "GET /health returns 200",
@@ -647,5 +647,139 @@ describe("README generation", () => {
     expect(readme).toContain(scope.spec.explanation.summary);
     expect(readme).toContain("https://gateproof.dev/case-studies/cinder");
     expect(readme).toContain("GET /health returns 200");
+  });
+});
+
+describe("dependsOn", () => {
+  test("downstream story fails-fast when its upstream fails", async () => {
+    const plan = Plan.define({
+      stories: [
+        {
+          id: "upstream",
+          title: "upstream — evidence: cmd_ran — scope: src/",
+          gate: Gate.define({
+            act: [Act.exec("false")],
+            assert: [Assert.noErrors()],
+          }),
+        },
+        {
+          id: "downstream",
+          title: "downstream — evidence: cmd_ran — scope: src/",
+          dependsOn: ["upstream"],
+          gate: Gate.define({
+            act: [Act.exec("true")],
+            assert: [Assert.noErrors()],
+          }),
+        },
+      ],
+    });
+
+    const result = await Effect.runPromise(Plan.run(plan));
+
+    expect(result.stories[0]?.id).toBe("upstream");
+    expect(result.stories[0]?.status).toBe("fail");
+    expect(result.stories[1]?.id).toBe("downstream");
+    expect(result.stories[1]?.status).toBe("fail");
+    expect(result.stories[1]?.summary).toContain("upstream story 'upstream' failed");
+    expect(result.stories[1]?.evidence.actions).toEqual([]);
+  });
+
+  test("downstream story runs when its upstream passes", async () => {
+    const plan = Plan.define({
+      stories: [
+        {
+          id: "upstream",
+          title: "upstream — evidence: cmd_ran — scope: src/",
+          gate: Gate.define({
+            act: [Act.exec("true")],
+            assert: [Assert.noErrors()],
+          }),
+        },
+        {
+          id: "downstream",
+          title: "downstream — evidence: cmd_ran — scope: src/",
+          dependsOn: ["upstream"],
+          gate: Gate.define({
+            act: [Act.exec("true")],
+            assert: [Assert.noErrors()],
+          }),
+        },
+      ],
+    });
+
+    const result = await Effect.runPromise(Plan.run(plan));
+
+    expect(result.stories[0]?.status).toBe("pass");
+    expect(result.stories[1]?.status).toBe("pass");
+    expect(result.stories[1]?.evidence.actions.length).toBe(1);
+  });
+
+  test("Plan.define throws when a story depends on an unknown id", () => {
+    expect(() =>
+      Plan.define({
+        stories: [
+          {
+            id: "alpha",
+            title: "alpha",
+            dependsOn: ["does-not-exist"],
+            gate: Gate.define({ act: [Act.exec("true")], assert: [Assert.noErrors()] }),
+          },
+        ],
+      }),
+    ).toThrow(/unknown story/);
+  });
+
+  test("Plan.define throws when a story depends on itself", () => {
+    expect(() =>
+      Plan.define({
+        stories: [
+          {
+            id: "alpha",
+            title: "alpha",
+            dependsOn: ["alpha"],
+            gate: Gate.define({ act: [Act.exec("true")], assert: [Assert.noErrors()] }),
+          },
+        ],
+      }),
+    ).toThrow(/depends on itself/);
+  });
+
+  test("Plan.define throws when dependsOn points to a later story (forward reference)", () => {
+    expect(() =>
+      Plan.define({
+        stories: [
+          {
+            id: "alpha",
+            title: "alpha",
+            dependsOn: ["beta"],
+            gate: Gate.define({ act: [Act.exec("true")], assert: [Assert.noErrors()] }),
+          },
+          {
+            id: "beta",
+            title: "beta",
+            gate: Gate.define({ act: [Act.exec("true")], assert: [Assert.noErrors()] }),
+          },
+        ],
+      }),
+    ).toThrow(/defined earlier/);
+  });
+
+  test("Plan.define throws on duplicate story ids", () => {
+    expect(() =>
+      Plan.define({
+        stories: [
+          {
+            id: "dup",
+            title: "a",
+            gate: Gate.define({ act: [Act.exec("true")], assert: [Assert.noErrors()] }),
+          },
+          {
+            id: "dup",
+            title: "b",
+            gate: Gate.define({ act: [Act.exec("true")], assert: [Assert.noErrors()] }),
+          },
+        ],
+      }),
+    ).toThrow(/duplicate story id/);
   });
 });

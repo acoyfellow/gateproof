@@ -17,7 +17,7 @@ const workerLogs = Cloudflare.observe({
 });
 
 const plan = Plan.define({
-  goals: [
+  stories: [
     {
       id: "worker-responds",
       title: "Worker logs request_received",

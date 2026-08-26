@@ -8,6 +8,7 @@ import {
   Act,
   Assert,
   createDejaMemoryRuntime,
+  createHttpObserveResource,
   createFilepathWorker,
   Gate,
   Plan,
@@ -20,7 +21,7 @@ import {
 } from "../src/index";
 
 const runGit = (cwd: string, args: ReadonlyArray<string>): string => {
-  const result = spawnSync("git", args, {
+  const result = spawnSync("git", ["-c", "core.hooksPath=/dev/null", ...args], {
     cwd,
     encoding: "utf8",
   });
@@ -39,6 +40,7 @@ const createTempRepo = async (
   runGit(cwd, ["init"]);
   runGit(cwd, ["config", "user.name", "Gateproof Test"]);
   runGit(cwd, ["config", "user.email", "gateproof-test@example.com"]);
+  runGit(cwd, ["config", "core.hooksPath", "/dev/null"]);
   for (const [path, contents] of Object.entries(files)) {
     const absolutePath = join(cwd, path);
     await mkdir(dirname(absolutePath), { recursive: true });
@@ -72,10 +74,10 @@ const createTrackedPatch = async (
 };
 
 const createFailingPlan = (
-  goals: ReadonlyArray<PlanDefinition["goals"][number]>,
+  stories: ReadonlyArray<PlanDefinition["stories"][number]>,
 ): PlanDefinition =>
   Plan.define({
-    goals,
+    stories,
     loop: {
       maxIterations: 2,
     },
@@ -118,8 +120,8 @@ describe("Worker loop", () => {
       );
 
       expect(result.status).toBe("fail");
-      expect(observedContext?.firstFailedGoal?.id).toBe("alpha");
-      expect(observedContext?.failedGoals.map((goal) => goal.id)).toEqual(["alpha", "beta"]);
+      expect(observedContext?.firstFailedStory?.id).toBe("alpha");
+      expect(observedContext?.failedStories.map((goal) => goal.id)).toEqual(["alpha", "beta"]);
       expect(getCommitCount(cwd)).toBe(2);
     } finally {
       await rm(cwd, { recursive: true, force: true });
@@ -134,7 +136,7 @@ describe("Worker loop", () => {
       const result = await Effect.runPromise(
         Plan.runLoop(
           Plan.define({
-            goals: [
+            stories: [
               {
                 id: "ok",
                 title: "true command succeeds",
@@ -176,7 +178,7 @@ describe("Worker loop", () => {
       const result = await Effect.runPromise(
         Plan.runLoop(
           Plan.define({
-            goals: [
+            stories: [
               {
                 id: "ok",
                 title: "true command succeeds",
@@ -206,14 +208,14 @@ describe("Worker loop", () => {
     }
   });
 
-  test("reruns only through the first failing gate when rerunFailedGoalPrefix is enabled", async () => {
+  test("reruns only through the first failing gate when rerunFailedStoryPrefix is enabled", async () => {
     const cwd = await createTempRepo();
 
     try {
       const result = await Effect.runPromise(
         Plan.runLoop(
           Plan.define({
-            goals: [
+            stories: [
               {
                 id: "alpha",
                 title: "Alpha gate",
@@ -245,7 +247,7 @@ describe("Worker loop", () => {
           }),
           {
             cwd,
-            rerunFailedGoalPrefix: true,
+            rerunFailedStoryPrefix: true,
             worker: () =>
               Effect.succeed({
                 changes: [],
@@ -256,7 +258,7 @@ describe("Worker loop", () => {
       );
 
       expect(result.status).toBe("fail");
-      expect(result.goals.map((goal) => goal.id)).toEqual(["alpha", "beta"]);
+      expect(result.stories.map((goal) => goal.id)).toEqual(["alpha", "beta"]);
     } finally {
       await rm(cwd, { recursive: true, force: true });
     }
@@ -269,7 +271,7 @@ describe("Worker loop", () => {
       const result = await Effect.runPromise(
         Plan.runLoop(
           Plan.define({
-            goals: [createFailingGoal("alpha", "Alpha gate")],
+            stories: [createFailingGoal("alpha", "Alpha gate")],
             loop: {
               stopOnFailure: true,
             },
@@ -284,7 +286,7 @@ describe("Worker loop", () => {
       const latestText = await readFile(join(cwd, ".gateproof", "latest.json"), "utf8");
       const latest = JSON.parse(latestText) as Record<string, unknown>;
       expect((latest.result as Record<string, unknown>).status).toBe("fail");
-      expect((latest.firstFailedGoal as Record<string, unknown>).id).toBe("alpha");
+      expect((latest.firstFailedStory as Record<string, unknown>).id).toBe("alpha");
       expect(latest.worker).toBeUndefined();
     } finally {
       await rm(cwd, { recursive: true, force: true });
@@ -299,7 +301,7 @@ describe("Worker loop", () => {
       const result = await Effect.runPromise(
         Plan.runLoop(
           Plan.define({
-            goals: [
+            stories: [
               {
                 ...createFailingGoal("scope", "Scope gate"),
                 scope: {
@@ -402,7 +404,7 @@ describe("Worker loop", () => {
           status: "fail",
           proofStrength: "weak",
           iterations: 1,
-          goals: [
+          stories: [
             {
               id: "alpha",
               title: "Alpha gate",
@@ -418,7 +420,7 @@ describe("Worker loop", () => {
           summary: "one or more gates failed",
           cleanupErrors: [],
         },
-        failedGoals: [
+        failedStories: [
           {
             id: "alpha",
             title: "Alpha gate",
@@ -431,7 +433,7 @@ describe("Worker loop", () => {
             },
           },
         ],
-        firstFailedGoal: {
+        firstFailedStory: {
           id: "alpha",
           title: "Alpha gate",
           status: "fail",
@@ -529,7 +531,7 @@ describe("Worker loop", () => {
           status: "fail",
           proofStrength: "weak",
           iterations: 1,
-          goals: [
+          stories: [
             {
               id: "alpha",
               title: "Alpha gate",
@@ -545,7 +547,7 @@ describe("Worker loop", () => {
           summary: "one or more gates failed",
           cleanupErrors: [],
         },
-        failedGoals: [
+        failedStories: [
           {
             id: "alpha",
             title: "Alpha gate",
@@ -558,7 +560,7 @@ describe("Worker loop", () => {
             },
           },
         ],
-        firstFailedGoal: {
+        firstFailedStory: {
           id: "alpha",
           title: "Alpha gate",
           status: "fail",
@@ -617,7 +619,7 @@ describe("Worker loop", () => {
       const result = await Effect.runPromise(
         Plan.runLoop(
           Plan.define({
-            goals: [
+            stories: [
               {
                 id: "hello-world",
                 title: "response.txt says hello world",
@@ -702,7 +704,7 @@ describe("Worker loop", () => {
       const result = await Effect.runPromise(
         Plan.runLoop(
           Plan.define({
-            goals: [
+            stories: [
               {
                 id: "hello-world",
                 title: "response.txt says hello world",
@@ -771,7 +773,7 @@ describe("Worker loop", () => {
       const result = await Effect.runPromise(
         Plan.runLoop(
           Plan.define({
-            goals: [
+            stories: [
               {
                 id: "hello-world",
                 title: "response.txt says hello world",
@@ -862,11 +864,11 @@ describe("Worker loop", () => {
     }
   });
 
-  test("writes iteration reports into .gateproof/latest.json", async () => {
+  test("persists an uncertain worker receipt without treating it as a passed proof", async () => {
     const cwd = await createTempRepo();
 
     try {
-      await Effect.runPromise(
+      const result = await Effect.runPromise(
         Plan.runLoop(
           createFailingPlan([createFailingGoal("alpha", "Alpha gate")]),
           {
@@ -874,21 +876,116 @@ describe("Worker loop", () => {
             worker: () =>
               Effect.succeed({
                 changes: [],
-                summary: "report check",
+                summary: "receipt check",
+                outcome: "uncertain",
+                runId: "ter-receipt-1",
+                status: "done",
+                taskContractStatus: "unproven",
                 stop: true,
               }),
           },
         ),
       );
 
-      const latestPath = join(cwd, ".gateproof", "latest.json");
-      const latestText = await readFile(latestPath, "utf8");
-      expect(latestText).toContain("\"iteration\": 1");
-      expect(latestText).toContain("report check");
+      const latest = JSON.parse(
+        await readFile(join(cwd, ".gateproof", "latest.json"), "utf8"),
+      ) as Record<string, unknown>;
+      const worker = latest.worker as Record<string, unknown>;
+
+      expect(worker.outcome).toBe("uncertain");
+      expect(worker.runId).toBe("ter-receipt-1");
+      expect(worker.status).toBe("done");
+      expect(worker.taskContractStatus).toBe("unproven");
+      expect((latest.result as Record<string, unknown>).status).toBe("fail");
+      expect(result.status).not.toBe("pass");
+      expect(result.proofStrength).not.toBe("strong");
     } finally {
       await rm(cwd, { recursive: true, force: true });
     }
   });
+
+  test("persists a confirmed worker receipt while the passing gate provides strong proof", async () => {
+    const cwd = await createTempRepo();
+    const confirmationPath = join(cwd, "confirmed.txt");
+    const server = Bun.serve({
+      port: 0,
+      async fetch() {
+        const confirmed = await Bun.file(confirmationPath).exists();
+        return new Response(confirmed ? "confirmed" : "not confirmed", {
+          status: confirmed ? 200 : 503,
+        });
+      },
+    });
+
+    try {
+      const result = await Effect.runPromise(
+        Plan.runLoop(
+          Plan.define({
+            stories: [
+              {
+                id: "confirmed",
+                title: "confirmation endpoint returns success",
+                gate: Gate.define({
+                  observe: createHttpObserveResource({
+                    url: `http://127.0.0.1:${server.port}`,
+                  }),
+                  assert: [Assert.httpResponse({ status: 200 })],
+                }),
+                scope: {
+                  allowedPaths: ["confirmed.txt"],
+                },
+              },
+            ],
+            loop: {
+              maxIterations: 2,
+            },
+          }),
+          {
+            cwd,
+            worker: () =>
+              Effect.tryPromise(async () => {
+                await writeFile(confirmationPath, "confirmed\n", "utf8");
+                return {
+                  changes: [
+                    {
+                      kind: "write" as const,
+                      path: "confirmed.txt",
+                      summary: "recorded confirmation",
+                    },
+                  ],
+                  summary: "confirmed receipt",
+                  outcome: "confirmed" as const,
+                  runId: "ter-confirmed",
+                  status: "done",
+                  taskContractStatus: "verified",
+                };
+              }),
+          },
+        ),
+      );
+
+      const latest = JSON.parse(
+        await readFile(join(cwd, ".gateproof", "latest.json"), "utf8"),
+      ) as Record<string, unknown>;
+      const worker = latest.worker as Record<string, unknown>;
+      const proof = latest.result as Record<string, unknown>;
+      const [story] = proof.stories as Array<Record<string, unknown>>;
+
+      expect(worker.outcome).toBe("confirmed");
+      expect(worker.runId).toBe("ter-confirmed");
+      expect(worker.status).toBe("done");
+      expect(worker.taskContractStatus).toBe("verified");
+      expect(story.status).toBe("pass");
+      expect(story.proofStrength).toBe("strong");
+      expect(proof.status).toBe("pass");
+      expect(proof.proofStrength).toBe("strong");
+      expect(result.status).toBe("pass");
+      expect(result.proofStrength).toBe("strong");
+    } finally {
+      server.stop(true);
+      await rm(cwd, { recursive: true, force: true });
+    }
+  }, 15_000);
 
   test("createDejaMemoryRuntime recalls and persists proof memory with shared run identity", async () => {
     const requests: Record<string, Record<string, unknown>> = {};
@@ -950,7 +1047,7 @@ describe("Worker loop", () => {
             status: "fail",
             proofStrength: "weak",
             iterations: 1,
-            goals: [
+            stories: [
               {
                 id: "alpha",
                 title: "Alpha gate",
@@ -963,7 +1060,7 @@ describe("Worker loop", () => {
             summary: "one or more gates failed",
             cleanupErrors: [],
           },
-          failedGoals: [
+          failedStories: [
             {
               id: "alpha",
               title: "Alpha gate",
@@ -973,7 +1070,7 @@ describe("Worker loop", () => {
               evidence: { actions: [], errors: ["expected failure"] },
             },
           ],
-          firstFailedGoal: {
+          firstFailedStory: {
             id: "alpha",
             title: "Alpha gate",
             status: "fail",
@@ -994,7 +1091,7 @@ describe("Worker loop", () => {
           timestamp: new Date().toISOString(),
           identity,
           recall,
-          firstFailedGoal: {
+          firstFailedStory: {
             id: "alpha",
             title: "Alpha gate",
             summary: "expected failure",
@@ -1003,7 +1100,7 @@ describe("Worker loop", () => {
             status: "fail",
             proofStrength: "weak",
             iterations: 1,
-            goals: [],
+            stories: [],
             summary: "one or more gates failed",
             cleanupErrors: [],
           },
@@ -1022,11 +1119,11 @@ describe("Worker loop", () => {
             status: "fail",
             proofStrength: "weak",
             iterations: 1,
-            goals: [],
+            stories: [],
             summary: "one or more gates failed",
             cleanupErrors: [],
           },
-          firstFailedGoal: {
+          firstFailedStory: {
             id: "alpha",
             title: "Alpha gate",
             status: "fail",
@@ -1045,11 +1142,11 @@ describe("Worker loop", () => {
             status: "pass",
             proofStrength: "strong",
             iterations: 1,
-            goals: [],
+            stories: [],
             summary: "all gates passed",
             cleanupErrors: [],
           },
-          firstFailedGoal: null,
+          firstFailedStory: null,
         }),
       );
 
@@ -1071,7 +1168,7 @@ describe("Worker loop", () => {
       await Effect.runPromise(
         Plan.runLoop(
           Plan.define({
-            goals: [
+            stories: [
               {
                 id: "ok",
                 title: "true command succeeds",

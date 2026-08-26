@@ -19,15 +19,15 @@ export async function loadScope(): Promise<ScopeFile> {
   return module.default as ScopeFile;
 }
 
-export function selectGoalsThrough(plan: PlanDefinition, goalId: string): PlanDefinition {
-  const index = plan.goals.findIndex((goal) => goal.id === goalId);
+export function selectStoriesThrough(plan: PlanDefinition, storyId: string): PlanDefinition {
+  const index = plan.stories.findIndex((story) => story.id === storyId);
   if (index === -1) {
-    throw new Error(`unknown gate ${JSON.stringify(goalId)}`);
+    throw new Error(`unknown gate ${JSON.stringify(storyId)}`);
   }
 
   return {
     ...plan,
-    goals: plan.goals.slice(0, index + 1),
+    stories: plan.stories.slice(0, index + 1),
   };
 }
 

@@ -27,7 +27,7 @@ const scope = {
     },
   },
   plan: Plan.define({
-    goals: [
+    stories: [
       {
         id: "hello-world",
         title: "GET / returns hello world",

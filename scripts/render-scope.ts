@@ -216,7 +216,7 @@ const readSourceFile = (filePath: string, label: string): { code: string; availa
 };
 
 const getCanonicalGoals = (scope: ScopeFile): ReadonlyArray<string> =>
-  scope.plan.goals.map((goal) => goal.title);
+  scope.plan.stories.map((story) => story.title);
 
 export function getDefaultScope(): ScopeFile {
   return {
@@ -236,10 +236,10 @@ export function getDefaultScope(): ScopeFile {
       },
     },
     plan: {
-      goals: [
+      stories: [
         {
           id: "example",
-          title: "Example goal",
+          title: "Example story",
           gate: { observe: undefined, act: [], assert: [] },
         },
       ],
@@ -280,7 +280,7 @@ import {
 } from "gateproof";
 
 const plan = Plan.define({
-  goals: [{
+  stories: [{
     id: "hello-world",
     title: "GET / returns hello world",
     gate: Gate.define({
@@ -944,14 +944,14 @@ export function getPatternsContent(): ReadonlyArray<PatternContent> {
 
 export function getDualityContent(scope?: ScopeFile): DualityContent {
   const resolvedScope = scope ?? getDefaultScope();
-  const firstGoal = resolvedScope.plan.goals[0];
+  const firstStory = resolvedScope.plan.stories[0];
 
   return {
     artifactName: "plan.ts",
-    unitLabel: "goal",
+    unitLabel: "story",
     unitExample: {
-      id: firstGoal?.id ?? "example",
-      title: firstGoal?.title ?? "Example goal",
+      id: firstStory?.id ?? "example",
+      title: firstStory?.title ?? "Example story",
       gatePreview: "observe + act + assert",
     },
     resultValues: "pass | fail | skip | inconclusive",

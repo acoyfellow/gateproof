@@ -34,7 +34,25 @@ If no scope is defined, use sensible defaults:
 - **Keep changes small** - Prefer surgical fixes over rewrites.
 - **One logical change per commit** - Makes it easier to debug and revert.
 
-### 3. Gate-Driven Development
+### 3. Story Dependencies
+
+Stories may declare `dependsOn: string[]` listing earlier story ids they require.
+If an upstream story fails, its downstream stories are marked `fail` with summary
+`upstream story '<id>' failed` and their gates are not evaluated.
+
+```typescript
+{
+  id: "user-login",
+  title: "User can log in — evidence: session_created — scope: src/auth/**",
+  dependsOn: ["user-signup"],   // only run if user-signup passed
+  gate: Gate.define({ ... }),
+}
+```
+
+Dependencies must reference stories defined earlier in the array. `Plan.define`
+throws on cycles, forward references, unknown ids, duplicate ids, or self-references.
+
+### 4. Gate-Driven Development
 
 Gates are the acceptance criteria. A story is complete when its gate passes.
 
@@ -123,8 +141,8 @@ const result = await Effect.runPromise(Plan.runLoop(scope.plan, {
   worker: (ctx) => Effect.succeed({
     // ctx.plan        - The executable plan
     // ctx.result      - The latest plan result
-    // ctx.failedGoals - The Goal objects that failed
-    // ctx.firstFailedGoal - The first failing goal to target
+    // ctx.failedStories - The Story objects that failed
+    // ctx.firstFailedStory - The first failing story to target
 
     // Make targeted fixes...
     changes: [{ kind: "replace", path: "src/signup.ts", summary: "Fixed validation in signup.ts" }],

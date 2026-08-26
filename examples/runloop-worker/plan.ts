@@ -8,7 +8,7 @@ import {
 } from "../../src/index";
 
 const plan = Plan.define({
-  goals: [
+  stories: [
     {
       id: "http-ok",
       title: "GET / returns 200",

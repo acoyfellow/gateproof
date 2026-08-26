@@ -3,7 +3,7 @@ import { readFile } from "node:fs/promises";
 import { join, resolve } from "node:path";
 
 type SavedProof = {
-  firstFailedGoal?: {
+  firstFailedStory?: {
     id?: string;
     title?: string;
     summary?: string;
@@ -99,7 +99,7 @@ export async function validateSavedProof(cwd: string): Promise<void> {
   const status = latest.result?.status;
   const cleanupErrors = latest.result?.cleanupErrors;
   if (status !== "pass" || !Array.isArray(cleanupErrors) || cleanupErrors.length > 0) {
-    const firstFail = latest.firstFailedGoal?.id ?? latest.firstFailedGoal?.title ?? "unknown";
+    const firstFail = latest.firstFailedStory?.id ?? latest.firstFailedStory?.title ?? "unknown";
     const summary = latest.result?.summary ?? "no summary";
     throw new Error(
       `Saved proof is not green (status=${String(status ?? "unknown")}, firstFail=${firstFail}, summary=${summary}). Re-run \`bun run prove\`.`,

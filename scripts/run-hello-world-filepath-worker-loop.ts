@@ -155,7 +155,7 @@ export const runHelloWorldFilepathWorkerLoop = async (): Promise<HelloWorldFilep
         },
       },
       plan: runtime.Plan.define({
-        goals: [
+        stories: [
           {
             id: "hello-world-filepath-alpha",
             title: "examples/hello-world/response.txt drives GET / and must say hello from filepath",

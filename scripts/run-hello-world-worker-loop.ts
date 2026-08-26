@@ -112,6 +112,7 @@ export const runHelloWorldWorkerLoopSmoke = async (): Promise<HelloWorldWorkerLo
     await runChecked(tempRoot, "git", ["branch", "-M", "main"]);
     await runChecked(tempRoot, "git", ["config", "user.name", "Gateproof Smoke"]);
     await runChecked(tempRoot, "git", ["config", "user.email", "smoke@gateproof.local"]);
+    await runChecked(tempRoot, "git", ["config", "core.hooksPath", "/dev/null"]);
     await runChecked(tempRoot, "git", ["add", "-A"]);
     await runChecked(tempRoot, "git", ["commit", "-m", "chore: hello world baseline"]);
 
@@ -169,17 +170,17 @@ export const runHelloWorldWorkerLoopSmoke = async (): Promise<HelloWorldWorkerLo
       ...planModule.default,
       plan: runtime.Plan.define({
         ...planModule.default.plan,
-        goals: planModule.default.plan.goals.map((goal, index) =>
+        stories: planModule.default.plan.stories.map((story, index) =>
           index === 0
             ? {
-              ...goal,
+              ...story,
               scope: {
                 allowedPaths: ["examples/hello-world/"],
                 maxChangedFiles: 1,
                 maxChangedLines: 5,
               },
             }
-            : goal),
+            : story),
       }),
     };
 

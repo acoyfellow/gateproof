@@ -7,7 +7,7 @@ import {
 	type ProofSpec,
 } from "../src/index.js";
 import { Gate, Plan, Act, Assert, createHttpObserveResource } from "../src/index.js";
-import type { PlanGoal } from "../src/index.js";
+import type { PlanStory } from "../src/index.js";
 
 describe("proof-spec interop", () => {
 	test("computeRisk reads DslOp shape correctly", () => {
@@ -29,7 +29,7 @@ describe("proof-spec interop", () => {
 	});
 
 	test("goalToProofSpec converts a gateproof goal into a proof-spec", () => {
-		const goal: PlanGoal = {
+		const goal: PlanStory = {
 			id: "hello_world",
 			title: "GET / returns hello world",
 			gate: Gate.define({
@@ -73,7 +73,7 @@ describe("proof-spec interop", () => {
 
 	test("planToProofSpecs preserves loop on the first goal only", () => {
 		const plan = Plan.define({
-			goals: [
+			stories: [
 				{
 					id: "goal_one",
 					title: "First goal",
@@ -98,7 +98,7 @@ describe("proof-spec interop", () => {
 	});
 
 	test("round-trip: goal → proof-spec → goal preserves core shape", () => {
-		const original: PlanGoal = {
+		const original: PlanStory = {
 			id: "round_trip",
 			title: "Round-trip test",
 			gate: Gate.define({

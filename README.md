@@ -37,7 +37,7 @@ import {
 
 const scope = {
   plan: Plan.define({
-    goals: [
+    stories: [
       {
         id: "hello-world",
         title: "GET / returns hello world",
@@ -79,7 +79,7 @@ bun run plan.ts                                # run the root plan
 
 ```ts
 Gate.define({ observe, act, assert })
-Plan.define({ goals, loop })
+Plan.define({ stories, loop })
 Plan.run(plan)
 Plan.runLoop(plan)
 createHttpObserveResource({ url })
@@ -110,7 +110,7 @@ import {
 // Gateproof goal → publishable proof-spec (consumed by unsurf's Directory, an MCP client, etc.)
 const spec = goalToProofSpec(myGoal, { url: "https://example.com/" });
 
-// Proof-spec scouted by unsurf → runnable as a gateproof PlanGoal
+// Proof-spec scouted by unsurf → runnable as a gateproof PlanStory
 const goal = proofSpecToGoal(someSpec);
 
 // Risk is computed, not claimed. Pure function of the DSL.

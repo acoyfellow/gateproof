@@ -27,7 +27,7 @@ import {
 } from "gateproof";
 
 const plan = Plan.define({
-  goals: [{
+  stories: [{
     id: "hello-world",
     title: "GET / returns hello world",
     scope: {
@@ -79,7 +79,7 @@ export const proofDemoSteps: ReadonlyArray<ProofDemoStep> = [
     implementation: "worker proposes examples/hello-world/response.txt",
     contract: "plan.ts still the authority",
     lines: [
-      { text: "firstFailedGoal: hello-world" },
+      { text: "firstFailedStory: hello-world" },
       { text: "scope.allowedPaths: [examples/hello-world/]" },
       { text: "worker.write examples/hello-world/response.txt" },
       { text: "iteration 1 committed", tone: "muted" },

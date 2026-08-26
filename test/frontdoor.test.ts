@@ -47,7 +47,7 @@ describe("front-door artifacts", () => {
       const result = await Effect.runPromise(Plan.run(helloWorldScope.plan));
 
       expect(result.status).toBe("pass");
-      expect(result.goals[0]?.status).toBe("pass");
+      expect(result.stories[0]?.status).toBe("pass");
     } finally {
       server.stop(true);
     }

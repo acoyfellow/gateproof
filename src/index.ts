@@ -165,11 +165,12 @@ export interface PlanScope {
   maxChangedLines?: number;
 }
 
-export interface PlanGoal {
+export interface PlanStory {
   id: string;
   title: string;
   gate: GateDefinition;
   scope?: PlanScope;
+  dependsOn?: ReadonlyArray<string>;
 }
 
 export interface PlanLoop {
@@ -182,7 +183,7 @@ export interface PlanCleanup {
 }
 
 export interface PlanDefinition {
-  goals: ReadonlyArray<PlanGoal>;
+  stories: ReadonlyArray<PlanStory>;
   loop?: PlanLoop;
   cleanup?: PlanCleanup;
 }
@@ -240,7 +241,7 @@ export interface PlanRunResult {
   status: GateStatus;
   proofStrength: ProofStrength;
   iterations: number;
-  goals: ReadonlyArray<GateRunResult>;
+  stories: ReadonlyArray<GateRunResult>;
   summary: string;
   cleanupErrors: ReadonlyArray<string>;
 }
@@ -271,8 +272,8 @@ export interface WorkerContext {
   iteration: number;
   plan: PlanDefinition;
   result: PlanRunResult;
-  failedGoals: ReadonlyArray<GateRunResult>;
-  firstFailedGoal: GateRunResult | null;
+  failedStories: ReadonlyArray<GateRunResult>;
+  firstFailedStory: GateRunResult | null;
   cwd: string;
   planPath?: string;
   activeScope?: PlanScope;
@@ -292,6 +293,10 @@ export interface WorkerResult {
   summary: string;
   commitMessage?: string;
   stop?: boolean;
+  outcome?: "confirmed" | "uncertain" | "not-confirmed";
+  runId?: string;
+  status?: string;
+  taskContractStatus?: string;
   identity?: Partial<RunIdentityEnvelope>;
   debug?: {
     attempts?: number;
@@ -310,7 +315,7 @@ export interface MemoryEntry {
   timestamp: string;
   identity: RunIdentityEnvelope;
   recall?: MemoryRecall | null;
-  firstFailedGoal: {
+  firstFailedStory: {
     id: string;
     title: string;
     summary: string;
@@ -336,8 +341,8 @@ export interface MemoryRecallContext {
   planPath?: string;
   plan: PlanDefinition;
   result: PlanRunResult;
-  failedGoals: ReadonlyArray<GateRunResult>;
-  firstFailedGoal: GateRunResult | null;
+  failedStories: ReadonlyArray<GateRunResult>;
+  firstFailedStory: GateRunResult | null;
   identity: RunIdentityEnvelope;
 }
 
@@ -345,14 +350,14 @@ export interface MemoryWorkingStateEntry {
   timestamp: string;
   identity: RunIdentityEnvelope;
   result: PlanRunResult;
-  firstFailedGoal: GateRunResult | null;
+  firstFailedStory: GateRunResult | null;
 }
 
 export interface MemoryResolutionEntry {
   timestamp: string;
   identity: RunIdentityEnvelope;
   result: PlanRunResult;
-  firstFailedGoal: GateRunResult | null;
+  firstFailedStory: GateRunResult | null;
 }
 
 export interface MemoryRuntime {
@@ -383,7 +388,7 @@ export interface LoopIterationStatus {
   identity: RunIdentityEnvelope;
   recall?: MemoryRecall | null;
   result: PlanRunResult;
-  firstFailedGoal: GateRunResult | null;
+  firstFailedStory: GateRunResult | null;
   workerCalled: boolean;
   workerSummary?: string;
   committed: boolean;
@@ -400,7 +405,7 @@ export interface PlanRunLoopOptions {
   commit?: LoopCommitOptions;
   onIteration?: (status: LoopIterationStatus) => void;
   memory?: MemoryRuntime;
-  rerunFailedGoalPrefix?: boolean;
+  rerunFailedStoryPrefix?: boolean;
 }
 
 export interface OpenCodeWorkerOptions {
@@ -492,7 +497,7 @@ interface IterationReport {
   timestamp: string;
   identity: RunIdentityEnvelope;
   recall?: MemoryRecall | null;
-  firstFailedGoal: {
+  firstFailedStory: {
     id: string;
     title: string;
     summary: string;
@@ -505,6 +510,10 @@ interface IterationReport {
     timedOut?: boolean;
     stopped?: boolean;
     scopeViolation?: string;
+    outcome?: WorkerResult["outcome"];
+    runId?: WorkerResult["runId"];
+    status?: WorkerResult["status"];
+    taskContractStatus?: WorkerResult["taskContractStatus"];
     debug?: WorkerResult["debug"];
   };
   commit?: CommitResult;
@@ -880,12 +889,12 @@ const collectWorkingTreeChanges = (
   });
 
 const validateScope = (
-  goal: PlanGoal | undefined,
+  story: PlanStory | undefined,
   cwd: string,
 ): Effect.Effect<ScopeValidationResult, never, never> =>
   collectWorkingTreeChanges(cwd).pipe(
     Effect.map((changes) => {
-      const scope = goal?.scope;
+      const scope = story?.scope;
       const allowedPaths = (scope?.allowedPaths ?? DEFAULT_ALLOWED_PATHS).map(ensureTrailingSlash);
       const forbiddenPaths = (scope?.forbiddenPaths ?? DEFAULT_FORBIDDEN_PATHS).map(ensureTrailingSlash);
       const maxChangedFiles = scope?.maxChangedFiles;
@@ -1030,17 +1039,17 @@ const createRecallContextText = (context: MemoryRecallContext): string =>
     proofRunId: context.identity.proofRunId,
     proofIterationId: context.identity.proofIterationId,
     resultSummary: context.result.summary,
-    firstFailedGoal: context.firstFailedGoal
+    firstFailedStory: context.firstFailedStory
       ? {
-        id: context.firstFailedGoal.id,
-        title: context.firstFailedGoal.title,
-        summary: context.firstFailedGoal.summary,
+        id: context.firstFailedStory.id,
+        title: context.firstFailedStory.title,
+        summary: context.firstFailedStory.summary,
       }
       : null,
-    failedGoals: context.failedGoals.map((goal) => ({
-      id: goal.id,
-      title: goal.title,
-      summary: goal.summary,
+    failedStories: context.failedStories.map((story) => ({
+      id: story.id,
+      title: story.title,
+      summary: story.summary,
     })),
   }, null, 2);
 
@@ -1067,15 +1076,15 @@ const summarizeDejaState = (
 const createWorkingStatePayload = (
   entry: MemoryWorkingStateEntry,
 ) => ({
-  goal: entry.firstFailedGoal
-    ? `Fix ${entry.firstFailedGoal.title}`
+  goal: entry.firstFailedStory
+    ? `Fix ${entry.firstFailedStory.title}`
     : "Keep the proof green",
   decisions: [{
     text: entry.result.summary,
     status: entry.result.status === "pass" ? "complete" : "active",
   }],
-  next_actions: entry.firstFailedGoal
-    ? [`Address gate ${entry.firstFailedGoal.id}`]
+  next_actions: entry.firstFailedStory
+    ? [`Address gate ${entry.firstFailedStory.id}`]
     : ["Finalize the proof run"],
   confidence:
     entry.result.proofStrength === "strong"
@@ -1088,12 +1097,12 @@ const createWorkingStatePayload = (
 });
 
 const createLearningPayload = (entry: MemoryEntry) => {
-  const trigger = entry.firstFailedGoal
-    ? `proof iteration for gate ${entry.firstFailedGoal.id}`
+  const trigger = entry.firstFailedStory
+    ? `proof iteration for gate ${entry.firstFailedStory.id}`
     : "proof run completed";
   const parts = [
-    entry.firstFailedGoal
-      ? `First failed gate ${entry.firstFailedGoal.id}: ${entry.firstFailedGoal.summary}.`
+    entry.firstFailedStory
+      ? `First failed gate ${entry.firstFailedStory.id}: ${entry.firstFailedStory.summary}.`
       : "All current gates passed.",
     `Proof summary: ${entry.result.summary}.`,
     entry.worker?.summary ? `Worker summary: ${entry.worker.summary}.` : "",
@@ -1171,17 +1180,17 @@ const createFilepathWorkerTask = (
         : null,
       snapshot,
       activeScope: context.activeScope,
-      firstFailedGoal: context.firstFailedGoal
+      firstFailedStory: context.firstFailedStory
         ? {
-          id: context.firstFailedGoal.id,
-          title: context.firstFailedGoal.title,
-          summary: context.firstFailedGoal.summary,
+          id: context.firstFailedStory.id,
+          title: context.firstFailedStory.title,
+          summary: context.firstFailedStory.summary,
         }
         : null,
-      failedGoals: context.failedGoals.map((goal) => ({
-        id: goal.id,
-        title: goal.title,
-        summary: goal.summary,
+      failedStories: context.failedStories.map((story) => ({
+        id: story.id,
+        title: story.title,
+        summary: story.summary,
       })),
     }, null, 2),
   ].join("\n");
@@ -1726,9 +1735,9 @@ const extractNumericValue = (
 };
 
 const summarizePlan = (
-  goals: ReadonlyArray<GateRunResult>,
+  stories: ReadonlyArray<GateRunResult>,
 ): Pick<PlanRunResult, "status" | "proofStrength" | "summary"> => {
-  const statuses = goals.map((goal) => goal.status);
+  const statuses = stories.map((story) => story.status);
   let status: GateStatus = "pass";
 
   if (statuses.length === 0) {
@@ -1744,11 +1753,11 @@ const summarizePlan = (
   }
 
   const proofStrength: ProofStrength =
-    goals.some((goal) => goal.proofStrength === "strong")
+    stories.some((story) => story.proofStrength === "strong")
       ? "strong"
-      : goals.some((goal) => goal.proofStrength === "moderate")
+      : stories.some((story) => story.proofStrength === "moderate")
         ? "moderate"
-        : goals.some((goal) => goal.proofStrength === "weak")
+        : stories.some((story) => story.proofStrength === "weak")
           ? "weak"
           : "none";
 
@@ -1760,11 +1769,11 @@ const summarizePlan = (
 };
 
 const evaluateGate = (
-  goal: PlanGoal,
+  story: PlanStory,
   cloudflareTails: Map<string, CloudflareTailState>,
 ): Effect.Effect<GateRunResult, never, never> =>
   Effect.gen(function* () {
-    const gate = goal.gate;
+    const gate = story.gate;
     const prerequisites = gate.prerequisites ?? [];
 
     const missingRequirements = prerequisites
@@ -1773,8 +1782,8 @@ const evaluateGate = (
 
     if (missingRequirements.length > 0) {
       return {
-        id: goal.id,
-        title: goal.title,
+        id: story.id,
+        title: story.title,
         status: "fail" as const,
         proofStrength: "none" as const,
         summary: missingRequirements.join("; "),
@@ -1858,8 +1867,8 @@ const evaluateGate = (
     const assertions = gate.assert ?? [];
     if (assertions.length === 0) {
       return {
-        id: goal.id,
-        title: goal.title,
+        id: story.id,
+        title: story.title,
         status: "inconclusive",
         proofStrength: deriveProofStrength(gate, evidence, "inconclusive"),
         summary: "no assertions defined",
@@ -1957,8 +1966,8 @@ const evaluateGate = (
       insufficient ? "inconclusive" : issues.length > 0 ? "fail" : "pass";
 
     return {
-      id: goal.id,
-      title: goal.title,
+      id: story.id,
+      title: story.title,
       status,
       proofStrength: deriveProofStrength(gate, evidence, status),
       summary: issues.length > 0 ? issues.join("; ") : "gate passed",
@@ -1966,27 +1975,48 @@ const evaluateGate = (
     };
   });
 
-const selectGoalsThrough = (
+const selectStoriesThrough = (
   plan: PlanDefinition,
-  targetGoalId: string | undefined,
-): ReadonlyArray<PlanGoal> => {
-  if (!targetGoalId) {
-    return plan.goals;
+  targetStoryId: string | undefined,
+): ReadonlyArray<PlanStory> => {
+  if (!targetStoryId) {
+    return plan.stories;
   }
 
-  const index = plan.goals.findIndex((goal) => goal.id === targetGoalId);
-  return index === -1 ? plan.goals : plan.goals.slice(0, index + 1);
+  const index = plan.stories.findIndex((story) => story.id === targetStoryId);
+  return index === -1 ? plan.stories : plan.stories.slice(0, index + 1);
 };
 
 const runPlanOnce = (
   plan: PlanDefinition,
-  targetGoalId?: string,
+  targetStoryId?: string,
 ): Effect.Effect<PlanRunResult, never, never> =>
   Effect.gen(function* () {
     const cloudflareTails = new Map<string, CloudflareTailState>();
-    const goals: GateRunResult[] = [];
-    for (const goal of selectGoalsThrough(plan, targetGoalId)) {
-      goals.push(yield* evaluateGate(goal, cloudflareTails));
+    const selected = selectStoriesThrough(plan, targetStoryId);
+    const results = new Map<string, GateRunResult>();
+    const stories: GateRunResult[] = [];
+    for (const story of selected) {
+      const failedUpstream = (story.dependsOn ?? []).find((depId) => {
+        const dep = results.get(depId);
+        return dep && dep.status !== "pass";
+      });
+      if (failedUpstream) {
+        const result: GateRunResult = {
+          id: story.id,
+          title: story.title,
+          status: "fail",
+          proofStrength: "none",
+          summary: `upstream story '${failedUpstream}' failed`,
+          evidence: { actions: [], errors: [`upstream story '${failedUpstream}' failed`] },
+        };
+        stories.push(result);
+        results.set(story.id, result);
+        continue;
+      }
+      const evaluated = yield* evaluateGate(story, cloudflareTails);
+      stories.push(evaluated);
+      results.set(story.id, evaluated);
     }
 
     for (const tail of cloudflareTails.values()) {
@@ -1995,11 +2025,11 @@ const runPlanOnce = (
       );
     }
 
-    const summary = summarizePlan(goals);
+    const summary = summarizePlan(stories);
     return {
       ...summary,
       iterations: 1,
-      goals,
+      stories,
       cleanupErrors: [],
     };
   });
@@ -2091,14 +2121,14 @@ const invokeWorker = (
 };
 
 const createDefaultCommitMessage = (
-  firstFailedGoal: GateRunResult | null,
+  firstFailedStory: GateRunResult | null,
   iteration: number,
 ): string => {
-  if (!firstFailedGoal) {
+  if (!firstFailedStory) {
     return `wip(loop): iteration ${iteration}`;
   }
 
-  return `wip(loop): ${firstFailedGoal.id} iteration ${iteration}`;
+  return `wip(loop): ${firstFailedStory.id} iteration ${iteration}`;
 };
 
 const createIterationReport = (
@@ -2106,7 +2136,7 @@ const createIterationReport = (
   identity: RunIdentityEnvelope,
   recall: MemoryRecall | null | undefined,
   result: PlanRunResult,
-  firstFailedGoal: GateRunResult | null,
+  firstFailedStory: GateRunResult | null,
   workerEntry: IterationReport["worker"] | undefined,
   commit: CommitResult | undefined,
   snapshot: ProofSnapshot,
@@ -2115,12 +2145,12 @@ const createIterationReport = (
   timestamp: new Date().toISOString(),
   identity,
   recall,
-  firstFailedGoal:
-    firstFailedGoal
+  firstFailedStory:
+    firstFailedStory
       ? {
-        id: firstFailedGoal.id,
-        title: firstFailedGoal.title,
-        summary: firstFailedGoal.summary,
+        id: firstFailedStory.id,
+        title: firstFailedStory.title,
+        summary: firstFailedStory.summary,
       }
       : null,
   result,
@@ -2202,13 +2232,15 @@ const runPlanLoop = (
     const workerTimeoutMs = options.workerTimeoutMs ?? 10 * 60 * 1000;
     const proofRunId = crypto.randomUUID();
     let lastIdentity = createIterationIdentity(proofRunId, 1);
-    let rerunTargetGoalId: string | undefined;
+    let rerunTargetStoryId: string | undefined;
+    let lastWorkerEntry: IterationReport["worker"] | undefined;
+    let lastCommit: CommitResult | undefined;
     let iteration = 0;
     let latest: PlanRunResult = {
       status: "inconclusive",
       proofStrength: "none",
       iterations: 0,
-      goals: [],
+      stories: [],
       summary: "loop has not run",
       cleanupErrors: [],
     };
@@ -2217,20 +2249,20 @@ const runPlanLoop = (
       iteration += 1;
       let identity = createIterationIdentity(proofRunId, iteration);
       lastIdentity = identity;
-      const result = yield* runPlanOnce(plan, rerunTargetGoalId);
+      const result = yield* runPlanOnce(plan, rerunTargetStoryId);
       latest = {
         ...result,
         iterations: iteration,
       };
-      const firstFailedGoal = latest.goals.find((goal) => goal.status !== "pass") ?? null;
+      const firstFailedStory = latest.stories.find((story) => story.status !== "pass") ?? null;
       const recall = yield* invokeMemoryRecall(options.memory, {
         iteration,
         cwd,
         planPath: options.planPath,
         plan,
         result: latest,
-        failedGoals: latest.goals.filter((goal) => goal.status !== "pass"),
-        firstFailedGoal,
+        failedStories: latest.stories.filter((story) => story.status !== "pass"),
+        firstFailedStory,
         identity,
       });
       const finalizeWithoutWorker = (
@@ -2241,15 +2273,15 @@ const runPlanLoop = (
       ): Effect.Effect<PlanRunResult, never, never> =>
         Effect.gen(function* () {
           const finalizedResult = yield* withCleanup(plan, resultToFinalize);
-          const finalizedFirstFailedGoal =
-            finalizedResult.goals.find((goal) => goal.status !== "pass") ?? null;
+          const finalizedFirstFailedStory =
+            finalizedResult.stories.find((story) => story.status !== "pass") ?? null;
           const snapshot = yield* captureProofSnapshot(cwd, options.planPath);
           const report = createIterationReport(
             iteration,
             identity,
             recall,
             finalizedResult,
-            finalizedFirstFailedGoal,
+            finalizedFirstFailedStory,
             workerEntry,
             commit,
             snapshot,
@@ -2261,7 +2293,7 @@ const runPlanLoop = (
               timestamp: report.timestamp,
               identity,
               recall,
-              firstFailedGoal: report.firstFailedGoal,
+              firstFailedStory: report.firstFailedStory,
               result: finalizedResult,
               worker: workerEntry,
               commit,
@@ -2271,13 +2303,13 @@ const runPlanLoop = (
             timestamp: report.timestamp,
             identity,
             result: finalizedResult,
-            firstFailedGoal: finalizedFirstFailedGoal,
+            firstFailedStory: finalizedFirstFailedStory,
           });
           return finalizedResult;
         });
 
       if (latest.status === "pass" || latest.status === "skip") {
-        return yield* finalizeWithoutWorker(latest);
+        return yield* finalizeWithoutWorker(latest, lastWorkerEntry, lastCommit);
       }
 
       if (!options.worker && plan.loop?.stopOnFailure && latest.status === "fail") {
@@ -2288,22 +2320,22 @@ const runPlanLoop = (
         return yield* finalizeWithoutWorker(latest);
       }
 
-      const failedGoals = latest.goals.filter((goal) => goal.status !== "pass");
-      if (options.rerunFailedGoalPrefix && !rerunTargetGoalId && firstFailedGoal?.id) {
-        rerunTargetGoalId = firstFailedGoal.id;
+      const failedStories = latest.stories.filter((story) => story.status !== "pass");
+      if (options.rerunFailedStoryPrefix && !rerunTargetStoryId && firstFailedStory?.id) {
+        rerunTargetStoryId = firstFailedStory.id;
       }
-      const targetGoal = firstFailedGoal
-        ? plan.goals.find((goal) => goal.id === firstFailedGoal.id)
+      const targetStory = firstFailedStory
+        ? plan.stories.find((story) => story.id === firstFailedStory.id)
         : undefined;
       const workerContext: WorkerContext = {
         iteration,
         plan,
         result: latest,
-        failedGoals,
-        firstFailedGoal,
+        failedStories,
+        firstFailedStory,
         cwd,
         planPath: options.planPath,
-        activeScope: targetGoal?.scope,
+        activeScope: targetStory?.scope,
         latestReportPath: resolveLatestReportPath(cwd),
         identity,
         recall,
@@ -2315,7 +2347,7 @@ const runPlanLoop = (
       );
       identity = mergeRunIdentity(identity, workerInvocation.result.identity);
       lastIdentity = identity;
-      const scopeValidation = yield* validateScope(targetGoal, cwd);
+      const scopeValidation = yield* validateScope(targetStory, cwd);
       const scopeViolation = scopeValidation.ok ? undefined : scopeValidation.violation;
       const workerEntry: IterationReport["worker"] = {
         called: true,
@@ -2324,18 +2356,24 @@ const runPlanLoop = (
         timedOut: workerInvocation.timedOut || undefined,
         stopped: workerInvocation.result.stop || undefined,
         scopeViolation,
+        outcome: workerInvocation.result.outcome,
+        runId: workerInvocation.result.runId,
+        status: workerInvocation.result.status,
+        taskContractStatus: workerInvocation.result.taskContractStatus,
         debug: workerInvocation.result.debug,
       };
       const commitMessage =
         workerInvocation.result.commitMessage ??
-        createDefaultCommitMessage(firstFailedGoal, iteration);
+        createDefaultCommitMessage(firstFailedStory, iteration);
       const commit = yield* createCommit(cwd, commitMessage, options.commit);
+      lastWorkerEntry = workerEntry;
+      lastCommit = commit;
       const report = createIterationReport(
         iteration,
         identity,
         recall,
         latest,
-        firstFailedGoal,
+        firstFailedStory,
         workerEntry,
         commit,
         yield* captureProofSnapshot(cwd, options.planPath),
@@ -2346,7 +2384,7 @@ const runPlanLoop = (
         timestamp: report.timestamp,
         identity,
         recall,
-        firstFailedGoal: report.firstFailedGoal,
+        firstFailedStory: report.firstFailedStory,
         result: latest,
         worker: workerEntry,
         commit,
@@ -2355,7 +2393,7 @@ const runPlanLoop = (
         timestamp: report.timestamp,
         identity,
         result: latest,
-        firstFailedGoal,
+        firstFailedStory,
       });
 
       const iterationStatus: LoopIterationStatus = {
@@ -2363,7 +2401,7 @@ const runPlanLoop = (
         identity,
         recall,
         result: latest,
-        firstFailedGoal,
+        firstFailedStory,
         workerCalled: true,
         workerSummary: workerInvocation.result.summary,
         committed: commit.created,
@@ -2386,7 +2424,7 @@ const runPlanLoop = (
     }
 
     const finalizedResult = yield* withCleanup(plan, latest);
-    const finalFailedGoal = finalizedResult.goals.find((goal) => goal.status !== "pass") ?? null;
+    const finalFailedStory = finalizedResult.stories.find((story) => story.status !== "pass") ?? null;
     const identity = lastIdentity;
     const snapshot = yield* captureProofSnapshot(cwd, options.planPath);
     const report = createIterationReport(
@@ -2394,9 +2432,9 @@ const runPlanLoop = (
       identity,
       null,
       finalizedResult,
-      finalFailedGoal,
-      undefined,
-      undefined,
+      finalFailedStory,
+      lastWorkerEntry,
+      lastCommit,
       snapshot,
     );
     yield* writeIterationReport(cwd, iteration, report);
@@ -2405,14 +2443,14 @@ const runPlanLoop = (
       timestamp: report.timestamp,
       identity,
       recall: null,
-      firstFailedGoal: report.firstFailedGoal,
+      firstFailedStory: report.firstFailedStory,
       result: finalizedResult,
     });
     yield* resolveMemoryWorkingState(options.memory, {
       timestamp: report.timestamp,
       identity,
       result: finalizedResult,
-      firstFailedGoal: finalFailedGoal,
+      firstFailedStory: finalFailedStory,
     });
     return finalizedResult;
   });
@@ -2984,17 +3022,17 @@ export const createOpenCodeWorker = (
           }
           : null,
         activeScope: context.activeScope,
-        firstFailedGoal: context.firstFailedGoal
+        firstFailedStory: context.firstFailedStory
           ? {
-            id: context.firstFailedGoal.id,
-            title: context.firstFailedGoal.title,
-            summary: context.firstFailedGoal.summary,
+            id: context.firstFailedStory.id,
+            title: context.firstFailedStory.title,
+            summary: context.firstFailedStory.summary,
           }
           : null,
-        failedGoals: context.failedGoals.map((goal) => ({
-          id: goal.id,
-          title: goal.title,
-          summary: goal.summary,
+        failedStories: context.failedStories.map((story) => ({
+          id: story.id,
+          title: story.title,
+          summary: story.summary,
         })),
       }, null, 2);
 
@@ -3058,8 +3096,49 @@ export const Gate = {
   },
 };
 
+const validatePlanDependencies = (plan: PlanDefinition): void => {
+  const ids = new Set<string>();
+  for (const story of plan.stories) {
+    if (ids.has(story.id)) {
+      throw new Error(`Plan.define: duplicate story id '${story.id}'`);
+    }
+    ids.add(story.id);
+  }
+
+  for (const story of plan.stories) {
+    for (const depId of story.dependsOn ?? []) {
+      if (!ids.has(depId)) {
+        throw new Error(
+          `Plan.define: story '${story.id}' depends on unknown story '${depId}'`,
+        );
+      }
+      if (depId === story.id) {
+        throw new Error(
+          `Plan.define: story '${story.id}' depends on itself`,
+        );
+      }
+    }
+  }
+
+  const position = new Map<string, number>();
+  plan.stories.forEach((story, index) => position.set(story.id, index));
+  for (const story of plan.stories) {
+    const selfPos = position.get(story.id)!;
+    for (const depId of story.dependsOn ?? []) {
+      const depPos = position.get(depId)!;
+      if (depPos >= selfPos) {
+        throw new Error(
+          `Plan.define: story '${story.id}' depends on '${depId}' which is not defined earlier. ` +
+            `Order stories so dependencies appear first.`,
+        );
+      }
+    }
+  }
+};
+
 export const Plan = {
   define(definition: PlanDefinition): PlanDefinition {
+    validatePlanDependencies(definition);
     return definition;
   },
   run(plan: PlanDefinition): Effect.Effect<PlanRunResult, never, never> {

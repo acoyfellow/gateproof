@@ -38,7 +38,7 @@ const sections = [
 	{
 		title: 'PlanDefinition',
 		code: `type PlanDefinition = {
-  goals: readonly PlanGoal[];
+  stories: readonly PlanStory[];
   loop?: {
     maxIterations?: number;
     stopOnFailure?: boolean;
@@ -46,11 +46,13 @@ const sections = [
 };`
 	},
 	{
-		title: 'PlanGoal',
-		code: `type PlanGoal = {
+		title: 'PlanStory',
+		code: `type PlanStory = {
   id: string;
   title: string;
   gate: GateDefinition;
+  scope?: PlanScope;
+  dependsOn?: readonly string[];
 };`
 	},
 	{

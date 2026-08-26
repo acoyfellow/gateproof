@@ -313,16 +313,16 @@ import type {
 	GateDefinition,
 	ObserveResourceDefinition,
 	PlanDefinition,
-	PlanGoal,
+	PlanStory,
 } from "./index.js";
 
 /**
- * Convert one gateproof PlanGoal into a ProofSpec.
- * Useful when you have a plan.ts and want to emit/publish its goals as
+ * Convert one gateproof PlanStory into a ProofSpec.
+ * Useful when you have a plan.ts and want to emit/publish its stories as
  * proof-spec.v0.json for an external consumer (e.g. unsurf's Directory).
  */
-export function goalToProofSpec(goal: PlanGoal, target: Target): ProofSpec {
-	const gate = goal.gate;
+export function goalToProofSpec(story: PlanStory, target: Target): ProofSpec {
+	const gate = story.gate;
 	const observe: Observation[] = [];
 	if (gate.observe) observe.push(...observeResourceToObservations(gate.observe));
 	const act: DslOp[] = (gate.act ?? []).map(actionDefinitionToDslOp);
@@ -333,8 +333,8 @@ export function goalToProofSpec(goal: PlanGoal, target: Target): ProofSpec {
 	return {
 		version: "v0",
 		target,
-		name: goal.id,
-		description: goal.title,
+		name: story.id,
+		description: story.title,
 		inputSchema: { type: "object", properties: {}, required: [] },
 		observe,
 		act,
@@ -349,10 +349,10 @@ export function goalToProofSpec(goal: PlanGoal, target: Target): ProofSpec {
  */
 export function planToProofSpecs(
 	plan: PlanDefinition,
-	targetFor: (goalId: string) => Target,
+	targetFor: (storyId: string) => Target,
 ): ProofSpec[] {
-	return plan.goals.map((g, i) => {
-		const spec = goalToProofSpec(g, targetFor(g.id));
+	return plan.stories.map((story, i) => {
+		const spec = goalToProofSpec(story, targetFor(story.id));
 		// Only the first goal carries the plan's loop; downstream goals run once each.
 		if (i === 0 && plan.loop) {
 			const loop: Loop = { maxIterations: plan.loop.maxIterations ?? 1 };
@@ -421,12 +421,12 @@ function assertionDefinitionToAssertion(
 }
 
 /**
- * Reverse conversion: a ProofSpec → a gateproof PlanGoal.
+ * Reverse conversion: a ProofSpec → a gateproof PlanStory.
  * Use this when you've scouted a tool via unsurf and want to author/test it
  * inside a gateproof plan.ts. Best-effort; not every proof-spec assertion
  * has a gateproof equivalent.
  */
-export function proofSpecToGoal(spec: ProofSpec): PlanGoal {
+export function proofSpecToGoal(spec: ProofSpec): PlanStory {
 	const gate: GateDefinition = {};
 	// For the observe side, pick the first http resource if any
 	const firstHttp = spec.observe?.find((o) => o.kind === "http");
