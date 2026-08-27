@@ -66,6 +66,7 @@ if (result.status !== "pass") process.exitCode = 1;
 bun run example:hello-world                    # basic proof loop
 bun run example:hello-world:worker             # with built-in worker
 bun run example:hello-world:filepath-worker    # with filepath worker
+bun run example:hello-theorem                  # Lean kernel as the judge; sorry stays red
 bun run plan.ts                                # run the root plan
 ```
 
@@ -107,11 +108,11 @@ import {
 	type ProofSpec,
 } from "gateproof";
 
-// Gateproof goal → publishable proof-spec (consumed by unsurf's Directory, an MCP client, etc.)
-const spec = goalToProofSpec(myGoal, { url: "https://example.com/" });
+// Gateproof story → publishable proof-spec (consumed by unsurf's Directory, an MCP client, etc.)
+const spec = goalToProofSpec(myStory, { url: "https://example.com/" });
 
 // Proof-spec scouted by unsurf → runnable as a gateproof PlanStory
-const goal = proofSpecToGoal(someSpec);
+const story = proofSpecToGoal(someSpec);
 
 // Risk is computed, not claimed. Pure function of the DSL.
 computeRisk(spec.act); // "low" | "medium" | "high"
@@ -123,6 +124,7 @@ Types added: `ProofSpec`, `Observation`, `DslOp`, `ProofAssertion`, `EvidenceBun
 
 - Root plan: `plan.ts`
 - Example: `examples/hello-world/plan.ts`
+- Lean smoke test: `examples/hello-theorem/plan.ts`
 - Worker entry: `src/index.ts`
 - proof-spec types + interop: `src/ProofSpec.ts`
 - [Run in a loop](https://gateproof.dev/docs/how-to/run-in-a-loop)

@@ -71,7 +71,7 @@ export const homepageContent: HomepageContent = {
     {
       title: "The agent runs the loop",
       body:
-        "Plan.runLoop hands the first failing goal to a worker. createOpenCodeWorker may retry inside allowedPaths until the gate passes or maxIterations stops it.",
+        "Plan.runLoop hands the first failing story to a worker. createOpenCodeWorker may retry inside allowedPaths until the gate passes or maxIterations stops it.",
     },
     {
       title: "The contract stays sealed",

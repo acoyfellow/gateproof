@@ -215,7 +215,7 @@ const readSourceFile = (filePath: string, label: string): { code: string; availa
   };
 };
 
-const getCanonicalGoals = (scope: ScopeFile): ReadonlyArray<string> =>
+const getCanonicalStories = (scope: ScopeFile): ReadonlyArray<string> =>
   scope.plan.stories.map((story) => story.title);
 
 export function getDefaultScope(): ScopeFile {
@@ -332,7 +332,7 @@ export function renderReadme(
   const files = loadExampleFiles();
   const fileName = options.fileName ?? "plan.ts";
   const runCommand = options.runCommand ?? `bun run ${fileName}`;
-  const canonicalGoals = getCanonicalGoals(scope);
+  const canonicalStories = getCanonicalStories(scope);
   const cinderStatus = getCinderCurrentRepoStatus(files);
 
   return `# Gateproof 0.05
@@ -370,6 +370,7 @@ Outcome: The loop only passes when the live response says hello world.
 
 - \`bun run example:hello-world:worker\` — stable built-in worker demo path
 - \`bun run example:hello-world:filepath-worker\` — real filepath-backed hello-world witness; not the default public worker path
+- \`bun run example:hello-theorem\` — Lean kernel as the judge; sorry stays red
 
 The filepath path is documented on the site, not in a standalone markdown note:
 
@@ -399,6 +400,7 @@ Smallest commands:
 bun run example:hello-world
 bun run example:hello-world:worker
 bun run example:hello-world:filepath-worker
+bun run example:hello-theorem
 ${runCommand}
 \`\`\`
 
@@ -406,10 +408,11 @@ ${runCommand}
 
 Files:
 - \`examples/hello-world/plan.ts\`
+- \`examples/hello-theorem/plan.ts\`
 - \`plan.ts\`
 
 Canonical gates:
-${canonicalGoals.map((goal) => `- ${goal}`).join("\n")}
+${canonicalStories.map((story) => `- ${story}`).join("\n")}
 
 Loop:
 - \`maxIterations: 1\`
@@ -461,7 +464,7 @@ export function getDocsManifest(): ReadonlyArray<DocsCategory> {
 export function renderDocsContent(scope?: ScopeFile): Record<string, string> {
   const resolvedScope = scope ?? getDefaultScope();
   const files = loadExampleFiles();
-  const canonicalGoals = getCanonicalGoals(resolvedScope);
+  const canonicalStories = getCanonicalStories(resolvedScope);
   const cinderStatus = getCinderCurrentRepoStatus(files);
 
   const cinderPlanUrl = `${CINDER_END_REPO_URL}/blob/main/plan.ts`;
@@ -499,6 +502,7 @@ Run it:
 
 \`\`\`bash
 bun run example:hello-world
+bun run example:hello-theorem
 \`\`\`
 
 The loop passes only when the live response matches the claim. One file, one gate, one pass.`,
@@ -522,11 +526,12 @@ The loop passes only when the live response matches the claim. One file, one gat
 \`\`\`bash
 bun run example:hello-world
 bun run example:hello-world:worker
+bun run example:hello-theorem
 \`\`\`
 
 ## Gates that matter
 
-${canonicalGoals.map((g) => `- ${g}`).join("\n")}
+${canonicalStories.map((story) => `- ${story}`).join("\n")}
 
 ## Worker paths
 
@@ -607,6 +612,7 @@ Public surface for the proof loop. This is the curated list of entrypoints and a
 - \`bun run example:hello-world\`
 - \`bun run example:hello-world:worker\`
 - \`bun run example:hello-world:filepath-worker\`
+- \`bun run example:hello-theorem\`
 - \`bun run plan.ts\`
 
 ## Core API
