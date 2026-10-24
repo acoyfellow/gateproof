@@ -34,12 +34,14 @@ function waitForExit(child: ReturnType<typeof spawnBun>): Promise<number | null>
   });
 }
 
+const planPath = process.argv[2] ?? "examples/hello-world/plan.ts";
+
 const server = spawnBun(["run", "examples/hello-world/server.ts"]);
 
 try {
   await waitForServer(EXAMPLE_URL);
 
-  const proof = spawnBun(["run", "examples/hello-world/plan.ts"]);
+  const proof = spawnBun(["run", planPath]);
   const exitCode = await waitForExit(proof);
 
   if (exitCode !== 0) {

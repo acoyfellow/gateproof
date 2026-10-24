@@ -26,7 +26,7 @@
     "typecheck": "tsc --noEmit",
     "test": "bun test",
     "prove": "bun scripts/run-proof-loop.ts",
-    "prove:once": "bun plan.ts",
+    "prove:once": "bun scripts/run-hello-world-example.ts plan.ts",
     "prove:gate": "bun scripts/run-proof-gate.ts",
     "prove:status": "bun scripts/run-proof-status.ts",
     "prove:finalize": "bun scripts/finalize-proof-loop.ts",

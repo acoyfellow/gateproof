@@ -5,7 +5,7 @@ This document provides instructions for AI agents working with gateproof-based p
 ## Quick Start
 
 1. **Read `plan.ts` first** - This is your source of truth. It contains the handoff context and the executable plan.
-2. **Run the plan to understand current state** - Use `bun run plan.ts` to see what's failing.
+2. **Run the plan to understand current state** - Use `bun run prove:once` to see what's failing.
 3. **Fix one failing story at a time** - Focus on the first failing gate.
 4. **Verify your fix** - Re-run the plan to confirm the gate passes.
 5. **Lean smoke test** - `bun run example:hello-theorem` must stay green. `cheat-sorry.lean` and `cheat-axiom.lean` must stay red.
@@ -59,7 +59,7 @@ Gates are the acceptance criteria. A story is complete when its gate passes.
 
 ```bash
 # Run the plan
-bun run plan.ts
+bun run prove:once
 ```
 
 ## Understanding Gate Output

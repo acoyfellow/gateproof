@@ -67,7 +67,7 @@ bun run example:hello-world                    # basic proof loop
 bun run example:hello-world:worker             # with built-in worker
 bun run example:hello-world:filepath-worker    # with filepath worker
 bun run example:hello-theorem                  # Lean kernel as the judge; sorry and axiom stay red
-bun run plan.ts                                # run the root plan
+bun run prove:once                                # run the root plan (starts the local server)
 ```
 
 ## Worker paths
