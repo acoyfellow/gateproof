@@ -84,7 +84,7 @@
 							{#each category.entries as entry}
 								<li>
 									<a
-										href="/docs/{entry.slug}"
+										href={entry.slug === 'index' ? '/docs' : `/docs/${entry.slug}`}
 										class="block px-2 py-1.5 text-[0.8125rem] no-underline transition-colors {isActive(entry.slug)
 											? 'rounded-sm bg-accent/10 text-sidebar-primary'
 											: 'text-sidebar-foreground hover:bg-sidebar-accent hover:text-sidebar-foreground'}"

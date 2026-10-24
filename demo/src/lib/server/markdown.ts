@@ -49,10 +49,6 @@ export async function renderMarkdown(source: string): Promise<RenderResult> {
 		return `<pre><code class="language-${language}">${escapeHtml(text)}</code></pre>`;
 	};
 
-	renderer.link = ({ href, text }: { href: string; text: string }) => {
-		return `<a href="${href}">${text}</a>`;
-	};
-
 	const html = await marked.parse(source, { renderer });
 	return { html, toc };
 }

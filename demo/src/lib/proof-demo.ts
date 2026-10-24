@@ -15,7 +15,7 @@ export interface ProofDemoStep {
 }
 
 export const PROOF_DEMO_NOTE =
-  "Illustrative terminal. The sequence matches Plan.runLoop, createOpenCodeWorker, and the default forbidden path plan.ts. It is not a live run.";
+  "Illustrative terminal. The sequence matches Plan.runLoop, createOpenCodeWorker, and the default forbidden path plan.ts. It is not a live run. Step 3 shows what happens if a worker edits plan.ts. The real script picks its own ports.";
 
 export const proofDemoPlan = `import { Effect } from "effect";
 import {
@@ -24,6 +24,7 @@ import {
   Gate,
   Plan,
   createHttpObserveResource,
+  createOpenCodeWorker,
 } from "gateproof";
 
 const plan = Plan.define({
@@ -36,8 +37,8 @@ const plan = Plan.define({
       maxChangedLines: 5,
     },
     gate: Gate.define({
-      observe: createHttpObserveResource({ url: "http://127.0.0.1:33000/" }),
-      act: [Act.exec("curl -sf http://127.0.0.1:33000/")],
+      observe: createHttpObserveResource({ url: "http://127.0.0.1:3210/" }),
+      act: [Act.exec("curl -sf http://127.0.0.1:3210/")],
       assert: [
         Assert.httpResponse({ status: 200 }),
         Assert.responseBodyIncludes("hello world"),
@@ -49,8 +50,7 @@ const plan = Plan.define({
 });
 
 await Effect.runPromise(Plan.runLoop(plan, {
-  worker: createOpenCodeWorker({ endpoint }),
-  cwd,
+  worker: createOpenCodeWorker({ endpoint: process.env.MODEL_ENDPOINT }),
   planPath: "examples/hello-world/plan.ts",
 }));`;
 
@@ -82,7 +82,6 @@ export const proofDemoSteps: ReadonlyArray<ProofDemoStep> = [
       { text: "firstFailedStory: hello-world" },
       { text: "scope.allowedPaths: [examples/hello-world/]" },
       { text: "worker.write examples/hello-world/response.txt" },
-      { text: "iteration 1 committed", tone: "muted" },
     ],
   },
   {
@@ -126,7 +125,7 @@ export const proofDemoSteps: ReadonlyArray<ProofDemoStep> = [
         tone: "pass",
       },
       { text: "status: pass", tone: "pass" },
-      { text: "commits: 2  (baseline + allowed fix)", tone: "muted" },
+      { text: "commit: allowed fix", tone: "muted" },
     ],
   },
 ];

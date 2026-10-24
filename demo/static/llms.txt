@@ -1,7 +1,25 @@
 # gateproof
 
-Gateproof is a tiny Effect-first runtime.
+> Gateproof is a proof loop for coding agents. A plan.ts file lists stories. Each story has a gate: observe, act, assert. The agent may change code inside the story's scope. The agent may not change plan.ts.
 
-The root `plan.ts` is the handoff file.
-The root `README.md` is generated from that source.
-This demo app is only a presentation layer over the same truth.
+Source: https://github.com/acoyfellow/gateproof
+Version: 0.6.0 on main. npm still has 0.5.0, which has no stories, dependsOn, or proof-spec helpers.
+
+## Docs
+
+- [Your First Gate](https://gateproof.dev/docs/tutorials/first-gate): one story against a local HTTP server
+- [Run in a Loop](https://gateproof.dev/docs/how-to/run-in-a-loop): Plan.runLoop, scope, dependsOn, workers
+- [Gate a Lean Proof](https://gateproof.dev/docs/how-to/gate-a-lean-proof): the Lean kernel judges; sorry and axiom cheats stay red
+- [Use the filepath Worker Alpha](https://gateproof.dev/docs/how-to/use-the-filepath-worker-alpha): one bounded worker turn on filepath
+- [Add Deja Memory](https://gateproof.dev/docs/how-to/add-deja-memory): recall learnings between iterations
+- [API Reference](https://gateproof.dev/docs/reference/api): every public export
+- [proof-spec.v0](https://gateproof.dev/docs/explanations/proof-spec): schema shared with unsurf
+- [Case Studies](https://gateproof.dev/docs/explanations/case-studies): what Gateproof has proven on real systems
+
+## Commands
+
+- bun run example:hello-world
+- bun run example:hello-world:worker
+- bun run example:hello-world:filepath-worker
+- bun run example:hello-theorem
+- bun run prove:once

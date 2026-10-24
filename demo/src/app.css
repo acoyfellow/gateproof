@@ -102,25 +102,59 @@ h1, h2, h3 {
   letter-spacing: -0.01em;
 }
 
-/* Keyframes for InfoDrawer Tailwind arbitrary animations */
-@keyframes fade-in {
-  0% { opacity: 0; }
-  100% { opacity: 1; }
+@keyframes gp-rise {
+  from { opacity: 0; transform: translateY(14px); filter: blur(6px); }
+  to { opacity: 1; transform: translateY(0); filter: blur(0); }
 }
 
-@keyframes fade-out {
-  0% { opacity: 1; }
-  100% { opacity: 0; }
+@keyframes gp-ember {
+  0% { transform: translate3d(0, 0, 0); opacity: 0; }
+  15% { opacity: 0.9; }
+  100% { transform: translate3d(var(--gp-drift, 12px), -70vh, 0); opacity: 0; }
 }
 
-@keyframes slide-up {
-  0% { transform: translateY(100%); opacity: 0; }
-  100% { transform: translateY(0); opacity: 1; }
+@keyframes gp-glow {
+  0%, 100% { opacity: 0.35; transform: scale(1); }
+  50% { opacity: 0.7; transform: scale(1.08); }
 }
 
-@keyframes slide-down {
-  0% { transform: translateY(0); opacity: 1; }
-  100% { transform: translateY(100%); opacity: 0; }
+@keyframes gp-caret {
+  50% { opacity: 0; }
+}
+
+@keyframes gp-line-in {
+  from { opacity: 0; transform: translateX(-6px); }
+  to { opacity: 1; transform: translateX(0); }
+}
+
+.gp-rise { animation: gp-rise 0.8s cubic-bezier(0.2, 0.7, 0.2, 1) both; animation-delay: calc(var(--gp-i, 0) * 90ms); }
+.gp-glow { animation: gp-glow 12s ease-in-out infinite; }
+.gp-ember {
+  position: absolute;
+  bottom: -10px;
+  width: 3px;
+  height: 3px;
+  border-radius: 9999px;
+  background: var(--accent);
+  box-shadow: 0 0 8px var(--accent);
+  animation: gp-ember calc(9s + var(--gp-i, 0) * 1.3s) linear infinite;
+  animation-delay: calc(var(--gp-i, 0) * -1.7s);
+}
+.gp-lift:hover { transform: translateY(-2px); }
+.gp-caret::after { content: "\2588"; margin-left: 2px; animation: gp-caret 1s steps(2) 1.2s 3; }
+.gp-line-in { animation: gp-line-in 0.35s ease-out both; animation-delay: calc(var(--gp-i, 0) * 140ms); }
+.gp-reveal { opacity: 0; transform: translateY(18px); transition: opacity 0.7s ease, transform 0.7s cubic-bezier(0.2, 0.7, 0.2, 1); }
+.gp-reveal.gp-visible { opacity: 1; transform: none; }
+
+@media (prefers-reduced-motion: reduce) {
+  .gp-lift:hover { transform: none; }
+  *, *::before, *::after { animation: none !important; transition: none !important; }
+  .gp-ember { display: none; }
+}
+
+@media print {
+  .gp-reveal { opacity: 1 !important; transform: none !important; }
+  .gp-ember, .gp-glow { display: none; }
 }
 
 /* Docs prose - markdown/Shiki rendered content */

@@ -8,7 +8,6 @@ export interface DocCategory {
 	entries: DocEntry[];
 }
 
-/** Static manifest so client never imports render-scope (node:fs). Keep in sync with getDocsManifest() in scripts/render-scope.ts */
 const manifest: DocCategory[] = [
 	{ label: "Overview", entries: [{ slug: "index", title: "Documentation" }] },
 	{ label: "Tutorials", entries: [{ slug: "tutorials/first-gate", title: "Your First Gate" }] },
@@ -16,16 +15,18 @@ const manifest: DocCategory[] = [
 		label: "How-To Guides",
 		entries: [
 			{ slug: "how-to/run-in-a-loop", title: "Run in a Loop" },
-			{
-				slug: "how-to/use-the-filepath-worker-alpha",
-				title: "Use the filepath Worker Alpha"
-			}
+			{ slug: "how-to/gate-a-lean-proof", title: "Gate a Lean Proof" },
+			{ slug: "how-to/use-the-filepath-worker-alpha", title: "Use the filepath Worker Alpha" },
+			{ slug: "how-to/add-deja-memory", title: "Add Deja Memory" }
 		]
 	},
 	{ label: "Reference", entries: [{ slug: "reference/api", title: "API Reference" }] },
 	{
 		label: "Explanations",
-		entries: [{ slug: "explanations/case-studies", title: "Case Studies" }]
+		entries: [
+			{ slug: "explanations/proof-spec", title: "proof-spec.v0" },
+			{ slug: "explanations/case-studies", title: "Case Studies" }
+		]
 	}
 ];
 

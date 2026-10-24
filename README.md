@@ -2,7 +2,9 @@
 
 > A local proof loop. Put the claim in `plan.ts`, run it, keep the system honest.
 
-[Tutorial](https://gateproof.dev/docs/tutorials/first-gate) · [Docs](https://gateproof.dev)
+[Tutorial](https://gateproof.dev/docs/tutorials/first-gate) · [Docs](https://gateproof.dev/docs) · [API](https://gateproof.dev/docs/reference/api)
+
+> **Version:** `main` is 0.6.0. npm still has 0.5.0, which has no stories, `dependsOn`, or proof-spec helpers. Clone the repository to use 0.6.0.
 
 ## What Gateproof does
 
