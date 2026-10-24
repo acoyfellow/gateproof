@@ -8,7 +8,7 @@ This document provides instructions for AI agents working with gateproof-based p
 2. **Run the plan to understand current state** - Use `bun run plan.ts` to see what's failing.
 3. **Fix one failing story at a time** - Focus on the first failing gate.
 4. **Verify your fix** - Re-run the plan to confirm the gate passes.
-5. **Lean smoke test** - `bun run example:hello-theorem` must stay green. `sorry` in `cheat-sorry.lean` must stay red.
+5. **Lean smoke test** - `bun run example:hello-theorem` must stay green. `cheat-sorry.lean` and `cheat-axiom.lean` must stay red.
 
 ## Core Principles
 
@@ -60,9 +60,6 @@ Gates are the acceptance criteria. A story is complete when its gate passes.
 ```bash
 # Run the plan
 bun run plan.ts
-
-# Re-generate the local README from the same source
-bun run readme:generate
 ```
 
 ## Understanding Gate Output

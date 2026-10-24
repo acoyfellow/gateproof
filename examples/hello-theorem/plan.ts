@@ -63,6 +63,25 @@ const scope = {
           assert: [Assert.noErrors()],
         }),
       },
+      {
+        id: "axiom-is-red",
+        title: "cheat-axiom.lean must fail the check",
+        dependsOn: ["honest-kernel"],
+        scope: {
+          allowedPaths: ["examples/hello-theorem/"],
+          forbiddenPaths: ["src/"],
+          maxChangedFiles: 0,
+        },
+        gate: Gate.define({
+          act: [
+            Act.exec(
+              `sh -c 'sh ${here}/check.sh ${here}/cheat-axiom.lean; test $? -ne 0'`,
+              { cwd: here, timeoutMs: 30000 },
+            ),
+          ],
+          assert: [Assert.noErrors()],
+        }),
+      },
     ],
     loop: {
       maxIterations: 1,

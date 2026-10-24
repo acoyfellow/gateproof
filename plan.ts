@@ -30,7 +30,7 @@ const scope = {
     stories: [
       {
         id: "hello-world",
-        title: "GET / returns hello world",
+        title: "GET / returns hello world — evidence: http_200_hello — scope: examples/hello-world/",
         scope: {
           allowedPaths: ["examples/hello-world/"],
           forbiddenPaths: ["plan.ts", "README.md", "demo/src/routes/case-studies/"],

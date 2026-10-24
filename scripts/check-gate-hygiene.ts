@@ -42,31 +42,31 @@ if (import.meta.main) {
     process.exit(1);
   }
 
-  for (const goal of scope.plan.stories) {
-    if (!goal.title.trim()) {
-      issues.push(`${goal.id}: missing title`);
+  for (const story of scope.plan.stories) {
+    if (!story.title.trim()) {
+      issues.push(`${story.id}: missing title`);
     } else {
-      const grammar = checkTitleGrammar(goal.title);
+      const grammar = checkTitleGrammar(story.title);
       if (!grammar.ok) {
-        console.error(`hygiene warn: goal '${goal.id}' title ${grammar.reason}`);
+        console.error(`hygiene warn: story '${story.id}' title ${grammar.reason}`);
       }
     }
 
-    if ((goal.gate.act?.length ?? 0) === 0) {
-      issues.push(`${goal.id}: missing act steps`);
+    if ((story.gate.act?.length ?? 0) === 0) {
+      issues.push(`${story.id}: missing act steps`);
     }
 
-    if ((goal.gate.assert?.length ?? 0) === 0) {
-      issues.push(`${goal.id}: missing assertions`);
+    if ((story.gate.assert?.length ?? 0) === 0) {
+      issues.push(`${story.id}: missing assertions`);
     }
 
-    if (!goal.gate.observe) {
-      issues.push(`${goal.id}: missing grounded witness (observe)`);
+    if (!story.gate.observe) {
+      issues.push(`${story.id}: missing grounded witness (observe)`);
     }
 
-    const scopeDef = goal.scope;
+    const scopeDef = story.scope;
     if (!scopeDef) {
-      issues.push(`${goal.id}: missing scope`);
+      issues.push(`${story.id}: missing scope`);
       continue;
     }
 
@@ -76,11 +76,11 @@ if (import.meta.main) {
       typeof scopeDef.maxChangedFiles === "number" || typeof scopeDef.maxChangedLines === "number";
 
     if (!hasPathScope) {
-      issues.push(`${goal.id}: scope has no allowed/forbidden paths`);
+      issues.push(`${story.id}: scope has no allowed/forbidden paths`);
     }
 
     if (!hasChangeBudget) {
-      issues.push(`${goal.id}: scope has no change budget`);
+      issues.push(`${story.id}: scope has no change budget`);
     }
   }
 
